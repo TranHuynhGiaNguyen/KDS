@@ -20,11 +20,19 @@
   </nav>
 
   <div class="top-actions">
-    <a class="workspace-switch-btn" href="index.php?page=kitchen" title="Chuyển sang màn hình bếp">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
-      <span>Màn hình bếp (KDS)</span>
-    </a>
-    <a class="text-link <?=active('login',$page)?>" href="index.php?page=login">Đăng nhập</a>
+    <?php if (isLoggedIn()): ?>
+      <a class="workspace-switch-btn" href="index.php?page=<?= getDefaultPageForRole(currentRole()) ?>" title="Quay lại khu vực vận hành">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <span><?= htmlspecialchars(currentUser()['fullname'] ?: currentUser()['username']) ?> (<?= getRoleName(currentRole()) ?>)</span>
+      </a>
+      <a class="text-link" href="index.php?action=logout" style="color: #ef4444;" title="Đăng xuất">Đăng xuất</a>
+    <?php else: ?>
+      <a class="workspace-switch-btn" href="index.php?page=kitchen" title="Chuyển sang màn hình bếp">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
+        <span>Màn hình bếp (KDS)</span>
+      </a>
+      <a class="text-link <?=active('login',$page)?>" href="index.php?page=login">Đăng nhập</a>
+    <?php endif; ?>
     <a class="btn btn-cart <?=active('cart',$page)?>" href="index.php?page=cart">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
       <span>Giỏ hàng</span>

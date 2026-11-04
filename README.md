@@ -1,23 +1,80 @@
-# SmartDine UI (PHP)
+# SmartDine & KDS — Quản lý Nhà hàng & Màn hình hiển thị Bếp
 
-## Chạy thử
-1. Giải nén thư mục `SmartDine_UI` vào `C:\xampp\htdocs\`.
-2. Mở XAMPP và bật Apache.
-3. Truy cập `http://localhost/SmartDine_UI/`.
+Hệ thống quản lý vận hành nhà hàng chuyên nghiệp kết hợp màn hình hiển thị đơn bếp KDS (Kitchen Display System), hỗ trợ phân quyền theo vai trò (Role-Based Access Control) và quản lý tài khoản nhân viên toàn diện.
 
-## Các màn hình
-- `index.php?page=menu` — Homepage / QR Menu
-- `index.php?page=cart` — Giỏ hàng / xác nhận đơn
-- `index.php?page=tracking` — Theo dõi đơn hàng
-- `index.php?page=reservation` — Đặt bàn trực tuyến
-- `index.php?page=payment` — Thanh toán mẫu
-- `index.php?page=staff` — Dashboard Staff / sơ đồ bàn
-- `index.php?page=table-order` — Chi tiết đơn hàng của bàn
-- `index.php?page=kitchen` — Màn hình bếp KDS
-- `index.php?page=admin` — Dashboard quản lý
-- `index.php?page=login` — Đăng nhập
-- `index.php?page=register` — Đăng ký
+## Hướng dẫn cài đặt & Chạy thử
+1. Đặt thư mục dự án vào thư mục web root của XAMPP: `C:\xampp\htdocs\KDS\`.
+2. Mở **XAMPP Control Panel**, khởi động cả **Apache** và **MySQL**.
+3. Truy cập vào trình duyệt: `http://localhost/KDS/`.
+4. Hệ thống sẽ **tự động tạo database `smartdine_kds`** và nạp sẵn các tài khoản mẫu ban đầu vào bảng `users`.
 
-## Lưu ý
-Đây là bộ giao diện frontend mẫu chạy bằng PHP includes, HTML, CSS và JavaScript. Các món ăn/đơn hàng đang dùng dữ liệu demo; giỏ hàng lưu trong localStorage. Chưa kết nối MySQL, xác thực tài khoản thật, đặt bàn thực tế hoặc cổng thanh toán. Các ảnh món ăn dùng ảnh mẫu từ Unsplash và cần internet để tải.
-Khi phát triển tiếp: tạo `config/database.php` dùng PDO, thiết kế schema MySQL, sau đó thay dữ liệu tĩnh bằng truy vấn database và thêm kiểm tra phân quyền ở backend.
+---
+
+## Danh sách tài khoản mẫu theo vai trò
+
+Trang đăng nhập hỗ trợ các nút **Chọn nhanh vai trò (Role Preset)** để điền tài khoản tự động chỉ với 1 cú click:
+
+| Vai trò | Tên đăng nhập | Mật khẩu | Quyền hạn truy cập |
+| :--- | :--- | :--- | :--- |
+| **Quản trị viên (Admin)** | `admin` | `admin123` | **Toàn quyền**: Quản lý nhân viên, Báo cáo & Tổng quan, Sơ đồ bàn, Bếp KDS, Đơn hàng |
+| **Nhân viên Phục vụ (Staff)** | `staff` | `staff123` | Sơ đồ bàn ăn, Chi tiết đơn theo bàn, Xem thực đơn gọi món |
+| **Đầu bếp (Kitchen)** | `kitchen` | `kitchen123` | Màn hình hiển thị bếp KDS, Xem thực đơn |
+| **Tài khoản Demo (Test)** | `1` | `1` | Tương thích ngược với bản cũ (vai trò Phục vụ) |
+
+---
+
+## Tính năng đã hoàn thiện
+
+### 1. Xác thực & Phân quyền theo vai trò (Authentication & RBAC)
+- **Đăng nhập an toàn**: Lưu phiên làm việc bằng PHP Session, mật khẩu được mã hóa an toàn bằng thuật toán `password_hash` (Bcrypt).
+- **Điều hướng thông minh sau đăng nhập**:
+  - `admin` tự động chuyển đến Dashboard Quản trị (`index.php?page=admin`).
+  - `staff` tự động chuyển đến Sơ đồ bàn ăn (`index.php?page=staff`).
+  - `kitchen` tự động chuyển đến Màn hình Bếp KDS (`index.php?page=kitchen`).
+- **Kiểm soát truy cập backend (Backend Guard)**: Chặn truy cập trái phép khi vai trò không đủ quyền hạn (ví dụ `staff` hoặc `kitchen` không thể gõ URL để vào trang `admin` hoặc `users`).
+- **Sidebar điều hướng động theo vai trò**: Ẩn/hiện các menu theo vai trò của người đăng nhập, hiển thị thông tin Avatar màu sắc theo vai trò, Họ tên và chức danh.
+- **Đăng xuất an toàn**: Nút đăng xuất tích hợp trên Sidebar, hủy toàn bộ phiên làm việc và cookie session, chuyển hướng về trang đăng nhập kèm thông báo.
+
+### 2. Quản lý tài khoản nhân viên (`index.php?page=users`)
+Dành riêng cho Quản trị viên (Admin):
+- **Thống kê nhân sự**: Tổng số nhân viên, số lượng Admin, Staff, Kitchen và số tài khoản đang kích hoạt.
+- **Tìm kiếm & Bộ lọc linh hoạt**: Tìm kiếm nhanh theo họ tên, username, SĐT, email; lọc theo vai trò và trạng thái hoạt động.
+- **Thêm nhân viên mới**: Form tạo tài khoản kèm mã NV tự sinh, lựa chọn vai trò (Admin, Staff, Kitchen), mật khẩu khởi tạo, số điện thoại, email.
+- **Chỉnh sửa thông tin nhân viên**: Cập nhật thông tin cá nhân, vai trò, số điện thoại, email, trạng thái.
+- **Đặt lại mật khẩu (Reset Password)**: Đổi mật khẩu tài khoản bất kỳ nhanh chóng.
+- **Khóa / Mở khóa tài khoản (Toggle Status)**: Khóa tài khoản nhân viên tạm thời (tài khoản bị khóa sẽ không thể đăng nhập vào hệ thống).
+- **Xóa tài khoản**: Xóa nhân viên với hộp thoại xác nhận.
+- **Cơ chế bảo vệ tài khoản**:
+  - Không cho phép tự xóa hoặc tự khóa tài khoản của chính mình đang đăng nhập.
+  - Không cho phép tự hạ quyền Admin của chính mình.
+  - Bảo vệ không thể xóa tài khoản Admin duy nhất trong hệ thống.
+
+---
+
+## Cấu trúc thư mục dự án
+```text
+C:\xampp\htdocs\KDS\
+├── assets/
+│   ├── css/
+│   │   └── style.css            # Toàn bộ CSS phong cách SmartDine & RBAC
+│   └── js/
+│       └── app.js              # Xử lý giỏ hàng, lọc bàn, đồng hồ bếp KDS
+├── config/
+│   └── database.php            # Cấu hình kết nối MySQL PDO, tự tạo DB & seeding
+├── includes/
+│   ├── auth.php                # Quản lý xác thực, kiểm tra quyền hạn RBAC
+│   ├── sidebar.php             # Menu điều hướng động theo vai trò
+│   └── customer-nav.php        # Thanh điều hướng phía khách hàng
+├── pages/
+│   ├── admin.php               # Báo cáo doanh thu & quản trị tổng quan
+│   ├── users.php               # Quản lý tài khoản nhân viên (CRUD & RBAC)
+│   ├── staff.php               # Sơ đồ bàn ăn thời gian thực
+│   ├── table-order.php         # Chi tiết đơn hàng của bàn
+│   ├── kitchen.php             # Màn hình hiển thị bếp KDS
+│   ├── login.php               # Giao diện đăng nhập hệ thống
+│   ├── menu.php                # Thực đơn gọi món
+│   ├── cart.php                # Giỏ hàng
+│   ├── payment.php             # Thanh toán
+│   └── tracking.php            # Theo dõi trạng thái món
+└── index.php                   # Bộ định tuyến trung tâm (Router & Guard)
+```
