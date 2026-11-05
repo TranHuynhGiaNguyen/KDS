@@ -6,7 +6,8 @@ Hệ thống quản lý vận hành nhà hàng chuyên nghiệp kết hợp màn
 1. Đặt thư mục dự án vào thư mục web root của XAMPP: `C:\xampp\htdocs\KDS\`.
 2. Mở **XAMPP Control Panel**, khởi động cả **Apache** và **MySQL**.
 3. Truy cập vào trình duyệt: `http://localhost/KDS/`.
-4. Hệ thống sẽ **tự động tạo database `smartdine_kds`** và nạp sẵn các tài khoản mẫu ban đầu vào bảng `users`.
+4. Hệ thống sẽ **tự động tạo database `smartdine_kds`** và nạp sẵn toàn bộ dữ liệu mẫu (tài khoản, danh mục, món ăn, giá bán).
+   * Ngoài ra, bạn cũng có thể import trực tiếp tệp [`smartdine_kds.sql`](smartdine_kds.sql) thông qua **phpMyAdmin** (`http://localhost/phpmyadmin/`).
 
 ---
 
@@ -68,6 +69,7 @@ C:\xampp\htdocs\KDS\
 ├── pages/
 │   ├── admin.php               # Báo cáo doanh thu & quản trị tổng quan
 │   ├── users.php               # Quản lý tài khoản nhân viên (CRUD & RBAC)
+│   ├── dishes.php              # Quản lý thực đơn, món ăn, danh mục, giá & hình ảnh
 │   ├── staff.php               # Sơ đồ bàn ăn thời gian thực
 │   ├── table-order.php         # Chi tiết đơn hàng của bàn
 │   ├── kitchen.php             # Màn hình hiển thị bếp KDS
@@ -76,5 +78,6 @@ C:\xampp\htdocs\KDS\
 │   ├── cart.php                # Giỏ hàng
 │   ├── payment.php             # Thanh toán
 │   └── tracking.php            # Theo dõi trạng thái món
+├── smartdine_kds.sql           # Tệp xuất database MySQL đầy đủ cấu trúc & dữ liệu mẫu
 └── index.php                   # Bộ định tuyến trung tâm (Router & Guard)
 ```
