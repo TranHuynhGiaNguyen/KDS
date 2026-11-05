@@ -140,44 +140,37 @@
     </div>
   </section>
 
+  <?php 
+  $adminDishesPreview = getAllDishes('', '', '', '');
+  ?>
   <section class="panel" id="menu-management">
     <div class="panel-title">
       <div>
         <h2>Quản lý thực đơn & Giá bán</h2>
         <p class="muted">Điều chỉnh nhanh trạng thái bán hoặc giá món</p>
       </div>
-      <button class="btn btn-small" data-toast="Mở hộp thoại tạo món mới demo">+ Thêm món mới</button>
+      <div style="display: flex; gap: 8px;">
+        <a class="btn btn-small btn-primary" href="index.php?page=dishes&action=add">+ Thêm món mới</a>
+        <a class="btn btn-small btn-outline" href="index.php?page=dishes">Xem tất cả (<?= count($adminDishesPreview) ?>) →</a>
+      </div>
     </div>
 
     <div class="menu-manage-list">
-      <div class="line-item">
-        <div class="manage-dish-info">
-          <b>Cơm gà Hải Nam</b>
-          <small>75.000đ · Phân loại: Món chính · Bếp nóng</small>
-        </div>
-        <span class="status status-ready">Đang mở bán</span>
-      </div>
-      <div class="line-item">
-        <div class="manage-dish-info">
-          <b>Mì xào bò</b>
-          <small>85.000đ · Phân loại: Món chính · Bếp nóng</small>
-        </div>
-        <span class="status status-ready">Đang mở bán</span>
-      </div>
-      <div class="line-item">
-        <div class="manage-dish-info">
-          <b>Bò lúc lắc hạt tiêu</b>
-          <small>120.000đ · Phân loại: Món chính · Bếp nóng</small>
-        </div>
-        <span class="status status-pending">Tạm hết tại bếp</span>
-      </div>
-      <div class="line-item">
-        <div class="manage-dish-info">
-          <b>Trà đào cam sả</b>
-          <small>35.000đ · Phân loại: Đồ uống · Quầy bar</small>
-        </div>
-        <span class="status status-ready">Đang mở bán</span>
-      </div>
+      <?php if (empty($adminDishesPreview)): ?>
+        <p class="muted" style="padding: 12px;">Chưa có món ăn nào trong thực đơn.</p>
+      <?php else: ?>
+        <?php foreach (array_slice($adminDishesPreview, 0, 5) as $d): ?>
+          <div class="line-item">
+            <div class="manage-dish-info">
+              <b><?= htmlspecialchars($d['name']) ?></b>
+              <small><?= formatPrice($d['price']) ?> · Phân loại: <?= htmlspecialchars($d['category_name']) ?> · <?= getStationName($d['station']) ?></small>
+            </div>
+            <span class="status status-<?= $d['status'] === 'active' ? 'ready' : ($d['status'] === 'out_of_stock' ? 'pending' : 'muted') ?>">
+              <?= $d['status'] === 'active' ? 'Đang mở bán' : ($d['status'] === 'out_of_stock' ? 'Tạm hết tại bếp' : 'Đang ẩn') ?>
+            </span>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div>
   </section>
 

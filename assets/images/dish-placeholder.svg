@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <rect width="120" height="120" fill="#f1f5f9" rx="16"/>
+  <circle cx="60" cy="60" r="36" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+  <path d="M46 54c0-3 3-5 6-5s6 2 6 5v16h-12V54z" fill="#94a3b8"/>
+  <path d="M68 50v20m-4-15c0 0 2-4 5-4s5 4 5 4v15h-10V50z" fill="#94a3b8"/>
+  <circle cx="60" cy="80" r="4" fill="#cbd5e1"/>
+  <text x="60" y="105" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9" font-weight="600" fill="#94a3b8">SMARTDINE</text>
+</svg>
