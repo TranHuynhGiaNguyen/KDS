@@ -1,0 +1,89 @@
+.status-unsent {
+    color: #4b5563;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+}
+
+.status-done {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+}
+
+.status-cancelled {
+    color: #991b1b;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.order-food-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.order-food-cancelled .food-info-text,
+.order-food-cancelled .food-amount {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.bill-ticket-dialog {
+    width: min(320px, 92vw);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-md);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+}
+
+.bill-ticket-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.bill-ticket {
+    padding: 22px 22px 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    line-height: 1.7;
+    border-bottom: 2px dashed var(--line);
+}
+
+.bill-ticket p {
+    margin: 0;
+}
+
+.bill-ticket-actions {
+    display: flex;
+    gap: 10px;
+    padding: 14px 22px 18px;
+}
+
+.bill-ticket-actions .btn {
+    flex: 1;
+}
+
+@media print {
+    @page {
+        margin: 8mm;
+    }
+
+    body>*:not(.bill-ticket-dialog) {
+        display: none !important;
+    }
+
+    .bill-ticket-dialog {
+        position: static;
+        width: auto;
+        margin: 0;
+        box-shadow: none;
+    }
+
+    .bill-ticket {
+        padding: 0;
+        border: 0;
+    }
+
+    .bill-ticket-actions {
+        display: none;
+    }
+}

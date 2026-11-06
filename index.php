@@ -59,7 +59,7 @@ $pageTitles = [
     'payment'     => 'Thanh toán đơn hàng — SmartDine',
 ];
 $currentTitle = $pageTitles[$page] ?? 'SmartDine Restaurant System';
-$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'users'], true);
+$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment'], true);
 ?>
 <!doctype html>
 <html lang="vi">
@@ -68,6 +68,14 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($currentTitle) ?></title>
   <link rel="stylesheet" href="assets/css/style.css">
+  <?php if ($page === 'payment'): ?>
+    <link rel="stylesheet" href="assets/css/payment.css">
+    <script defer src="assets/js/payment.js"></script>
+  <?php endif; ?>
+  <?php if ($page === 'table-order'): ?>
+    <link rel="stylesheet" href="assets/css/orders.css">
+    <script defer src="assets/js/order-items.js"></script>
+  <?php endif; ?>
   <script defer src="assets/js/app.js"></script>
 </head>
 <body class="<?= $page === 'login' ? 'login-page-body' : ($isDashboard ? 'dashboard-body' : 'customer-body') ?>">
@@ -100,6 +108,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
     <?php if ($page === 'kitchen') include __DIR__ . '/pages/kitchen.php'; ?>
     <?php if ($page === 'admin') include __DIR__ . '/pages/admin.php'; ?>
     <?php if ($page === 'users') include __DIR__ . '/pages/users.php'; ?>
+    <?php if ($page === 'payment') include __DIR__ . '/pages/payment.php'; ?>
   </main>
 
 <?php else: ?>
@@ -109,7 +118,6 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
     <?php if ($page === 'cart') include __DIR__ . '/pages/cart.php'; ?>
     <?php if ($page === 'tracking') include __DIR__ . '/pages/tracking.php'; ?>
     <?php if ($page === 'reservation') include __DIR__ . '/pages/reservation.php'; ?>
-    <?php if ($page === 'payment') include __DIR__ . '/pages/payment.php'; ?>
   </main>
 <?php endif; ?>
 

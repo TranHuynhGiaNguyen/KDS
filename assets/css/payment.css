@@ -1,0 +1,57 @@
+.summary-discount b {
+    color: var(--green);
+}
+
+.discount-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 110px) auto;
+    gap: 10px;
+    margin: 10px 0 24px;
+}
+
+.discount-row select,
+.discount-row input,
+.cash-input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    background: var(--surface);
+}
+
+.discount-row input[type='number'],
+.cash-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.discount-row input::-webkit-outer-spin-button,
+.discount-row input::-webkit-inner-spin-button,
+.cash-input::-webkit-outer-spin-button,
+.cash-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.cash-input {
+    width: 100%;
+    margin-top: 10px;
+}
+
+.payment-success .btn {
+    margin-top: 18px;
+}
+
+.qr-code-art {
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.qr-code-art svg {
+    width: 72px;
+    height: 72px;
+}
+
+.discount-row .btn {
+    white-space: nowrap;
+}

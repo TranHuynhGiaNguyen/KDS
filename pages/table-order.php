@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../includes/orders.php';
+
 $currentTable = htmlspecialchars($_GET['table'] ?? 'B03');
 
 // Dữ liệu mô phỏng cho từng bàn ăn
@@ -9,15 +11,6 @@ $tableData = [
     'time' => '18:22 (43 phút trước)',
     'zone' => 'Tầng 1 (Trong nhà)',
     'staff' => 'Nguyễn Văn A (Nhân viên 1)',
-    'items' => [
-      ['Cơm gà Hải Nam', '1 × 75.000đ', '75.000đ', 'Đã phục vụ ra bàn', 'ready'],
-      ['Mì xào bò', '1 × 85.000đ', '85.000đ', 'Bếp đang chế biến', 'cooking'],
-      ['Salad trộn đặc biệt', '1 × 55.000đ', '55.000đ', 'Bếp đang chế biến', 'cooking'],
-      ['Trà đào cam sả', '2 × 35.000đ', '70.000đ', 'Đã phục vụ ra bàn', 'ready']
-    ],
-    'subtotal' => 285000,
-    'fee' => 14250,
-    'total' => 299250,
     'note' => 'Khách ăn ít cay, 2 ly trà đào đem lên cùng lúc với cơm gà.'
   ],
   'B05' => [
@@ -26,15 +19,6 @@ $tableData = [
     'time' => '18:45 (20 phút trước)',
     'zone' => 'Sân vườn (Ngoài trời)',
     'staff' => 'Nguyễn Văn A (Nhân viên 1)',
-    'items' => [
-      ['Lẩu nấm gà tiềm', '1 × 320.000đ', '320.000đ', 'Bếp đang chế biến', 'cooking'],
-      ['Khoai tây chiên giòn', '1 × 45.000đ', '45.000đ', 'Đã phục vụ ra bàn', 'ready'],
-      ['Nước ngọt các loại', '3 × 25.000đ', '75.000đ', 'Đã phục vụ ra bàn', 'ready'],
-      ['Khăn lạnh', '3 × 5.000đ', '15.000đ', 'Đã phục vụ ra bàn', 'ready']
-    ],
-    'subtotal' => 455000,
-    'fee' => 30000,
-    'total' => 485000,
     'note' => 'Bàn gần tiểu cảnh sân vườn, khách yêu cầu quạt phụ.'
   ],
   'B10' => [
@@ -43,14 +27,6 @@ $tableData = [
     'time' => '17:50 (75 phút trước)',
     'zone' => 'Phòng VIP Hoàng Gia',
     'staff' => 'Nguyễn Văn A (Nhân viên 1)',
-    'items' => [
-      ['Combo Bò Wagyu thượng hạng', '1 × 890.000đ', '890.000đ', 'Đã phục vụ ra bàn', 'ready'],
-      ['Vang đỏ Cabernet Sauvignon', '1 × 350.000đ', '350.000đ', 'Đã phục vụ ra bàn', 'ready'],
-      ['Bánh tiramisu tráng miệng', '6 × 35.000đ', '210.000đ', 'Bếp đang chế biến', 'cooking']
-    ],
-    'subtotal' => 1450000,
-    'fee' => -200000,
-    'total' => 1250000,
     'note' => 'Khách VIP thành viên Diamond, áp dụng voucher giảm 200.000đ.'
   ],
   'B11' => [
@@ -59,13 +35,6 @@ $tableData = [
     'time' => '19:10 (12 phút trước)',
     'zone' => 'Tầng 1 (Trong nhà)',
     'staff' => 'Nguyễn Văn A (Nhân viên 1)',
-    'items' => [
-      ['Bún chả Hà Nội đặc biệt', '2 × 75.000đ', '150.000đ', 'Bếp đang chế biến', 'cooking'],
-      ['Trà tắc hạt chia', '2 × 20.000đ', '40.000đ', 'Đã phục vụ ra bàn', 'ready']
-    ],
-    'subtotal' => 190000,
-    'fee' => -5000,
-    'total' => 185000,
     'note' => 'Khách gọi thanh toán nhanh khi đồ ăn ra.'
   ]
 ];
@@ -76,12 +45,20 @@ $cur = $tableData[$currentTable] ?? [
   'time' => 'Chưa mở bàn',
   'zone' => 'Khu vực chính',
   'staff' => 'Chưa phân công',
-  'items' => [],
-  'subtotal' => 0,
-  'fee' => 0,
-  'total' => 0,
   'note' => 'Bàn đang trống sẵn sàng đón khách mới.'
 ];
+
+$dbError    = '';
+$orderItems = [];
+
+try {
+  $orderItems = fetchTableItems(getOrdersDb(), $currentTable);
+} catch (RuntimeException | PDOException $e) {
+  error_log('table-order page: ' . $e->getMessage());
+  $dbError = 'Không tải được danh sách món, vui lòng thử lại.';
+}
+
+$bill = calculateBill($orderItems);
 ?>
 <div class="dash-header">
   <div>
@@ -132,32 +109,42 @@ $cur = $tableData[$currentTable] ?? [
       <a class="btn btn-small btn-outline" href="index.php?page=menu">+ Thêm món vào bàn</a>
     </div>
 
-    <?php if ($cur['has_guests'] && !empty($cur['items'])): ?>
+    <?php if ($dbError !== ''): ?>
+      <div class="flash-alert flash-error"><span><?= escapeHtml($dbError) ?></span></div>
+    <?php endif; ?>
+
+    <?php if ($cur['has_guests'] && !empty($orderItems)): ?>
       <div class="order-food-list">
-        <?php foreach ($cur['items'] as $food): ?>
-          <div class="order-food">
+        <?php foreach ($orderItems as $item): ?>
+          <?php $statusInfo = ORDER_ITEM_STATUSES[$item['status']]; ?>
+          <div class="order-food order-food-<?= escapeHtml($item['status']) ?>" data-item-id="<?= (int) $item['id'] ?>" data-item-name="<?= escapeHtml($item['name']) ?>">
             <div class="food-icon-box">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
             </div>
             <div class="food-info-text grow">
-              <b><?=$food[0]?></b>
-              <small><?=$food[1]?></small>
+              <b><?= escapeHtml($item['name']) ?></b>
+              <small><?= (int) $item['qty'] ?> × <?= formatMoney((int) $item['price']) ?></small>
             </div>
-            <span class="status status-<?=$food[4]?>"><?=$food[3]?></span>
-            <b class="food-amount"><?=$food[2]?></b>
+            <span class="status status-<?= $statusInfo['class'] ?>"><?= $statusInfo['label'] ?></span>
+            <b class="food-amount"><?= formatMoney((int) $item['price'] * (int) $item['qty']) ?></b>
+            <div class="order-food-actions">
+              <?php foreach (ORDER_ITEM_ACTIONS[$item['status']] as $action): ?>
+                <button class="btn btn-small <?= ORDER_ACTION_BUTTONS[$action]['class'] ?>" type="button" data-item-action="<?= $action ?>"><?= ORDER_ACTION_BUTTONS[$action]['label'] ?></button>
+              <?php endforeach; ?>
+            </div>
           </div>
         <?php endforeach; ?>
       </div>
 
       <div class="bill-summary-box">
-        <div class="summary-row"><span>Tạm tính (<?=count($cur['items'])?> món)</span><b><?=number_format($cur['subtotal'], 0, ',', '.')?>đ</b></div>
-        <div class="summary-row"><span>Thuế & Phí dịch vụ</span><b><?=number_format($cur['fee'], 0, ',', '.')?>đ</b></div>
-        <div class="summary-row total"><span>Tổng cộng thanh toán</span><b><?=number_format($cur['total'], 0, ',', '.')?>đ</b></div>
+        <div class="summary-row"><span>Tạm tính (<?= count($bill['lines']) ?> món)</span><b><?= formatMoney($bill['subtotal']) ?></b></div>
+        <div class="summary-row"><span>Phí phục vụ & VAT</span><b><?= formatMoney($bill['service_fee'] + $bill['vat']) ?></b></div>
+        <div class="summary-row total"><span>Tổng cộng thanh toán</span><b><?= formatMoney($bill['total']) ?></b></div>
       </div>
 
       <div class="button-row">
         <button class="btn btn-outline" data-toast="Đã gửi thông báo in tạm tính cho thu ngân">In tạm tính</button>
-        <a class="btn btn-primary" href="index.php?page=payment">
+        <a class="btn btn-primary" href="index.php?page=payment&table=<?= $currentTable ?>">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
           <span>Tiến hành thanh toán</span>
         </a>

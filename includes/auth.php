@@ -202,6 +202,16 @@ function canRoleAccessPage($role, $page) {
     return in_array($page, $permissions[$role], true);
 }
 
+const PAGE_LABELS = [
+    'staff'       => 'Sơ đồ bàn',
+    'table-order' => 'Đơn hàng / Bàn',
+    'payment'     => 'Thanh toán',
+    'kitchen'     => 'Màn hình bếp',
+    'admin'       => 'Tổng quan quản trị',
+    'users'       => 'Quản lý nhân viên',
+    'menu'        => 'Thực đơn',
+];
+
 /**
  * Kiểm tra và chuyển hướng nếu không có quyền
  */
@@ -210,7 +220,7 @@ function enforceAuthorization(&$page) {
     $role = currentRole();
 
     // Các trang thuộc khu vực quản trị/vận hành (yêu cầu đăng nhập)
-    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users'];
+    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment'];
 
     if (!$isAuthed) {
         // Chưa đăng nhập mà truy cập trang bảo vệ -> Chuyển về login
@@ -230,7 +240,7 @@ function enforceAuthorization(&$page) {
     // Kiểm tra quyền truy cập trang hiện tại
     if (!canRoleAccessPage($role, $page)) {
         // Không có quyền -> set flash error và chuyển về trang mặc định của vai trò
-        $_SESSION['flash_error'] = 'Bạn không có quyền truy cập chức năng "' . htmlspecialchars($page) . '"!';
+        $_SESSION['flash_error'] = 'Bạn không có quyền truy cập chức năng "' . htmlspecialchars(PAGE_LABELS[$page] ?? $page) . '"!';
         $page = getDefaultPageForRole($role);
     }
 }
