@@ -36,7 +36,7 @@ $page = $_GET['page'] ?? '';
 // Kiểm tra quyền hạn và điều hướng phân quyền (RBAC)
 enforceAuthorization($page);
 
-$allowed = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment'];
+$allowed = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment'];
 if (!in_array($page, $allowed, true)) {
     $page = isLoggedIn() ? getDefaultPageForRole(currentRole()) : 'login';
 }
@@ -49,6 +49,7 @@ $pageTitles = [
     'login'       => 'Đăng nhập hệ thống — SmartDine',
     'admin'       => 'Tổng quan Quản trị — SmartDine',
     'users'       => 'Quản lý tài khoản nhân viên — SmartDine',
+    'dishes'      => 'Quản lý Thực đơn & Món ăn — SmartDine',
     'staff'       => 'Sơ đồ bàn & Vận hành — SmartDine',
     'table-order' => 'Chi tiết đơn hàng bàn — SmartDine',
     'kitchen'     => 'Màn hình bếp KDS — SmartDine',
@@ -59,7 +60,7 @@ $pageTitles = [
     'payment'     => 'Thanh toán đơn hàng — SmartDine',
 ];
 $currentTitle = $pageTitles[$page] ?? 'SmartDine Restaurant System';
-$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment'], true);
+$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment', 'dishes'], true);
 ?>
 <!doctype html>
 <html lang="vi">
@@ -109,6 +110,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
     <?php if ($page === 'admin') include __DIR__ . '/pages/admin.php'; ?>
     <?php if ($page === 'users') include __DIR__ . '/pages/users.php'; ?>
     <?php if ($page === 'payment') include __DIR__ . '/pages/payment.php'; ?>
+    <?php if ($page === 'dishes') include __DIR__ . '/pages/dishes.php'; ?>
   </main>
 
 <?php else: ?>

@@ -182,7 +182,7 @@ function getDefaultPageForRole($role) {
 function canRoleAccessPage($role, $page) {
     $permissions = [
         'admin' => [
-            'admin', 'users', 'staff', 'table-order', 'kitchen',
+            'admin', 'users', 'dishes', 'staff', 'table-order', 'kitchen',
             'menu', 'cart', 'tracking', 'reservation', 'payment'
         ],
         'staff' => [
@@ -220,7 +220,7 @@ function enforceAuthorization(&$page) {
     $role = currentRole();
 
     // Các trang thuộc khu vực quản trị/vận hành (yêu cầu đăng nhập)
-    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment'];
+    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment', 'dishes'];
 
     if (!$isAuthed) {
         // Chưa đăng nhập mà truy cập trang bảo vệ -> Chuyển về login

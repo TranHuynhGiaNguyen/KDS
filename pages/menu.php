@@ -33,143 +33,68 @@
   </label>
 </section>
 
+<?php
+$menuCategories = getAllCategories(true);
+$menuDishes = getAllDishes('', 'visible', '');
+?>
 <div class="menu-layout">
   <aside class="category-list">
     <button class="category active" data-category="all">
       <span class="cat-icon">✦</span>
       <span>Tất cả món</span>
     </button>
-    <button class="category" data-category="main">
-      <span class="cat-icon">♨</span>
-      <span>Món chính</span>
-    </button>
-    <button class="category" data-category="side">
-      <span class="cat-icon">❋</span>
-      <span>Món phụ / Khai vị</span>
-    </button>
-    <button class="category" data-category="drink">
-      <span class="cat-icon">◉</span>
-      <span>Đồ uống</span>
-    </button>
-    <button class="category" data-category="dessert">
-      <span class="cat-icon">✧</span>
-      <span>Tráng miệng</span>
-    </button>
+    <?php foreach ($menuCategories as $cat): ?>
+      <button class="category" data-category="<?= htmlspecialchars($cat['slug']) ?>">
+        <span class="cat-icon"><?= htmlspecialchars($cat['icon']) ?></span>
+        <span><?= htmlspecialchars($cat['name']) ?></span>
+      </button>
+    <?php endforeach; ?>
   </aside>
 
   <div class="food-grid">
-    <article class="food-card" data-food data-type="main">
-      <div class="food-image">
-        <img src="https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=700&q=80" alt="Cơm gà Hải Nam" loading="lazy">
-        <span class="tag tag-hot">Bán chạy nhất</span>
-        <button class="add-btn" data-add="Cơm gà Hải Nam" data-price="75000" title="Thêm vào giỏ hàng">+</button>
+    <?php if (empty($menuDishes)): ?>
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--muted);">
+        <p>Hiện chưa có món ăn nào đang mở bán. Vui lòng quay lại sau!</p>
       </div>
-      <div class="food-info">
-        <div class="food-head-row">
-          <h3>Cơm gà Hải Nam</h3>
-          <span class="rating">★ 4.9</span>
-        </div>
-        <p>Gà ta mềm ngọt, cơm niêu thơm nấu cùng nước cốt luộc gà và sốt gừng đặc trưng.</p>
-        <div class="food-foot-row">
-          <b class="price">75.000đ</b>
-          <button class="btn btn-add-text" data-add="Cơm gà Hải Nam" data-price="75000">+ Chọn món</button>
-        </div>
-      </div>
-    </article>
+    <?php else: ?>
+      <?php foreach ($menuDishes as $dish): 
+        $isOutOfStock = ($dish['status'] === 'out_of_stock');
+        $imgUrl = getDishImageUrl($dish['image']);
+      ?>
+        <article class="food-card <?= $isOutOfStock ? 'dish-out-of-stock' : '' ?>" data-food data-type="<?= htmlspecialchars($dish['category_slug']) ?>">
+          <div class="food-image">
+            <img src="<?= $imgUrl ?>" alt="<?= htmlspecialchars($dish['name']) ?>" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=700&q=80'">
+            <?php if (!empty($dish['tag'])): ?>
+              <span class="tag tag-hot"><?= htmlspecialchars($dish['tag']) ?></span>
+            <?php endif; ?>
+            <?php if ($isOutOfStock): ?>
+              <span class="tag tag-out" style="background:#fee2e2; color:#b91c1c;">Tạm hết</span>
+            <?php endif; ?>
 
-    <article class="food-card" data-food data-type="main">
-      <div class="food-image">
-        <img src="https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=700&q=80" alt="Mì xào bò" loading="lazy">
-        <span class="tag tag-chef">Gợi ý bếp trưởng</span>
-        <button class="add-btn" data-add="Mì xào bò" data-price="85000" title="Thêm vào giỏ hàng">+</button>
-      </div>
-      <div class="food-info">
-        <div class="food-head-row">
-          <h3>Mì xào bò</h3>
-          <span class="rating">★ 4.8</span>
-        </div>
-        <p>Mì trứng dai xào cùng thăn bò mềm, nấm hương tươi và rau cải giòn thơm.</p>
-        <div class="food-foot-row">
-          <b class="price">85.000đ</b>
-          <button class="btn btn-add-text" data-add="Mì xào bò" data-price="85000">+ Chọn món</button>
-        </div>
-      </div>
-    </article>
-
-    <article class="food-card" data-food data-type="side">
-      <div class="food-image">
-        <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=700&q=80" alt="Salad trộn" loading="lazy">
-        <span class="tag tag-healthy">Healthy</span>
-        <button class="add-btn" data-add="Salad trộn" data-price="55000" title="Thêm vào giỏ hàng">+</button>
-      </div>
-      <div class="food-info">
-        <div class="food-head-row">
-          <h3>Salad trộn đặc biệt</h3>
-          <span class="rating">★ 4.7</span>
-        </div>
-        <p>Rau xanh thủy canh tươi giòn, cà chua bi organic với sốt mè rang béo ngậy thanh mát.</p>
-        <div class="food-foot-row">
-          <b class="price">55.000đ</b>
-          <button class="btn btn-add-text" data-add="Salad trộn" data-price="55000">+ Chọn món</button>
-        </div>
-      </div>
-    </article>
-
-    <!-- SỬA LỖI BROKEN IMAGE: Thay URL Unsplash chuẩn không có ký tự lỗi Unicode -->
-    <article class="food-card" data-food data-type="drink">
-      <div class="food-image">
-        <img src="https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=700&q=80" alt="Trà đào cam sả" loading="lazy">
-        <span class="tag tag-refresh">Best Seller</span>
-        <button class="add-btn" data-add="Trà đào cam sả" data-price="35000" title="Thêm vào giỏ hàng">+</button>
-      </div>
-      <div class="food-info">
-        <div class="food-head-row">
-          <h3>Trà đào cam sả</h3>
-          <span class="rating">★ 4.9</span>
-        </div>
-        <p>Hương trà ướp lạnh thanh mát, đào miếng giòn ngọt hòa quyện tinh dầu cam vàng và sả tươi.</p>
-        <div class="food-foot-row">
-          <b class="price">35.000đ</b>
-          <button class="btn btn-add-text" data-add="Trà đào cam sả" data-price="35000">+ Chọn món</button>
-        </div>
-      </div>
-    </article>
-
-    <article class="food-card" data-food data-type="main">
-      <div class="food-image">
-        <img src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80" alt="Bò lúc lắc" loading="lazy">
-        <button class="add-btn" data-add="Bò lúc lắc" data-price="120000" title="Thêm vào giỏ hàng">+</button>
-      </div>
-      <div class="food-info">
-        <div class="food-head-row">
-          <h3>Bò lúc lắc hạt tiêu</h3>
-          <span class="rating">★ 4.8</span>
-        </div>
-        <p>Thịt bò Úc áp chảo xì xèo xém cạnh, sốt tiêu đen đậm đà ăn kèm khoai tây chiên giòn.</p>
-        <div class="food-foot-row">
-          <b class="price">120.000đ</b>
-          <button class="btn btn-add-text" data-add="Bò lúc lắc" data-price="120000">+ Chọn món</button>
-        </div>
-      </div>
-    </article>
-
-    <article class="food-card" data-food data-type="dessert">
-      <div class="food-image">
-        <img src="https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=700&q=80" alt="Sữa chua trái cây" loading="lazy">
-        <button class="add-btn" data-add="Sữa chua trái cây" data-price="40000" title="Thêm vào giỏ hàng">+</button>
-      </div>
-      <div class="food-info">
-        <div class="food-head-row">
-          <h3>Sữa chua trái cây</h3>
-          <span class="rating">★ 4.7</span>
-        </div>
-        <p>Sữa chua Hy Lạp sánh mịn lên men tự nhiên, kèm dâu tây tươi và sốt việt quất ngọt dịu.</p>
-        <div class="food-foot-row">
-          <b class="price">40.000đ</b>
-          <button class="btn btn-add-text" data-add="Sữa chua trái cây" data-price="40000">+ Chọn món</button>
-        </div>
-      </div>
-    </article>
+            <?php if (!$isOutOfStock): ?>
+              <button class="add-btn" data-add="<?= htmlspecialchars($dish['name']) ?>" data-price="<?= (int)$dish['price'] ?>" title="Thêm vào giỏ hàng">+</button>
+            <?php else: ?>
+              <button class="add-btn disabled" disabled title="Món này tạm hết" style="opacity: 0.5; cursor: not-allowed; background: #9ca3af;">✕</button>
+            <?php endif; ?>
+          </div>
+          <div class="food-info">
+            <div class="food-head-row">
+              <h3><?= htmlspecialchars($dish['name']) ?></h3>
+              <span class="rating">★ <?= number_format((float)$dish['rating'], 1) ?></span>
+            </div>
+            <p><?= htmlspecialchars($dish['description'] ?: 'Món ngon chế biến từ nguyên liệu tươi sạch mỗi ngày.') ?></p>
+            <div class="food-foot-row">
+              <b class="price"><?= formatPrice($dish['price']) ?></b>
+              <?php if (!$isOutOfStock): ?>
+                <button class="btn btn-add-text" data-add="<?= htmlspecialchars($dish['name']) ?>" data-price="<?= (int)$dish['price'] ?>">+ Chọn món</button>
+              <?php else: ?>
+                <button class="btn btn-add-text btn-outline" disabled style="opacity: 0.6; cursor: not-allowed;">Tạm hết</button>
+              <?php endif; ?>
+            </div>
+          </div>
+        </article>
+      <?php endforeach; ?>
+    <?php endif; ?>
   </div>
 </div>
 
