@@ -34,6 +34,13 @@ try {
         respondJson(409, ['error' => 'Món này vừa được xuất bill trước đó.']);
     }
 
+    if ($action === 'serve') {
+        if (!markItemServed($pdo, $itemId)) {
+            respondJson(409, ['error' => 'Món này đã được xác nhận ra bàn trước đó.']);
+        }
+        respondJson(200, ['ok' => true]);
+    }
+
     if ($action === 'cancel') {
         if (!cancelOrderItem($pdo, $itemId)) {
             respondJson(409, ['error' => 'Không thể hủy món ở trạng thái hiện tại.']);

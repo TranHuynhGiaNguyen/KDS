@@ -19,13 +19,14 @@ const ORDER_ITEM_ACTIONS = [
     'unsent'    => ['send', 'cancel'],
     'pending'   => ['ticket', 'cancel'],
     'cooking'   => ['ticket', 'cancel'],
-    'done'      => ['ticket', 'cancel'],
+    'done'      => ['ticket', 'serve', 'cancel'],
     'served'    => ['ticket'],
     'cancelled' => [],
 ];
 
 const ORDER_ACTION_BUTTONS = [
     'send'   => ['label' => 'Xuất bill', 'class' => 'btn-primary'],
+    'serve'  => ['label' => 'Đã ra bàn', 'class' => 'btn-primary'],
     'ticket' => ['label' => 'Xem bill',  'class' => 'btn-outline'],
     'cancel' => ['label' => 'Hủy món',   'class' => 'btn-outline-danger'],
 ];
@@ -80,6 +81,13 @@ function sendItemToKitchen(PDO $pdo, int $itemId, int $userId): bool {
         WHERE `id` = ? AND `status` = 'unsent'
     ");
     $stmt->execute([$userId, currentTimeForDb(), $itemId]);
+
+    return $stmt->rowCount() === 1;
+}
+
+function markItemServed(PDO $pdo, int $itemId): bool {
+    $stmt = $pdo->prepare("UPDATE `order_items` SET `status` = 'served' WHERE `id` = ? AND `status` = 'done'");
+    $stmt->execute([$itemId]);
 
     return $stmt->rowCount() === 1;
 }

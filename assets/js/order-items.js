@@ -73,7 +73,7 @@
 
         if (!result) return;
 
-        if (action === 'cancel') {
+        if (action === 'cancel' || action === 'serve') {
             location.reload();
             return;
         }

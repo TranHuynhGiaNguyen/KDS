@@ -33,10 +33,20 @@ $userInitial = mb_substr($user['fullname'] ?? $user['username'] ?? 'U', 0, 1, 'U
   <?php endif; ?>
 
   <?php if (canRoleAccessPage($currentRole, 'kitchen')): ?>
+    <?php
+    require_once __DIR__ . '/kitchen.php';
+    try {
+        $kitchenCounts    = countKitchenTickets(fetchKitchenTickets(getOrdersDb()));
+        $kitchenOpenCount = $kitchenCounts['pending'] + $kitchenCounts['cooking'];
+    } catch (RuntimeException | PDOException $e) {
+        error_log('sidebar kitchen counter: ' . $e->getMessage());
+        $kitchenOpenCount = 0;
+    }
+    ?>
     <a class="<?= active('kitchen', $page) ?>" href="index.php?page=kitchen">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
       <span>Màn hình bếp</span>
-      <span class="nav-badge kitchen-counter">6</span>
+      <span class="nav-badge kitchen-counter"><?= $kitchenOpenCount ?></span>
     </a>
   <?php endif; ?>
 

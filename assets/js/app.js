@@ -133,10 +133,10 @@ function initKDS() {
   if (fsToggle) {
     fsToggle.addEventListener('click', () => {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen?.().catch(() => {});
+        document.documentElement.requestFullscreen?.().catch(() => { });
         notify('Đã bật chế độ Toàn màn hình KDS');
       } else {
-        document.exitFullscreen?.().catch(() => {});
+        document.exitFullscreen?.().catch(() => { });
         notify('Đã thoát toàn màn hình');
       }
     });
@@ -148,18 +148,6 @@ function initKDS() {
     soundToggle.addEventListener('click', () => {
       playKitchenBeep();
       notify('🔔 Chuông báo KDS đã kích hoạt thử nghiệm');
-    });
-  }
-
-  // Station Filter
-  const stationSelect = document.querySelector('#kds-station-select');
-  if (stationSelect) {
-    stationSelect.addEventListener('change', () => {
-      const val = stationSelect.value;
-      document.querySelectorAll('.kitchen-card').forEach(card => {
-        card.hidden = val !== 'all' && card.dataset.station !== val;
-      });
-      notify(`Đã lọc trạm bếp: ${stationSelect.options[stationSelect.selectedIndex].text}`);
     });
   }
 }
@@ -178,7 +166,7 @@ function playKitchenBeep() {
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
     osc.start();
     osc.stop(ctx.currentTime + 0.35);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // ==========================================================
@@ -250,7 +238,7 @@ document.addEventListener('click', e => {
     if (found) found.qty++;
     else cart.push({ name, price, qty: 1 });
     saveCart();
-    
+
     // Phản hồi nút bấm
     const originalText = add.textContent;
     add.textContent = '✓ Đã thêm';
@@ -294,68 +282,6 @@ document.addEventListener('click', e => {
     const targetCat = cat.dataset.category;
     document.querySelectorAll('[data-food]').forEach(x => {
       x.hidden = targetCat !== 'all' && x.dataset.type !== targetCat;
-    });
-  }
-
-  // Gạch món riêng lẻ trong thẻ KDS
-  const bump = e.target.closest('[data-bump-item]');
-  if (bump && !e.target.matches('.kds-item-checkbox')) {
-    const cb = bump.querySelector('.kds-item-checkbox');
-    if (cb) {
-      cb.checked = !cb.checked;
-      bump.classList.toggle('item-done', cb.checked);
-    }
-  } else if (e.target.matches('.kds-item-checkbox')) {
-    const bumpItem = e.target.closest('[data-bump-item]');
-    if (bumpItem) bumpItem.classList.toggle('item-done', e.target.checked);
-  }
-
-  // Chuyển trạng thái phiếu KDS
-  const change = e.target.closest('[data-change-status]');
-  if (change) {
-    const card = change.closest('.kitchen-card');
-    const state = card.dataset.kcard;
-
-    if (state === 'new') {
-      card.dataset.kcard = 'cooking';
-      const st = card.querySelector('.status');
-      st.className = 'status status-cooking';
-      st.textContent = 'Đang nấu';
-      change.className = 'btn btn-kds btn-ready-cooking';
-      change.innerHTML = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>Báo ra đồ (Hoàn thành)</span>
-      `;
-      notify('Đã nhận đơn và chuyển sang trạng thái đang nấu');
-    } else {
-      card.dataset.kcard = 'ready';
-      const st = card.querySelector('.status');
-      st.className = 'status status-ready';
-      st.textContent = 'Hoàn thành';
-      change.disabled = true;
-      change.className = 'btn btn-kds btn-done-cooking';
-      change.innerHTML = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>Đã ra đồ xong ✓</span>
-      `;
-      // Đánh dấu xong toàn bộ món
-      card.querySelectorAll('.kitchen-item').forEach(it => {
-        it.classList.add('item-done');
-        const cb = it.querySelector('.kds-item-checkbox');
-        if (cb) cb.checked = true;
-      });
-      playKitchenBeep();
-      notify('Đã hoàn tất phiếu chế biến và báo nhân viên ra món');
-    }
-  }
-
-  // KDS Filter Tabs
-  const kf = e.target.closest('[data-kfilter]');
-  if (kf) {
-    document.querySelectorAll('[data-kfilter]').forEach(x => x.classList.toggle('active', x === kf));
-    const filter = kf.dataset.kfilter;
-    document.querySelectorAll('[data-kcard]').forEach(x => {
-      x.hidden = filter !== 'all' && x.dataset.kcard !== filter;
     });
   }
 
@@ -437,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pwBtn.addEventListener('click', () => {
       const isPw = pwInput.type === 'password';
       pwInput.type = isPw ? 'text' : 'password';
-      pwBtn.innerHTML = isPw 
+      pwBtn.innerHTML = isPw
         ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
         : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
     });

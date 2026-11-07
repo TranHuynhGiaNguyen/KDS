@@ -73,6 +73,10 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
     <link rel="stylesheet" href="assets/css/payment.css">
     <script defer src="assets/js/payment.js"></script>
   <?php endif; ?>
+  <?php if ($page === 'kitchen'): ?>
+    <link rel="stylesheet" href="assets/css/kitchen.css">
+    <script defer src="assets/js/kitchen.js"></script>
+  <?php endif; ?>
   <?php if ($page === 'table-order'): ?>
     <link rel="stylesheet" href="assets/css/orders.css">
     <script defer src="assets/js/order-items.js"></script>
