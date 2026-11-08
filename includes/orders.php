@@ -68,6 +68,14 @@ function fetchTableItems(PDO $pdo, string $tableCode): array {
     return $stmt->fetchAll();
 }
 
+function fetchOpenOrderCreatedAt(PDO $pdo, string $tableCode): ?string {
+    $stmt = $pdo->prepare("SELECT `created_at` FROM `orders` WHERE `table_code` = ? AND `status` = 'open' ORDER BY `id` DESC LIMIT 1");
+    $stmt->execute([$tableCode]);
+    $createdAt = $stmt->fetchColumn();
+
+    return $createdAt === false ? null : (string) $createdAt;
+}
+
 function findOrderItem(PDO $pdo, int $itemId): ?array {
     $stmt = $pdo->prepare('SELECT `id`, `status` FROM `order_items` WHERE `id` = ?');
     $stmt->execute([$itemId]);

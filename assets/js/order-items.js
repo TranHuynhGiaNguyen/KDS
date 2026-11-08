@@ -17,7 +17,15 @@
     </div>`;
     document.body.append(dialog);
 
-    let reloadOnClose = false;
+    const provisionalDialog = document.createElement('dialog');
+    provisionalDialog.className = 'receipt-dialog';
+    provisionalDialog.innerHTML = `
+    <div class="receipt-dialog-body" data-receipt></div>
+    <div class="bill-ticket-actions">
+      <button class="btn btn-primary" type="button" data-receipt-print>In tạm tính</button>
+      <button class="btn btn-outline" type="button" data-receipt-close>Đóng</button>
+    </div>`;
+    document.body.append(provisionalDialog);
 
     const showMessage = (message) => {
         if (typeof notify === 'function') {
@@ -73,13 +81,41 @@
 
         if (!result) return;
 
-        if (action === 'cancel' || action === 'serve') {
+        if (action === 'send' || action === 'cancel' || action === 'serve') {
             location.reload();
             return;
         }
 
-        reloadOnClose = action === 'send';
         showTicket(result.ticket);
+    });
+
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-print-provisional]');
+        if (!button) return;
+
+        button.disabled = true;
+
+        try {
+            const response = await fetch(`api/provisional-bill.php?table=${encodeURIComponent(button.dataset.table)}`);
+            const result = await response.json();
+
+            if (!response.ok) {
+                showMessage(result.error);
+                return;
+            }
+
+            provisionalDialog.querySelector('[data-receipt]').innerHTML = result.html;
+            provisionalDialog.showModal();
+        } catch (error) {
+            showMessage('Không thể kết nối máy chủ. Vui lòng thử lại.');
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    provisionalDialog.addEventListener('click', (event) => {
+        if (event.target.closest('[data-receipt-print]')) window.print();
+        if (event.target.closest('[data-receipt-close]')) provisionalDialog.close();
     });
 
     dialog.addEventListener('click', (event) => {
@@ -87,7 +123,4 @@
         if (event.target.closest('[data-ticket-close]')) dialog.close();
     });
 
-    dialog.addEventListener('close', () => {
-        if (reloadOnClose) location.reload();
-    });
 })();

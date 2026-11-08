@@ -59,6 +59,7 @@ try {
 }
 
 $bill = calculateBill($orderItems);
+$cur['has_guests'] = $bill['lines'] !== [];
 ?>
 <div class="dash-header">
   <div>
@@ -138,12 +139,13 @@ $bill = calculateBill($orderItems);
 
       <div class="bill-summary-box">
         <div class="summary-row"><span>Tạm tính (<?= count($bill['lines']) ?> món)</span><b><?= formatMoney($bill['subtotal']) ?></b></div>
-        <div class="summary-row"><span>Phí phục vụ & VAT</span><b><?= formatMoney($bill['service_fee'] + $bill['vat']) ?></b></div>
+        <div class="summary-row"><span>Phí phục vụ (<?= escapeHtml($bill['service_rate'] * 100) ?>%)</span><b><?= formatMoney($bill['service_fee']) ?></b></div>
+        <div class="summary-row"><span>Thuế VAT (<?= escapeHtml($bill['vat_rate'] * 100) ?>%)</span><b><?= formatMoney($bill['vat']) ?></b></div>
         <div class="summary-row total"><span>Tổng cộng thanh toán</span><b><?= formatMoney($bill['total']) ?></b></div>
       </div>
 
       <div class="button-row">
-        <button class="btn btn-outline" data-toast="Đã gửi thông báo in tạm tính cho thu ngân">In tạm tính</button>
+        <button class="btn btn-outline" type="button" data-print-provisional data-table="<?= escapeHtml($currentTable) ?>">In tạm tính</button>
         <a class="btn btn-primary" href="index.php?page=payment&table=<?= $currentTable ?>">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
           <span>Tiến hành thanh toán</span>

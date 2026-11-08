@@ -1,3 +1,16 @@
+<?php
+require_once __DIR__ . '/../includes/tables.php';
+
+$occupiedTables = [];
+$dbError        = '';
+
+try {
+    $occupiedTables = fetchOccupiedTables(getOrdersDb());
+} catch (RuntimeException | PDOException $e) {
+    error_log('staff page: ' . $e->getMessage());
+    $dbError = 'Không tải được trạng thái bàn, vui lòng thử lại.';
+}
+?>
 <div class="dash-header">
   <div>
     <span class="eyebrow">VẬN HÀNH PHỤC VỤ</span>
@@ -15,6 +28,10 @@
     </button>
   </div>
 </div>
+
+<?php if ($dbError !== ''): ?>
+  <div class="flash-alert flash-error"><span><?= escapeHtml($dbError) ?></span></div>
+<?php endif; ?>
 
 <section class="panel floor-panel">
   <div class="panel-title floor-panel-head">
@@ -43,29 +60,29 @@
 
   <div class="legend">
     <span class="legend-item"><i class="legend-dot empty"></i> Chưa có khách (Chỉ hiển thị số bàn)</span>
-    <span class="legend-item"><i class="legend-dot occupied"></i> Đang có khách (Hiển thị số tiền & số khách)</span>
+    <span class="legend-item"><i class="legend-dot occupied"></i> Đang có khách (Hiển thị số tiền & số món)</span>
   </div>
 
   <div class="floor-grid" id="restaurant-floor-grid">
     <?php
     $tables = [
-      ['id' => 'B01', 'zone' => 'indoor', 'has_guests' => false],
-      ['id' => 'B02', 'zone' => 'indoor', 'has_guests' => false],
-      ['id' => 'B03', 'zone' => 'indoor', 'has_guests' => true,  'guests' => 4, 'amount' => 299250],
-      ['id' => 'B04', 'zone' => 'indoor', 'has_guests' => false],
-      ['id' => 'B05', 'zone' => 'garden', 'has_guests' => true,  'guests' => 3, 'amount' => 485000],
-      ['id' => 'B06', 'zone' => 'garden', 'has_guests' => false],
-      ['id' => 'B07', 'zone' => 'garden', 'has_guests' => false],
-      ['id' => 'B08', 'zone' => 'garden', 'has_guests' => false],
-      ['id' => 'B09', 'zone' => 'vip',    'has_guests' => false],
-      ['id' => 'B10', 'zone' => 'vip',    'has_guests' => true,  'guests' => 6, 'amount' => 1250000],
-      ['id' => 'B11', 'zone' => 'indoor', 'has_guests' => true,  'guests' => 2, 'amount' => 185000],
-      ['id' => 'B12', 'zone' => 'indoor', 'has_guests' => false]
+      ['id' => 'B01', 'zone' => 'indoor'],
+      ['id' => 'B02', 'zone' => 'indoor'],
+      ['id' => 'B03', 'zone' => 'indoor'],
+      ['id' => 'B04', 'zone' => 'indoor'],
+      ['id' => 'B05', 'zone' => 'garden'],
+      ['id' => 'B06', 'zone' => 'garden'],
+      ['id' => 'B07', 'zone' => 'garden'],
+      ['id' => 'B08', 'zone' => 'garden'],
+      ['id' => 'B09', 'zone' => 'vip'],
+      ['id' => 'B10', 'zone' => 'vip'],
+      ['id' => 'B11', 'zone' => 'indoor'],
+      ['id' => 'B12', 'zone' => 'indoor']
     ];
 
     foreach ($tables as $t):
-      $hasGuests = $t['has_guests'];
-      $status = $hasGuests ? 'occupied' : 'empty';
+      $occupied  = $occupiedTables[$t['id']] ?? null;
+      $hasGuests = $occupied !== null;
     ?>
       <?php if (!$hasGuests): ?>
         <!-- Bàn chưa có khách: chỉ hiển thị số bàn -->
@@ -81,12 +98,12 @@
             <b class="table-name">Bàn <?=$t['id']?></b>
             <span class="table-guest-pill">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-              <?=$t['guests']?> khách
+              <?=$occupied['item_count']?> món
             </span>
           </div>
           <div class="table-tile-bottom">
             <span class="table-amount-label">Số tiền</span>
-            <b class="table-amount-value"><?=number_format($t['amount'], 0, ',', '.')?>đ</b>
+            <b class="table-amount-value"><?=number_format($occupied['total'], 0, ',', '.')?>đ</b>
           </div>
         </a>
       <?php endif; ?>

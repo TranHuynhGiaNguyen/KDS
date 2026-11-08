@@ -2,7 +2,7 @@
 require_once __DIR__ . '/billing.php';
 require_once __DIR__ . '/http.php';
 
-function renderBillSummary(array $bill): string {
+function renderBillSummary(array $bill, string $totalLabel = 'Tổng thanh toán'): string {
     $vatPercent     = $bill['vat_rate'] * 100;
     $servicePercent = $bill['service_rate'] * 100;
 
@@ -19,7 +19,7 @@ function renderBillSummary(array $bill): string {
       <div class="summary-row"><span>Phí phục vụ (<?= escapeHtml($servicePercent) ?>%)</span><b><?= formatMoney($bill['service_fee']) ?></b></div>
     <?php endif; ?>
     <div class="summary-row"><span>Thuế VAT (<?= escapeHtml($vatPercent) ?>%)</span><b><?= formatMoney($bill['vat']) ?></b></div>
-    <div class="summary-row total"><span>Tổng thanh toán</span><b class="highlight-price"><?= formatMoney($bill['total']) ?></b></div>
+    <div class="summary-row total"><span><?= escapeHtml($totalLabel) ?></span><b class="highlight-price"><?= formatMoney($bill['total']) ?></b></div>
     <?php
     return ob_get_clean();
 }

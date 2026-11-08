@@ -41,6 +41,12 @@ if (!in_array($page, $allowed, true)) {
     $page = isLoggedIn() ? getDefaultPageForRole(currentRole()) : 'login';
 }
 
+function assetUrl(string $path): string {
+    $file = __DIR__ . '/' . $path;
+
+    return $path . (is_file($file) ? '?v=' . filemtime($file) : '');
+}
+
 function active($name, $page) {
     return $name === $page ? 'active' : '';
 }
@@ -70,16 +76,18 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
   <title><?= htmlspecialchars($currentTitle) ?></title>
   <link rel="stylesheet" href="assets/css/style.css">
   <?php if ($page === 'payment'): ?>
-    <link rel="stylesheet" href="assets/css/payment.css">
-    <script defer src="assets/js/payment.js"></script>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/payment.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/receipt.css') ?>">
+    <script defer src="<?= assetUrl('assets/js/payment.js') ?>"></script>
   <?php endif; ?>
   <?php if ($page === 'kitchen'): ?>
-    <link rel="stylesheet" href="assets/css/kitchen.css">
-    <script defer src="assets/js/kitchen.js"></script>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/kitchen.css') ?>">
+    <script defer src="<?= assetUrl('assets/js/kitchen.js') ?>"></script>
   <?php endif; ?>
   <?php if ($page === 'table-order'): ?>
-    <link rel="stylesheet" href="assets/css/orders.css">
-    <script defer src="assets/js/order-items.js"></script>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/receipt.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/orders.css') ?>">
+    <script defer src="<?= assetUrl('assets/js/order-items.js') ?>"></script>
   <?php endif; ?>
   <script defer src="assets/js/app.js"></script>
 </head>

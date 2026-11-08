@@ -1,67 +1,93 @@
 <?php
 require_once __DIR__ . '/../includes/bill-summary.php';
-require_once __DIR__ . '/../includes/http.php';
-require_once __DIR__ . '/../includes/orders.php';
+require_once __DIR__ . '/../includes/checkout.php';
+require_once __DIR__ . '/../includes/receipt.php';
+require_once __DIR__ . '/../includes/vietqr.php';
 
 $tableCode  = normalizeTableCode($_GET['table'] ?? null);
 $paymentUrl = 'index.php?page=payment&table=' . $tableCode;
+$invoiceId  = (int) ($_GET['invoice'] ?? 0);
 
 $isPost        = $_SERVER['REQUEST_METHOD'] === 'POST';
 $action        = $isPost ? ($_POST['action'] ?? '') : '';
 $discountType  = $isPost ? ($_POST['discount_type'] ?? DISCOUNT_NONE) : DISCOUNT_NONE;
 $discountValue = $isPost ? (int) ($_POST['discount_value'] ?? 0) : 0;
-$method        = $isPost && in_array($_POST['pay'] ?? '', ['qr', 'cash'], true) ? $_POST['pay'] : 'qr';
+$method        = $isPost && isset(PAYMENT_METHODS[$_POST['pay'] ?? '']) ? $_POST['pay'] : 'cash';
 $cashReceived  = $isPost ? (int) ($_POST['cash_received'] ?? 0) : 0;
 
-$error = '';
+$error    = '';
+$items    = [];
+$invoice  = null;
+$blockers = [];
+$orderId  = null;
 
 try {
-    $items = fetchTableItems(getOrdersDb(), $tableCode);
+    $pdo = getOrdersDb();
+
+    if ($action === 'pay') {
+        try {
+            $newInvoiceId = checkoutTable(
+                $pdo,
+                $tableCode,
+                ['type' => $discountType, 'value' => $discountValue],
+                $method,
+                $cashReceived,
+                (int) $_SESSION['user_id']
+            );
+            redirectTo($paymentUrl . '&invoice=' . $newInvoiceId);
+        } catch (CheckoutException $e) {
+            $error = $e->getMessage();
+        }
+    }
+
+    if ($invoiceId > 0) {
+        $invoice = fetchInvoice($pdo, $invoiceId);
+        if ($invoice === null || $invoice['table'] !== $tableCode) {
+            $invoice = null;
+            $error   = 'Không tìm thấy hóa đơn.';
+        }
+    }
+
+    if ($invoice === null) {
+        $items    = fetchTableItems($pdo, $tableCode);
+        $blockers = findCheckoutBlockers($items);
+        $orderId  = fetchOpenOrderId($pdo, $tableCode);
+    }
 } catch (RuntimeException | PDOException $e) {
     error_log('payment page: ' . $e->getMessage());
-    $items = [];
-    $error = 'Không tải được hóa đơn, vui lòng thử lại.';
+    $error = 'Không xử lý được thanh toán, vui lòng thử lại.';
 }
 
-try {
-    $bill = calculateBill($items, ['type' => $discountType, 'value' => $discountValue]);
-} catch (InvalidArgumentException $e) {
-    $error         = $e->getMessage();
-    $discountType  = DISCOUNT_NONE;
-    $discountValue = 0;
-    $bill          = calculateBill($items);
-}
-
-if ($action === 'pay' && $error === '') {
-    if ($bill['total'] <= 0) {
-        $error = 'Hóa đơn không có món nào để thanh toán.';
-    } elseif ($method === 'cash' && $cashReceived < $bill['total']) {
-        $error = 'Tiền khách đưa chưa đủ. Cần tối thiểu ' . formatMoney($bill['total']) . '.';
-    } else {
-        $_SESSION['payment_result'][$tableCode] = [
-            'bill'          => $bill,
-            'method'        => $method,
-            'cash_received' => $cashReceived,
-            'change'        => $method === 'cash' ? $cashReceived - $bill['total'] : 0,
-        ];
-        redirectTo($paymentUrl . '&done=1');
-    }
-}
-
-$paidResult = ($_GET['done'] ?? '') === '1' ? ($_SESSION['payment_result'][$tableCode] ?? null) : null;
-$isPaid     = $paidResult !== null;
-$change     = 0;
+$isPaid = $invoice !== null;
 
 if ($isPaid) {
-    $bill         = $paidResult['bill'];
-    $method       = $paidResult['method'];
-    $cashReceived = $paidResult['cash_received'];
-    $change       = $paidResult['change'];
+    $bill         = $invoice['bill'];
+    $method       = $invoice['method'];
+    $cashReceived = $invoice['cash_received'];
+    $change       = $invoice['change'];
+} else {
+    try {
+        $bill = calculateBill($items, ['type' => $discountType, 'value' => $discountValue]);
+    } catch (InvalidArgumentException $e) {
+        $error         = $e->getMessage();
+        $discountType  = DISCOUNT_NONE;
+        $discountValue = 0;
+        $bill          = calculateBill($items);
+    }
+    $change = 0;
+}
+
+$bank            = getRestaurantInfo()['bank'];
+$transferContent = $orderId === null ? '' : buildTransferContent($orderId, $tableCode);
+$qrUrl           = $orderId === null ? null : buildVietQrUrl($bill['total'], $transferContent);
+
+if ($blockers !== [] && $error === '') {
+    $error = checkoutBlockersMessage($blockers);
 }
 ?>
 <section class="page-heading">
   <div class="back-nav-row">
-    <a class="back-link" href="index.php?page=table-order&table=<?= escapeHtml($tableCode) ?>">
+    <a class="back-link no-print" href="index.php?page=table-order&table=<?= escapeHtml($tableCode) ?>">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
       <span>Quay lại chi tiết đơn bàn</span>
     </a>
@@ -114,17 +140,19 @@ if ($isPaid) {
   <?php if ($isPaid): ?>
     <section class="panel payment-success">
       <h2>Thanh toán thành công</h2>
-      <p class="muted">Phương thức: <?= $method === 'cash' ? 'Tiền mặt' : 'Chuyển khoản QR' ?></p>
+      <p class="muted">Mã hóa đơn <b><?= escapeHtml($invoice['code']) ?></b> · <?= escapeHtml($invoice['paid_at']) ?> · Thu ngân: <?= escapeHtml($invoice['cashier']) ?></p>
+      <p class="muted">Phương thức: <?= escapeHtml(PAYMENT_METHODS[$method]) ?></p>
       <div class="summary-row"><span>Đã thanh toán</span><b><?= formatMoney($bill['total']) ?></b></div>
       <?php if ($method === 'cash'): ?>
         <div class="summary-row"><span>Khách đưa</span><b><?= formatMoney($cashReceived) ?></b></div>
         <div class="summary-row total"><span>Tiền thừa trả khách</span><b><?= formatMoney($change) ?></b></div>
       <?php endif; ?>
-      <a class="btn btn-block" href="index.php?page=staff">Về sơ đồ bàn</a>
+      <button class="btn btn-outline btn-block no-print" type="button" data-print-invoice>In hóa đơn</button>
+      <a class="btn btn-block no-print" href="index.php?page=staff">Về sơ đồ bàn</a>
     </section>
   <?php else: ?>
     <form class="panel payment-methods-panel" method="post" action="<?= escapeHtml($paymentUrl) ?>"
-          data-payment-form data-table="<?= escapeHtml($tableCode) ?>" data-calculate-url="api/payment-calculate.php">
+          data-payment-form data-total="<?= (int) $bill['total'] ?>" data-table="<?= escapeHtml($tableCode) ?>" data-calculate-url="api/payment-calculate.php">
       <h2>Giảm giá</h2>
       <div class="discount-row">
         <select name="discount_type" aria-label="Loại giảm giá">
@@ -141,19 +169,19 @@ if ($isPaid) {
       <label class="payment-option">
         <input type="radio" name="pay" value="qr" <?= $method === 'qr' ? 'checked' : '' ?>>
         <div class="pay-content">
-          <div class="pay-title-row">
-            <b>Chuyển khoản QR (VietQR / MoMo / VNPay)</b>
-            <span class="badge-recommend">Khuyên dùng</span>
-          </div>
-          <small class="muted">Khách quét mã, thu ngân xác nhận đã nhận tiền rồi bấm thanh toán</small>
-          <div class="qr-mock-box">
-            <div class="qr-code-art">
-              <svg width="72" height="72" viewBox="0 0 24 24" fill="currentColor"><path d="M2 2h8v8H2zm2 2v4h4V4zm10-2h8v8h-8zm2 2v4h4V4zM2 14h8v8H2zm2 2v4h4v-4zm14-2h4v2h-4zm-4 0h2v4h-2zm2 4h2v4h-2zm2 0h2v2h-2zm0 2h2v2h-2zm-6-2h2v4h-2zm4-6h4v2h-4z"/></svg>
-            </div>
-            <div class="qr-info-meta">
-              <b>SMARTDINE RESTAURANT</b>
-              <span class="qr-amount">Số tiền: <b data-bill-total><?= formatMoney($bill['total']) ?></b></span>
-            </div>
+          <div class="pay-title-row"><b>Chuyển khoản QR</b></div>
+          <small class="muted">Mã QR đã có sẵn số tài khoản của quán, số tiền và nội dung chuyển khoản. Khách quét mã, thu ngân kiểm tra đã nhận tiền rồi bấm xác nhận.</small>
+          <div class="pay-detail qr-detail">
+            <?php if ($qrUrl !== null): ?>
+              <img class="qr-image" data-qr-image src="<?= escapeHtml($qrUrl) ?>" alt="Mã QR chuyển khoản VietQR">
+            <?php endif; ?>
+            <dl class="qr-info">
+              <div><dt>Ngân hàng</dt><dd><?= escapeHtml($bank['name']) ?></dd></div>
+              <div><dt>Chủ tài khoản</dt><dd><?= escapeHtml($bank['account_name']) ?></dd></div>
+              <div><dt>Số tài khoản</dt><dd><?= escapeHtml($bank['account_no']) ?></dd></div>
+              <div><dt>Số tiền</dt><dd data-bill-total><?= formatMoney($bill['total']) ?></dd></div>
+              <div><dt>Nội dung</dt><dd><?= escapeHtml($transferContent) ?></dd></div>
+            </dl>
           </div>
         </div>
       </label>
@@ -162,16 +190,26 @@ if ($isPaid) {
         <input type="radio" name="pay" value="cash" <?= $method === 'cash' ? 'checked' : '' ?>>
         <div class="pay-content">
           <div class="pay-title-row"><b>Tiền mặt</b></div>
-          <small class="muted">Nhập số tiền khách đưa để tính tiền thừa</small>
-          <input class="cash-input" type="number" name="cash_received" min="0" step="1000"
-                 value="<?= $cashReceived > 0 ? escapeHtml($cashReceived) : '' ?>" placeholder="Tiền khách đưa (đ)" aria-label="Tiền khách đưa">
+          <small class="muted">Nhập số tiền khách đưa, tiền thừa sẽ tự tính ngay bên dưới</small>
+          <div class="pay-detail">
+            <input class="cash-input" type="number" name="cash_received" min="0" step="1"
+                   value="<?= $cashReceived > 0 ? escapeHtml($cashReceived) : '' ?>" placeholder="Tiền khách đưa (đ)" aria-label="Tiền khách đưa">
+            <div class="cash-change" data-cash-change hidden>
+              <span data-cash-change-label>Tiền thừa trả khách</span>
+              <b data-cash-change-value></b>
+            </div>
+          </div>
         </div>
       </label>
 
-      <button class="btn btn-block btn-pay-now" type="submit" name="action" value="pay">
+      <button class="btn btn-block btn-pay-now" type="submit" name="action" value="pay"<?= $blockers !== [] ? ' disabled' : '' ?>>
         <span>Xác nhận thanh toán <b data-bill-total><?= formatMoney($bill['total']) ?></b></span>
       </button>
     </form>
   <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php if ($isPaid): ?>
+  <div class="invoice-receipt"><?= renderReceipt(buildInvoiceReceipt($invoice)) ?></div>
 <?php endif; ?>

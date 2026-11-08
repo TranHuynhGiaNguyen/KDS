@@ -29,6 +29,52 @@ function initOrderTables(PDO $pdo): void {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `invoices` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `order_id` INT NOT NULL UNIQUE,
+            `table_code` VARCHAR(10) NOT NULL,
+            `subtotal` INT NOT NULL,
+            `discount_type` VARCHAR(10) NOT NULL DEFAULT 'none',
+            `discount_value` INT NOT NULL DEFAULT 0,
+            `discount_amount` INT NOT NULL DEFAULT 0,
+            `service_fee` INT NOT NULL,
+            `vat` INT NOT NULL,
+            `total` INT NOT NULL,
+            `service_rate` DECIMAL(5,4) NOT NULL,
+            `vat_rate` DECIMAL(5,4) NOT NULL,
+            `created_at` DATETIME NOT NULL,
+            CONSTRAINT fk_invoices_order FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `invoice_items` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `invoice_id` INT NOT NULL,
+            `item_name` VARCHAR(100) NOT NULL,
+            `unit_price` INT NOT NULL,
+            `qty` INT NOT NULL,
+            `amount` INT NOT NULL,
+            INDEX idx_invoice_items_invoice (`invoice_id`),
+            CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `payments` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `invoice_id` INT NOT NULL UNIQUE,
+            `method` VARCHAR(10) NOT NULL,
+            `amount` INT NOT NULL,
+            `cash_received` INT NOT NULL DEFAULT 0,
+            `change_amount` INT NOT NULL DEFAULT 0,
+            `cashier_id` INT DEFAULT NULL,
+            `paid_at` DATETIME NOT NULL,
+            CONSTRAINT fk_payments_invoice FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
     if ((int) $pdo->query('SELECT COUNT(*) FROM `orders`')->fetchColumn() === 0) {
         seedDemoOrders($pdo);
     }

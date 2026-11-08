@@ -47,11 +47,108 @@
     overflow: hidden;
 }
 
-.qr-code-art svg {
+.qr-code-art svg,
+.qr-code-art img {
     width: 72px;
     height: 72px;
 }
 
 .discount-row .btn {
     white-space: nowrap;
+}
+
+.btn-pay-now:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.payment-option .pay-detail {
+    display: none;
+}
+
+.payment-option input:checked~.pay-content .pay-detail {
+    display: block;
+}
+
+.qr-detail {
+    margin-top: 12px;
+}
+
+.qr-image {
+    display: block;
+    width: min(100%, 260px);
+    margin: 0 auto 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: #fff;
+}
+
+.qr-info {
+    margin: 0;
+    font-size: 13px;
+}
+
+.qr-info div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+}
+
+.qr-info dt {
+    color: var(--muted);
+}
+
+.qr-info dd {
+    margin: 0;
+    font-weight: 700;
+    text-align: right;
+}
+
+.cash-change {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 15px;
+}
+
+.cash-change[hidden] {
+    display: none;
+}
+
+.cash-change.is-short {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.invoice-receipt {
+    display: none;
+}
+
+@media print {
+    .sidebar {
+        display: none !important;
+    }
+
+    .dashboard-body {
+        background: #fff;
+    }
+
+    .dashboard-main {
+        margin: 0;
+        padding: 0;
+        min-height: 0;
+    }
+
+    .dashboard-main>*:not(.invoice-receipt) {
+        display: none !important;
+    }
+
+    .dashboard-main>.invoice-receipt {
+        display: block !important;
+    }
 }

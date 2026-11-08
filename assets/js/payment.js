@@ -1,9 +1,18 @@
 (() => {
+    document.addEventListener('click', (event) => {
+        if (event.target.closest('[data-print-invoice]')) window.print();
+    });
+
     const form = document.querySelector('[data-payment-form]');
     if (!form) return;
 
     const alerts = document.querySelector('#payment-alerts');
     const summary = document.querySelector('#bill-summary');
+    const qrImage = form.querySelector('[data-qr-image]');
+    const cashInput = form.querySelector('[name="cash_received"]');
+    const changeBox = form.querySelector('[data-cash-change]');
+    const changeLabel = form.querySelector('[data-cash-change-label]');
+    const changeValue = form.querySelector('[data-cash-change-value]');
     const applyButton = form.querySelector('[data-apply-discount]');
     const discountInputs = form.querySelectorAll('[name="discount_type"], [name="discount_value"]');
 
@@ -17,6 +26,21 @@
         text.textContent = message;
         alert.append(text);
         alerts.append(alert);
+    };
+
+    const formatMoney = (amount) => `${new Intl.NumberFormat('vi-VN').format(amount)}đ`;
+
+    const updateChange = () => {
+        if (cashInput.value === '') {
+            changeBox.hidden = true;
+            return;
+        }
+
+        const difference = Number(cashInput.value) - Number(form.dataset.total);
+        changeBox.hidden = false;
+        changeBox.classList.toggle('is-short', difference < 0);
+        changeLabel.textContent = difference < 0 ? 'Còn thiếu' : 'Tiền thừa trả khách';
+        changeValue.textContent = formatMoney(Math.abs(difference));
     };
 
     const applyDiscount = async () => {
@@ -35,6 +59,9 @@
 
             showError('');
             summary.innerHTML = result.summary;
+            form.dataset.total = result.total_raw;
+            if (qrImage && result.qr_url) qrImage.src = result.qr_url;
+            updateChange();
             document.querySelectorAll('[data-bill-total]').forEach((element) => {
                 element.textContent = result.total;
             });
@@ -44,6 +71,8 @@
     };
 
     applyButton.addEventListener('click', applyDiscount);
+    cashInput.addEventListener('input', updateChange);
+    updateChange();
 
     discountInputs.forEach((input) => {
         input.addEventListener('keydown', (event) => {

@@ -1,0 +1,108 @@
+.receipt {
+    width: 76mm;
+    margin: 0 auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #000;
+}
+
+.receipt-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.receipt-head b {
+    font-size: 15px;
+}
+
+.receipt-title {
+    margin: 10px 0;
+    padding: 6px 0;
+    border-top: 1px dashed #000;
+    border-bottom: 1px dashed #000;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.receipt-meta div,
+.receipt-totals .summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.receipt-items {
+    width: 100%;
+    margin: 10px 0;
+    border-collapse: collapse;
+    border-top: 1px dashed #000;
+    border-bottom: 1px dashed #000;
+}
+
+.receipt-items th,
+.receipt-items td {
+    padding: 3px 2px;
+    text-align: right;
+    vertical-align: top;
+}
+
+.receipt-items th:not(:first-child),
+.receipt-items td:not(:first-child) {
+    white-space: nowrap;
+}
+
+.receipt-items th:first-child,
+.receipt-items td:first-child {
+    text-align: left;
+}
+
+.receipt-items th {
+    border-bottom: 1px dashed #000;
+}
+
+.receipt-totals .summary-row {
+    padding: 1px 0;
+    color: #000;
+}
+
+.receipt-totals .summary-row.total {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed #000;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.receipt-totals .highlight-price,
+.receipt-totals .summary-row b,
+.receipt-totals .summary-discount b {
+    color: #000;
+}
+
+.receipt-qr {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.receipt-qr img {
+    display: block;
+    width: 42mm;
+    height: 42mm;
+    margin: 0 auto;
+}
+
+.receipt-thanks {
+    margin: 12px 0 0;
+    text-align: center;
+}
+
+@media print {
+    @page {
+        margin: 6mm;
+    }
+}
