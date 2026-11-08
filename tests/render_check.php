@@ -1,0 +1,56 @@
+<?php
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/tables.php';
+
+session_start();
+$_SESSION['user_id']  = 1;
+$_SESSION['username'] = 'admin';
+$_SESSION['role']     = 'admin';
+$_SESSION['fullname'] = 'Quản trị viên';
+
+echo "=== KIỂM TRA RENDER CÁC TRANG ===\n";
+
+// 1. Render pages/staff.php
+ob_start();
+include __DIR__ . '/../pages/staff.php';
+$staffHtml = ob_get_clean();
+assert(strlen($staffHtml) > 500, "staff.php HTML output too short");
+assert(strpos($staffHtml, 'restaurant-floor-grid') !== false, "Grid view not found in staff.php");
+assert(strpos($staffHtml, 'restaurant-floor-canvas') !== false, "Visual 2D view not found in staff.php");
+assert(strpos($staffHtml, 'btn-toggle-grid') !== false, "Toggle button grid not found");
+assert(strpos($staffHtml, 'btn-toggle-visual') !== false, "Toggle button visual not found");
+echo "  [PASS] pages/staff.php rendered successfully with both Grid & Visual Canvas\n";
+
+// 2. Render pages/tables.php (tab=tables)
+$_GET['tab'] = 'tables';
+ob_start();
+include __DIR__ . '/../pages/tables.php';
+$tablesHtml = ob_get_clean();
+assert(strpos($tablesHtml, 'Danh sách Bàn ăn Nhà hàng') !== false, "Tab tables not found");
+assert(strpos($tablesHtml, 'modal-add-table') !== false, "Modal add table not found");
+assert(strpos($tablesHtml, 'modal-edit-table') !== false, "Modal edit table not found");
+assert(strpos($tablesHtml, 'edit-table-shape') !== false, "Shape select not found in edit modal");
+echo "  [PASS] pages/tables.php (Tab 1: tables) rendered successfully with shape controls\n";
+
+// 3. Render pages/tables.php (tab=areas)
+$_GET['tab'] = 'areas';
+ob_start();
+include __DIR__ . '/../pages/tables.php';
+$areasHtml = ob_get_clean();
+assert(strpos($areasHtml, 'Danh mục Khu vực Không gian Nhà hàng') !== false, "Tab areas not found");
+echo "  [PASS] pages/tables.php (Tab 2: areas) rendered successfully\n";
+
+// 4. Render pages/tables.php (tab=layout)
+$_GET['tab'] = 'layout';
+ob_start();
+include __DIR__ . '/../pages/tables.php';
+$layoutHtml = ob_get_clean();
+assert(strpos($layoutHtml, 'Thiết kế Sơ đồ Bàn 2D') !== false, "Tab layout not found");
+assert(strpos($layoutHtml, 'admin-layout-canvas') !== false, "admin-layout-canvas not found");
+assert(strpos($layoutHtml, 'draggable-table-item') !== false, "draggable-table-item not found");
+assert(strpos($layoutHtml, 'btn-save-layout') !== false, "btn-save-layout not found");
+assert(strpos($layoutHtml, 'btn-toggle-shape') !== false, "btn-toggle-shape not found");
+echo "  [PASS] pages/tables.php (Tab 3: layout) rendered successfully with 2D Visual Editor\n";
+
+echo "\n>>> TẤT CẢ CÁC TRANG RENDER HOÀN HẢO! <<<\n";

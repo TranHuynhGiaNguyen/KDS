@@ -9,6 +9,13 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'smartdine_kds');
 
+if (!function_exists('assetUrl')) {
+    function assetUrl(string $path): string {
+        $file = dirname(__DIR__) . '/' . ltrim($path, '/\\');
+        return $path . (is_file($file) ? '?v=' . filemtime($file) : '');
+    }
+}
+
 /**
  * Lấy đối tượng kết nối PDO
  * Tự động tạo Database và Bảng nếu chưa tồn tại
@@ -311,6 +318,155 @@ function initDatabaseTables(PDO $pdo) {
 
         foreach ($defaultDishes as $d) {
             $insertDishStmt->execute($d);
+        }
+    }
+
+    // ==========================================================
+    // KHỞI TẠO BẢNG KHU VỰC NHÀ HÀNG (RESTAURANT_AREAS)
+    // ==========================================================
+    $createAreaTableQuery = "
+    CREATE TABLE IF NOT EXISTS `restaurant_areas` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `code` VARCHAR(30) NOT NULL UNIQUE,
+        `name` VARCHAR(100) NOT NULL,
+        `description` VARCHAR(255) DEFAULT NULL,
+        `sort_order` INT NOT NULL DEFAULT 0,
+        `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+        `entrance_pos` VARCHAR(30) NOT NULL DEFAULT 'bottom_center',
+        `entrance_x` FLOAT NOT NULL DEFAULT 50.0,
+        `entrance_y` FLOAT NOT NULL DEFAULT 96.0,
+        `cashier_x` FLOAT NOT NULL DEFAULT 14.0,
+        `cashier_y` FLOAT NOT NULL DEFAULT 6.0,
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_area_status (`status`),
+        INDEX idx_area_code (`code`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($createAreaTableQuery);
+
+    $checkAreaStmt = $pdo->query("SELECT COUNT(*) as total FROM `restaurant_areas`");
+    $areaCount = (int) $checkAreaStmt->fetchColumn();
+
+    if ($areaCount === 0) {
+        $defaultAreas = [
+            [
+                'code'         => 'indoor',
+                'name'         => 'Trong nhà (Máy lạnh)',
+                'description'  => 'Không gian sang trọng, máy lạnh trung tâm mát mẻ',
+                'sort_order'   => 1,
+                'status'       => 'active',
+                'entrance_pos' => 'bottom_center',
+                'entrance_x'   => 50.0,
+                'entrance_y'   => 96.0,
+                'cashier_x'    => 14.0,
+                'cashier_y'    => 6.0,
+            ],
+            [
+                'code'         => 'garden',
+                'name'         => 'Sân vườn (Ngoài trời)',
+                'description'  => 'Không gian thoáng mát, cảnh quan thiên nhiên trong lành',
+                'sort_order'   => 2,
+                'status'       => 'active',
+                'entrance_pos' => 'left_center',
+                'entrance_x'   => 6.0,
+                'entrance_y'   => 50.0,
+                'cashier_x'    => 14.0,
+                'cashier_y'    => 6.0,
+            ],
+            [
+                'code'         => 'vip',
+                'name'         => 'Phòng VIP',
+                'description'  => 'Không gian riêng tư, cách âm, phục vụ hội nghị và tiệc gia đình',
+                'sort_order'   => 3,
+                'status'       => 'active',
+                'entrance_pos' => 'bottom_right',
+                'entrance_x'   => 85.0,
+                'entrance_y'   => 96.0,
+                'cashier_x'    => 14.0,
+                'cashier_y'    => 6.0,
+            ],
+        ];
+
+        $insertAreaStmt = $pdo->prepare("
+            INSERT INTO `restaurant_areas` (`code`, `name`, `description`, `sort_order`, `status`, `entrance_pos`, `entrance_x`, `entrance_y`, `cashier_x`, `cashier_y`)
+            VALUES (:code, :name, :description, :sort_order, :status, :entrance_pos, :entrance_x, :entrance_y, :cashier_x, :cashier_y)
+        ");
+
+        foreach ($defaultAreas as $a) {
+            $insertAreaStmt->execute($a);
+        }
+    }
+
+    // ==========================================================
+    // KHỞI TẠO BẢNG BÀN ĂN (DINING_TABLES)
+    // ==========================================================
+    $createDiningTableQuery = "
+    CREATE TABLE IF NOT EXISTS `dining_tables` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `code` VARCHAR(20) NOT NULL UNIQUE,
+        `name` VARCHAR(100) NOT NULL,
+        `area_id` INT NOT NULL,
+        `capacity` INT NOT NULL DEFAULT 4,
+        `pos_x` FLOAT NOT NULL DEFAULT 15,
+        `pos_y` FLOAT NOT NULL DEFAULT 20,
+        `shape` ENUM('square', 'round', 'rectangle') NOT NULL DEFAULT 'square',
+        `width` INT NOT NULL DEFAULT 85,
+        `height` INT NOT NULL DEFAULT 85,
+        `status` ENUM('active', 'maintenance', 'hidden') NOT NULL DEFAULT 'active',
+        `sort_order` INT NOT NULL DEFAULT 0,
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_table_area (`area_id`),
+        INDEX idx_table_code (`code`),
+        INDEX idx_table_status (`status`),
+        CONSTRAINT `fk_dining_tables_area` FOREIGN KEY (`area_id`) REFERENCES `restaurant_areas`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    $pdo->exec($createDiningTableQuery);
+
+    $checkTableStmt = $pdo->query("SELECT COUNT(*) as total FROM `dining_tables`");
+    $tableCount = (int) $checkTableStmt->fetchColumn();
+
+    if ($tableCount === 0) {
+        $areaMap = [];
+        $areaRows = $pdo->query("SELECT id, code FROM `restaurant_areas`")->fetchAll();
+        foreach ($areaRows as $ar) {
+            $areaMap[$ar['code']] = (int) $ar['id'];
+        }
+
+        $defaultTables = [
+            ['code' => 'B01', 'name' => 'Bàn B01', 'area_code' => 'indoor', 'capacity' => 4,  'pos_x' => 18, 'pos_y' => 22, 'shape' => 'square',    'width' => 85,  'height' => 85,  'status' => 'active', 'sort_order' => 1],
+            ['code' => 'B02', 'name' => 'Bàn B02', 'area_code' => 'indoor', 'capacity' => 4,  'pos_x' => 48, 'pos_y' => 22, 'shape' => 'square',    'width' => 85,  'height' => 85,  'status' => 'active', 'sort_order' => 2],
+            ['code' => 'B03', 'name' => 'Bàn B03', 'area_code' => 'indoor', 'capacity' => 4,  'pos_x' => 78, 'pos_y' => 22, 'shape' => 'square',    'width' => 85,  'height' => 85,  'status' => 'active', 'sort_order' => 3],
+            ['code' => 'B04', 'name' => 'Bàn B04', 'area_code' => 'indoor', 'capacity' => 2,  'pos_x' => 18, 'pos_y' => 64, 'shape' => 'round',     'width' => 80,  'height' => 80,  'status' => 'active', 'sort_order' => 4],
+            ['code' => 'B05', 'name' => 'Bàn B05', 'area_code' => 'garden', 'capacity' => 6,  'pos_x' => 25, 'pos_y' => 28, 'shape' => 'rectangle', 'width' => 115, 'height' => 85,  'status' => 'active', 'sort_order' => 5],
+            ['code' => 'B06', 'name' => 'Bàn B06', 'area_code' => 'garden', 'capacity' => 4,  'pos_x' => 68, 'pos_y' => 28, 'shape' => 'round',     'width' => 90,  'height' => 90,  'status' => 'active', 'sort_order' => 6],
+            ['code' => 'B07', 'name' => 'Bàn B07', 'area_code' => 'garden', 'capacity' => 4,  'pos_x' => 25, 'pos_y' => 66, 'shape' => 'square',    'width' => 85,  'height' => 85,  'status' => 'active', 'sort_order' => 7],
+            ['code' => 'B08', 'name' => 'Bàn B08', 'area_code' => 'garden', 'capacity' => 8,  'pos_x' => 68, 'pos_y' => 66, 'shape' => 'rectangle', 'width' => 135, 'height' => 85,  'status' => 'active', 'sort_order' => 8],
+            ['code' => 'B09', 'name' => 'Bàn B09', 'area_code' => 'vip',    'capacity' => 10, 'pos_x' => 28, 'pos_y' => 46, 'shape' => 'rectangle', 'width' => 150, 'height' => 95,  'status' => 'active', 'sort_order' => 9],
+            ['code' => 'B10', 'name' => 'Bàn B10', 'area_code' => 'vip',    'capacity' => 12, 'pos_x' => 70, 'pos_y' => 46, 'shape' => 'rectangle', 'width' => 170, 'height' => 100, 'status' => 'active', 'sort_order' => 10],
+            ['code' => 'B11', 'name' => 'Bàn B11', 'area_code' => 'indoor', 'capacity' => 4,  'pos_x' => 48, 'pos_y' => 64, 'shape' => 'square',    'width' => 85,  'height' => 85,  'status' => 'active', 'sort_order' => 11],
+            ['code' => 'B12', 'name' => 'Bàn B12', 'area_code' => 'indoor', 'capacity' => 6,  'pos_x' => 78, 'pos_y' => 64, 'shape' => 'rectangle', 'width' => 115, 'height' => 85,  'status' => 'active', 'sort_order' => 12],
+        ];
+
+        $insertTableStmt = $pdo->prepare("
+            INSERT INTO `dining_tables` (`code`, `name`, `area_id`, `capacity`, `pos_x`, `pos_y`, `shape`, `width`, `height`, `status`, `sort_order`)
+            VALUES (:code, :name, :area_id, :capacity, :pos_x, :pos_y, :shape, :width, :height, :status, :sort_order)
+        ");
+
+        foreach ($defaultTables as $t) {
+            $insertTableStmt->execute([
+                ':code'       => $t['code'],
+                ':name'       => $t['name'],
+                ':area_id'    => $areaMap[$t['area_code']] ?? 1,
+                ':capacity'   => $t['capacity'],
+                ':pos_x'      => $t['pos_x'],
+                ':pos_y'      => $t['pos_y'],
+                ':shape'      => $t['shape'],
+                ':width'      => $t['width'],
+                ':height'     => $t['height'],
+                ':status'     => $t['status'],
+                ':sort_order' => $t['sort_order'],
+            ]);
         }
     }
 }
