@@ -76,11 +76,59 @@
 
 .qr-image {
     display: block;
-    width: min(100%, 260px);
-    margin: 0 auto 12px;
+    width: min(100%, 240px);
+    margin: 0 auto 8px;
+    padding: 6px;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: #fff;
+}
+
+.qr-image[hidden] {
+    display: none;
+}
+
+.qr-image svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.transfer-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.qr-status {
+    margin: 0 0 10px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.qr-status.is-paid {
+    color: #047857;
+}
+
+.qr-status.is-error {
+    color: #b91c1c;
+}
+
+.qr-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.qr-actions [hidden] {
+    display: none;
 }
 
 .qr-info {

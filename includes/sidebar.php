@@ -37,7 +37,7 @@ $userInitial = mb_substr($user['fullname'] ?? $user['username'] ?? 'U', 0, 1, 'U
     require_once __DIR__ . '/kitchen.php';
     try {
         $kitchenCounts    = countKitchenTickets(fetchKitchenTickets(getOrdersDb()));
-        $kitchenOpenCount = $kitchenCounts['pending'] + $kitchenCounts['cooking'];
+        $kitchenOpenCount = $kitchenCounts['pending'];
     } catch (RuntimeException | PDOException $e) {
         error_log('sidebar kitchen counter: ' . $e->getMessage());
         $kitchenOpenCount = 0;
@@ -47,6 +47,13 @@ $userInitial = mb_substr($user['fullname'] ?? $user['username'] ?? 'U', 0, 1, 'U
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
       <span>Màn hình bếp</span>
       <span class="nav-badge kitchen-counter"><?= $kitchenOpenCount ?></span>
+    </a>
+  <?php endif; ?>
+
+  <?php if (canRoleAccessPage($currentRole, 'bills')): ?>
+    <a class="<?= active('bills', $page) ?>" href="index.php?page=bills">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <span>Lịch sử bill</span>
     </a>
   <?php endif; ?>
 

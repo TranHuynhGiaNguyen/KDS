@@ -1,26 +1,100 @@
-.kds-card-cancelled {
-    opacity: 0.85;
-    border-color: #dc2626;
-}
-
-.kds-card-cancelled .item-name {
-    text-decoration: line-through;
-}
-
-.status-cancelled {
-    background: #fee2e2;
-    color: #b91c1c;
-}
-
-.btn-cancelled-cooking {
-    background: #fee2e2;
-    color: #b91c1c;
-    cursor: not-allowed;
-}
-
 .kds-empty {
     grid-column: 1 / -1;
     padding: 32px 0;
     text-align: center;
     color: #64748b;
+}
+
+.kds-summary {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 14px;
+    color: #475569;
+}
+
+.kds-summary b {
+    font-size: 18px;
+    color: #0f172a;
+}
+
+.kds-history-link {
+    font-weight: 700;
+    color: var(--brand-orange);
+    text-decoration: none;
+}
+
+.kds-table-card {
+    justify-content: flex-start;
+}
+
+.kds-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 6px;
+}
+
+.kds-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: #fff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+button.kds-item:hover {
+    border-color: var(--brand-orange);
+    background: #fff7ed;
+}
+
+button.kds-item:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.kds-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kds-item-meta {
+    color: #64748b;
+    font-size: 11px;
+}
+
+.kds-item-cancelled {
+    border-color: #dc2626;
+    background: #fef2f2;
+    cursor: default;
+}
+
+.kds-item-cancelled .item-name {
+    text-decoration: line-through;
+}
+
+.kds-tap-hint {
+    margin: 6px 0 0;
+    font-size: 11px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+body.kds-dark .kds-item {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+body.kds-dark .kds-summary,
+body.kds-dark .kds-summary b {
+    color: #e2e8f0;
 }

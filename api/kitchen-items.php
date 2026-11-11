@@ -1,7 +1,7 @@
 <?php
 /**
  * API (GET): danh sách món đang ở bếp để màn hình KDS tự làm mới.
- * Trả về html các thẻ món, số lượng theo trạng thái và id các món đang chờ.
+ * Trả về html các ô bàn, số lượng món chờ / số bàn và id các món đang chờ.
  */
 
 require_once __DIR__ . '/../includes/auth.php';

@@ -36,7 +36,7 @@ $page = $_GET['page'] ?? '';
 // Kiểm tra quyền hạn và điều hướng phân quyền (RBAC)
 enforceAuthorization($page);
 
-$allowed = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment'];
+$allowed = ['bills', 'staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment'];
 if (!in_array($page, $allowed, true)) {
     $page = isLoggedIn() ? getDefaultPageForRole(currentRole()) : 'login';
 }
@@ -59,6 +59,7 @@ $pageTitles = [
     'staff'       => 'Sơ đồ bàn & Vận hành — SmartDine',
     'table-order' => 'Chi tiết đơn hàng bàn — SmartDine',
     'kitchen'     => 'Màn hình bếp KDS — SmartDine',
+    'bills'       => 'Lịch sử bill — SmartDine',
     'menu'        => 'Thực đơn món ăn — SmartDine',
     'cart'        => 'Giỏ hàng & Đặt món — SmartDine',
     'tracking'    => 'Theo dõi món ăn — SmartDine',
@@ -66,7 +67,7 @@ $pageTitles = [
     'payment'     => 'Thanh toán đơn hàng — SmartDine',
 ];
 $currentTitle = $pageTitles[$page] ?? 'SmartDine Restaurant System';
-$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment', 'dishes'], true);
+$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'admin', 'users', 'payment', 'dishes'], true);
 ?>
 <!doctype html>
 <html lang="vi">
@@ -78,11 +79,18 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
   <?php if ($page === 'payment'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/payment.css') ?>">
     <link rel="stylesheet" href="<?= assetUrl('assets/css/receipt.css') ?>">
+    <script defer src="<?= assetUrl('assets/js/vendor/qrcode.js') ?>"></script>
     <script defer src="<?= assetUrl('assets/js/payment.js') ?>"></script>
   <?php endif; ?>
   <?php if ($page === 'kitchen'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/kitchen.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/orders.css') ?>">
     <script defer src="<?= assetUrl('assets/js/kitchen.js') ?>"></script>
+  <?php endif; ?>
+  <?php if ($page === 'bills'): ?>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/orders.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/bills.css') ?>">
+    <script defer src="<?= assetUrl('assets/js/bills.js') ?>"></script>
   <?php endif; ?>
   <?php if ($page === 'table-order'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/receipt.css') ?>">
@@ -119,6 +127,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'admin', 'use
     <?php if ($page === 'staff') include __DIR__ . '/pages/staff.php'; ?>
     <?php if ($page === 'table-order') include __DIR__ . '/pages/table-order.php'; ?>
     <?php if ($page === 'kitchen') include __DIR__ . '/pages/kitchen.php'; ?>
+    <?php if ($page === 'bills') include __DIR__ . '/pages/bills.php'; ?>
     <?php if ($page === 'admin') include __DIR__ . '/pages/admin.php'; ?>
     <?php if ($page === 'users') include __DIR__ . '/pages/users.php'; ?>
     <?php if ($page === 'payment') include __DIR__ . '/pages/payment.php'; ?>

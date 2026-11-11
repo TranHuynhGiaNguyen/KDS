@@ -2,9 +2,10 @@
 /**
  * SmartDine - Nghiệp vụ màn hình bếp (KDS) theo từng món.
  *
- * Bếp làm việc trên từng món (ticket), không phải cả đơn:
- * pending (chờ bếp) -> cooking (đang nấu) -> done (bếp xong, chờ bưng).
+ * Màn hình bếp hiển thị mỗi bàn một ô, trong ô là các món đang chờ bếp (pending).
+ * Bếp chạm vào một món: hệ thống in bill món và chuyển món sang cooking, món biến mất khỏi màn hình.
  * Nhân viên xác nhận "Đã ra bàn" ở trang chi tiết bàn để món chuyển sang served.
+ * Món bị hủy vẫn hiện trong ô bàn một thời gian ngắn để bếp ngừng làm.
  */
 
 require_once __DIR__ . '/orders.php';
@@ -14,8 +15,7 @@ const KITCHEN_WARNING_MINUTES = 10;
 const KITCHEN_URGENT_MINUTES = 20;
 
 const KITCHEN_TRANSITIONS = [
-    'start'  => ['from' => 'pending', 'to' => 'cooking'],
-    'finish' => ['from' => 'cooking', 'to' => 'done'],
+    'start' => ['from' => 'pending', 'to' => 'cooking'],
 ];
 
 const KITCHEN_STATIONS = [
@@ -55,14 +55,14 @@ function fetchKitchenTickets(PDO $pdo): array {
         LEFT JOIN `dishes` d ON d.`name` = i.`item_name`
         WHERE o.`status` = 'open'
           AND i.`sent_at` IS NOT NULL
-          AND (i.`status` IN ('pending', 'cooking', 'done')
+          AND (i.`status` = 'pending'
                OR (i.`status` = 'cancelled' AND i.`cancelled_at` >= ?))
         ORDER BY (i.`status` = 'cancelled') DESC, i.`sent_at`, i.`id`
     ");
     $stmt->execute([$cancelledSince]);
 
     return array_map(static function (array $row): array {
-        $isActive = in_array($row['status'], ['pending', 'cooking'], true);
+        $isActive = $row['status'] === 'pending';
         $minutes  = minutesSince($row['sent_at']);
 
         return [
@@ -80,8 +80,34 @@ function fetchKitchenTickets(PDO $pdo): array {
     }, $stmt->fetchAll());
 }
 
+function groupKitchenTicketsByTable(array $tickets): array {
+    $tables = [];
+
+    foreach ($tickets as $ticket) {
+        $code = $ticket['table'];
+
+        if (!isset($tables[$code])) {
+            $tables[$code] = ['table' => $code, 'time' => $ticket['time'], 'minutes' => 0, 'urgency' => 'normal', 'items' => []];
+        }
+
+        $tables[$code]['items'][] = $ticket;
+
+        if ($ticket['status'] === 'pending' && $ticket['minutes'] >= $tables[$code]['minutes']) {
+            $tables[$code]['minutes'] = $ticket['minutes'];
+            $tables[$code]['urgency'] = $ticket['urgency'];
+            $tables[$code]['time']    = $ticket['time'];
+        }
+    }
+
+    usort($tables, static function (array $a, array $b): int {
+        return $b['minutes'] <=> $a['minutes'];
+    });
+
+    return $tables;
+}
+
 function countKitchenTickets(array $tickets): array {
-    $counts = ['all' => count($tickets), 'pending' => 0, 'cooking' => 0, 'done' => 0];
+    $counts = ['pending' => 0, 'cancelled' => 0, 'tables' => count(groupKitchenTicketsByTable($tickets))];
 
     foreach ($tickets as $ticket) {
         if (isset($counts[$ticket['status']])) {

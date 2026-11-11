@@ -8,10 +8,23 @@
     const stationSelect = document.querySelector('#kds-station-select');
     const sidebarCounter = document.querySelector('.kitchen-counter');
 
-    let statusFilter = 'all';
     let knownPendingIds = new Set(
-        [...grid.querySelectorAll('[data-kds-card="pending"]')].map((card) => card.dataset.itemId)
+        [...grid.querySelectorAll('[data-kds-item]')].map((row) => row.dataset.itemId)
     );
+
+    const ticketDialog = document.createElement('dialog');
+    ticketDialog.className = 'bill-ticket-dialog';
+    ticketDialog.innerHTML = `
+    <div class="bill-ticket">
+      <p data-ticket="staff"></p>
+      <p data-ticket="table"></p>
+      <p data-ticket="dish"></p>
+    </div>
+    <div class="bill-ticket-actions">
+      <button class="btn btn-primary" type="button" data-ticket-print>In lại</button>
+      <button class="btn btn-outline" type="button" data-ticket-close>Đóng</button>
+    </div>`;
+    document.body.append(ticketDialog);
 
     const showMessage = (message) => {
         if (typeof notify === 'function') notify(message);
@@ -19,17 +32,20 @@
 
     const applyFilters = () => {
         const station = stationSelect ? stationSelect.value : 'all';
-        let visible = 0;
+        let visibleCards = 0;
 
-        grid.querySelectorAll('[data-kds-card]').forEach((card) => {
-            const matchStatus = statusFilter === 'all' || card.dataset.kdsCard === statusFilter;
-            const matchStation = station === 'all' || card.dataset.station === station;
-            card.hidden = !(matchStatus && matchStation);
-            if (!card.hidden) visible++;
+        grid.querySelectorAll('[data-kds-table]').forEach((card) => {
+            let visibleRows = 0;
+            card.querySelectorAll('.kds-item').forEach((row) => {
+                row.hidden = !(station === 'all' || row.dataset.station === station);
+                if (!row.hidden) visibleRows++;
+            });
+            card.hidden = visibleRows === 0;
+            if (!card.hidden) visibleCards++;
         });
 
         const emptyNotice = grid.querySelector('.kds-empty-filter');
-        if (visible === 0 && grid.querySelector('[data-kds-card]')) {
+        if (visibleCards === 0 && grid.querySelector('[data-kds-table]')) {
             if (!emptyNotice) {
                 grid.insertAdjacentHTML('beforeend', '<p class="kds-empty kds-empty-filter">Không có món nào khớp bộ lọc.</p>');
             }
@@ -42,7 +58,7 @@
         document.querySelectorAll('[data-kds-count]').forEach((badge) => {
             badge.textContent = counts[badge.dataset.kdsCount];
         });
-        if (sidebarCounter) sidebarCounter.textContent = counts.pending + counts.cooking;
+        if (sidebarCounter) sidebarCounter.textContent = counts.pending;
     };
 
     const alertOnNewItems = (pendingIds) => {
@@ -75,19 +91,33 @@
         }
     };
 
-    const changeStatus = async (button) => {
-        const card = button.closest('[data-kds-card]');
-        const body = new FormData();
-        body.set('action', button.dataset.kdsAction);
-        body.set('item_id', card.dataset.itemId);
+    const printTicket = (ticket) => {
+        ticketDialog.querySelector('[data-ticket="staff"]').textContent = `Nhân viên: ${ticket.staff}`;
+        ticketDialog.querySelector('[data-ticket="table"]').textContent = `Bàn ${ticket.table} - ${ticket.time}`;
+        ticketDialog.querySelector('[data-ticket="dish"]').textContent = `${ticket.name} - ${ticket.qty}`;
+        ticketDialog.showModal();
 
-        button.disabled = true;
+        window.addEventListener('afterprint', () => ticketDialog.close(), { once: true });
+        window.print();
+    };
+
+    const takeItem = async (row) => {
+        const body = new FormData();
+        body.set('action', 'start');
+        body.set('item_id', row.dataset.itemId);
+
+        row.disabled = true;
 
         try {
             const response = await fetch(actionUrl, { method: 'POST', body });
             const result = await response.json();
 
-            if (!response.ok) showMessage(result.error);
+            if (!response.ok) {
+                showMessage(result.error);
+            } else if (result.ticket) {
+                row.hidden = true;
+                printTicket(result.ticket);
+            }
         } catch (error) {
             showMessage('Không thể kết nối máy chủ. Vui lòng thử lại.');
         }
@@ -96,20 +126,16 @@
     };
 
     grid.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-kds-action]');
-        if (button) changeStatus(button);
+        const row = event.target.closest('[data-kds-item]');
+        if (row) takeItem(row);
+    });
+
+    ticketDialog.addEventListener('click', (event) => {
+        if (event.target.closest('[data-ticket-print]')) window.print();
+        if (event.target.closest('[data-ticket-close]')) ticketDialog.close();
     });
 
     document.addEventListener('click', (event) => {
-        const filter = event.target.closest('[data-kds-filter]');
-        if (filter) {
-            statusFilter = filter.dataset.kdsFilter;
-            document.querySelectorAll('[data-kds-filter]').forEach((tab) => {
-                tab.classList.toggle('active', tab === filter);
-            });
-            applyFilters();
-        }
-
         if (event.target.closest('[data-kds-refresh]')) {
             refresh().then(() => showMessage('Đã cập nhật danh sách món mới nhất'));
         }

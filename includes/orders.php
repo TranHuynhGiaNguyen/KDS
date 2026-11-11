@@ -9,7 +9,7 @@ const ORDER_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const ORDER_ITEM_STATUSES = [
     'unsent'    => ['label' => 'Chưa xuất bill',    'class' => 'unsent'],
     'pending'   => ['label' => 'Chờ bếp xử lý',     'class' => 'pending'],
-    'cooking'   => ['label' => 'Bếp đang chế biến', 'class' => 'cooking'],
+    'cooking'   => ['label' => 'Bếp đang làm', 'class' => 'cooking'],
     'done'      => ['label' => 'Bếp đã xong',       'class' => 'done'],
     'served'    => ['label' => 'Đã phục vụ ra bàn', 'class' => 'ready'],
     'cancelled' => ['label' => 'Đã hủy',            'class' => 'cancelled'],
@@ -18,7 +18,7 @@ const ORDER_ITEM_STATUSES = [
 const ORDER_ITEM_ACTIONS = [
     'unsent'    => ['send', 'cancel'],
     'pending'   => ['ticket', 'cancel'],
-    'cooking'   => ['ticket', 'cancel'],
+    'cooking'   => ['ticket', 'serve', 'cancel'],
     'done'      => ['ticket', 'serve', 'cancel'],
     'served'    => ['ticket'],
     'cancelled' => [],
@@ -68,6 +68,10 @@ function fetchTableItems(PDO $pdo, string $tableCode): array {
     return $stmt->fetchAll();
 }
 
+function formatInvoiceCode(int $orderId): string {
+    return 'HD' . str_pad((string) $orderId, 6, '0', STR_PAD_LEFT);
+}
+
 function fetchOpenOrderCreatedAt(PDO $pdo, string $tableCode): ?string {
     $stmt = $pdo->prepare("SELECT `created_at` FROM `orders` WHERE `table_code` = ? AND `status` = 'open' ORDER BY `id` DESC LIMIT 1");
     $stmt->execute([$tableCode]);
@@ -94,7 +98,7 @@ function sendItemToKitchen(PDO $pdo, int $itemId, int $userId): bool {
 }
 
 function markItemServed(PDO $pdo, int $itemId): bool {
-    $stmt = $pdo->prepare("UPDATE `order_items` SET `status` = 'served' WHERE `id` = ? AND `status` = 'done'");
+    $stmt = $pdo->prepare("UPDATE `order_items` SET `status` = 'served' WHERE `id` = ? AND `status` IN ('cooking', 'done')");
     $stmt->execute([$itemId]);
 
     return $stmt->rowCount() === 1;

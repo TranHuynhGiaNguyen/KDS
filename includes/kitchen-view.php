@@ -1,74 +1,60 @@
 <?php
 /**
- * SmartDine - Giao diện các thẻ món trên màn hình bếp (KDS).
+ * SmartDine - Giao diện màn hình bếp (KDS): mỗi bàn một ô, mỗi món là một dòng bấm được.
  * Dùng chung cho lần tải trang đầu và cho API làm mới tự động.
  */
 
 require_once __DIR__ . '/kitchen.php';
 require_once __DIR__ . '/http.php';
 
-const KITCHEN_CARD_LABELS = [
-    'pending'   => ['class' => 'new',       'text' => 'Chờ nhận'],
-    'cooking'   => ['class' => 'cooking',   'text' => 'Đang nấu'],
-    'done'      => ['class' => 'ready',     'text' => 'Chờ bưng'],
-    'cancelled' => ['class' => 'cancelled', 'text' => 'Đã hủy'],
-];
-
-const KITCHEN_CARD_BUTTONS = [
-    'pending' => ['action' => 'start',  'class' => 'btn-start-cooking', 'label' => 'Nhận món & Bắt đầu nấu'],
-    'cooking' => ['action' => 'finish', 'class' => 'btn-ready-cooking', 'label' => 'Báo ra đồ (Hoàn thành)'],
-];
-
-function renderKitchenCard(array $ticket): string {
-    $status = $ticket['status'];
-    $label  = KITCHEN_CARD_LABELS[$status];
-    $button = KITCHEN_CARD_BUTTONS[$status] ?? null;
+function renderKitchenItemRow(array $ticket): string {
+    $isCancelled = $ticket['status'] === 'cancelled';
+    $station     = KITCHEN_STATIONS[$ticket['station']] ?? $ticket['station'];
 
     ob_start();
+    if ($isCancelled): ?>
+      <div class="kds-item kds-item-cancelled" data-station="<?= escapeHtml($ticket['station']) ?>">
+        <div class="kds-item-main">
+          <span class="item-name"><?= escapeHtml($ticket['name']) ?></span>
+          <small class="item-note">Đã hủy - ngừng làm</small>
+        </div>
+        <b class="item-qty">× <?= $ticket['qty'] ?></b>
+      </div>
+    <?php else: ?>
+      <button class="kds-item" type="button" data-kds-item data-item-id="<?= $ticket['id'] ?>" data-station="<?= escapeHtml($ticket['station']) ?>">
+        <div class="kds-item-main">
+          <span class="item-name"><?= escapeHtml($ticket['name']) ?></span>
+          <small class="kds-item-meta"><?= escapeHtml($station) ?> · <?= escapeHtml($ticket['time']) ?> · chờ <?= $ticket['minutes'] ?> phút</small>
+          <?php if ($ticket['note'] !== ''): ?>
+            <small class="item-note"><?= escapeHtml($ticket['note']) ?></small>
+          <?php endif; ?>
+        </div>
+        <b class="item-qty">× <?= $ticket['qty'] ?></b>
+      </button>
+    <?php endif;
+
+    return (string) ob_get_clean();
+}
+
+function renderKitchenTableCard(array $table): string {
+    ob_start();
     ?>
-    <article class="kitchen-card kds-card urgency-<?= $ticket['urgency'] ?> kds-card-<?= $status ?>"
-             data-kds-card="<?= $status ?>" data-station="<?= escapeHtml($ticket['station']) ?>" data-item-id="<?= $ticket['id'] ?>">
+    <article class="kitchen-card kds-table-card urgency-<?= $table['urgency'] ?>" data-kds-table="<?= escapeHtml($table['table']) ?>">
       <div class="kitchen-card-head">
         <div class="card-meta-left">
-          <div class="card-table-title">
-            <b>Bàn <?= escapeHtml($ticket['table']) ?></b>
-            <span class="type-pill"><?= escapeHtml(KITCHEN_STATIONS[$ticket['station']] ?? $ticket['station']) ?></span>
-          </div>
+          <div class="card-table-title"><b>Bàn <?= escapeHtml($table['table']) ?></b></div>
           <div class="card-time-row">
-            <span class="time-created"><?= escapeHtml($ticket['time']) ?></span>
-            <?php if ($status !== 'cancelled'): ?>
-              <span class="time-elapsed badge-<?= $ticket['urgency'] ?>">Chờ: <?= $ticket['minutes'] ?> phút</span>
-            <?php endif; ?>
+            <span class="time-created"><?= escapeHtml($table['time']) ?></span>
+            <span class="time-elapsed badge-<?= $table['urgency'] ?>">Chờ: <?= $table['minutes'] ?> phút</span>
           </div>
         </div>
-        <div class="card-meta-right">
-          <span class="status status-<?= $label['class'] ?>"><?= $label['text'] ?></span>
-        </div>
       </div>
-
-      <div class="kitchen-items-list">
-        <div class="kitchen-item">
-          <div class="item-content grow">
-            <span class="item-name"><?= escapeHtml($ticket['name']) ?></span>
-            <?php if ($ticket['note'] !== ''): ?>
-              <small class="item-note"><?= escapeHtml($ticket['note']) ?></small>
-            <?php endif; ?>
-          </div>
-          <b class="item-qty">× <?= $ticket['qty'] ?></b>
-        </div>
+      <div class="kds-items">
+        <?php foreach ($table['items'] as $ticket): ?>
+          <?= renderKitchenItemRow($ticket) ?>
+        <?php endforeach; ?>
       </div>
-
-      <div class="kitchen-actions">
-        <?php if ($button !== null): ?>
-          <button class="btn btn-kds <?= $button['class'] ?>" type="button" data-kds-action="<?= $button['action'] ?>">
-            <span><?= $button['label'] ?></span>
-          </button>
-        <?php elseif ($status === 'cancelled'): ?>
-          <button class="btn btn-kds btn-cancelled-cooking" type="button" disabled><span>Bill đã hủy - ngừng làm</span></button>
-        <?php else: ?>
-          <button class="btn btn-kds btn-done-cooking" type="button" disabled><span>Đã ra đồ, chờ nhân viên bưng ✓</span></button>
-        <?php endif; ?>
-      </div>
+      <p class="kds-tap-hint">Chạm vào món để in bill và nhận món</p>
     </article>
     <?php
     return (string) ob_get_clean();
@@ -79,5 +65,5 @@ function renderKitchenGrid(array $tickets): string {
         return '<p class="kds-empty">Hiện chưa có món nào cần chế biến.</p>';
     }
 
-    return implode('', array_map('renderKitchenCard', $tickets));
+    return implode('', array_map('renderKitchenTableCard', groupKitchenTicketsByTable($tickets)));
 }

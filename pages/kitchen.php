@@ -59,11 +59,10 @@ $counts = countKitchenTickets($tickets);
 <?php endif; ?>
 
 <div class="kds-filter-bar">
-  <div class="kitchen-tabs" id="kds-status-filters">
-    <button class="active" data-kds-filter="all">Tất cả món <span class="tab-badge" data-kds-count="all"><?= $counts['all'] ?></span></button>
-    <button data-kds-filter="pending">Chờ tiếp nhận <span class="tab-badge new-badge" data-kds-count="pending"><?= $counts['pending'] ?></span></button>
-    <button data-kds-filter="cooking">Đang nấu <span class="tab-badge cooking-badge" data-kds-count="cooking"><?= $counts['cooking'] ?></span></button>
-    <button data-kds-filter="done">Đã xong / Chờ bưng <span class="tab-badge ready-badge" data-kds-count="done"><?= $counts['done'] ?></span></button>
+  <div class="kds-summary">
+    <span><b data-kds-count="tables"><?= $counts['tables'] ?></b> bàn</span>
+    <span><b data-kds-count="pending"><?= $counts['pending'] ?></b> món chờ làm</span>
+    <a class="kds-history-link" href="index.php?page=bills">Lịch sử bill</a>
   </div>
 
   <div class="kds-station-filter">

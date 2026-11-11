@@ -1,8 +1,7 @@
 <?php
 /**
- * API (POST): bếp đổi trạng thái một món.
- * action=start  : chờ bếp xử lý -> đang chế biến
- * action=finish : đang chế biến -> bếp đã xong
+ * API (POST): bếp chạm vào một món chờ làm.
+ * action=start : món chuyển từ chờ bếp sang đang làm và trả về nội dung bill món để in.
  */
 
 require_once __DIR__ . '/../includes/auth.php';
@@ -39,7 +38,7 @@ try {
         respondJson(409, ['error' => 'Món đã được xử lý ở thao tác khác, danh sách sẽ được làm mới.']);
     }
 
-    respondJson(200, ['ok' => true]);
+    respondJson(200, ['ticket' => fetchItemTicket($pdo, $itemId)]);
 } catch (RuntimeException | PDOException $e) {
     error_log('kitchen-status API: ' . $e->getMessage());
     respondJson(500, ['error' => 'Lỗi hệ thống, vui lòng thử lại.']);

@@ -32,7 +32,8 @@ try {
                 ['type' => $discountType, 'value' => $discountValue],
                 $method,
                 $cashReceived,
-                (int) $_SESSION['user_id']
+                (int) $_SESSION['user_id'],
+                !empty($_POST['transfer_confirmed'])
             );
             redirectTo($paymentUrl . '&invoice=' . $newInvoiceId);
         } catch (CheckoutException $e) {
@@ -59,6 +60,7 @@ try {
 }
 
 $isPaid = $invoice !== null;
+$bank   = getRestaurantInfo()['bank'];
 
 if ($isPaid) {
     $bill         = $invoice['bill'];
@@ -77,9 +79,7 @@ if ($isPaid) {
     $change = 0;
 }
 
-$bank            = getRestaurantInfo()['bank'];
-$transferContent = $orderId === null ? '' : buildTransferContent($orderId, $tableCode);
-$qrUrl           = $orderId === null ? null : buildVietQrUrl($bill['total'], $transferContent);
+$qrPayload = $isPaid ? '' : buildInvoiceQrPayload($orderId, $tableCode, $bill['total']);
 
 if ($blockers !== [] && $error === '') {
     $error = checkoutBlockersMessage($blockers);
@@ -152,7 +152,8 @@ if ($blockers !== [] && $error === '') {
     </section>
   <?php else: ?>
     <form class="panel payment-methods-panel" method="post" action="<?= escapeHtml($paymentUrl) ?>"
-          data-payment-form data-total="<?= (int) $bill['total'] ?>" data-table="<?= escapeHtml($tableCode) ?>" data-calculate-url="api/payment-calculate.php">
+          data-payment-form data-total="<?= (int) $bill['total'] ?>" data-table="<?= escapeHtml($tableCode) ?>" data-calculate-url="api/payment-calculate.php"
+          data-qr-payload="<?= escapeHtml($qrPayload) ?>">
       <h2>Giảm giá</h2>
       <div class="discount-row">
         <select name="discount_type" aria-label="Loại giảm giá">
@@ -170,18 +171,22 @@ if ($blockers !== [] && $error === '') {
         <input type="radio" name="pay" value="qr" <?= $method === 'qr' ? 'checked' : '' ?>>
         <div class="pay-content">
           <div class="pay-title-row"><b>Chuyển khoản QR</b></div>
-          <small class="muted">Mã QR đã có sẵn số tài khoản của quán, số tiền và nội dung chuyển khoản. Khách quét mã, thu ngân kiểm tra đã nhận tiền rồi bấm xác nhận.</small>
+          <small class="muted">Khách quét mã bằng app ngân hàng, số tiền và nội dung được điền sẵn. Khi tiền đã vào tài khoản, nhân viên tick xác nhận rồi bấm thanh toán.</small>
           <div class="pay-detail qr-detail">
-            <?php if ($qrUrl !== null): ?>
-              <img class="qr-image" data-qr-image src="<?= escapeHtml($qrUrl) ?>" alt="Mã QR chuyển khoản VietQR">
+            <?php if ($qrPayload !== ''): ?>
+              <div class="qr-image" data-qr-box></div>
             <?php endif; ?>
             <dl class="qr-info">
               <div><dt>Ngân hàng</dt><dd><?= escapeHtml($bank['name']) ?></dd></div>
-              <div><dt>Chủ tài khoản</dt><dd><?= escapeHtml($bank['account_name']) ?></dd></div>
               <div><dt>Số tài khoản</dt><dd><?= escapeHtml($bank['account_no']) ?></dd></div>
+              <div><dt>Chủ tài khoản</dt><dd><?= escapeHtml($bank['account_name']) ?></dd></div>
               <div><dt>Số tiền</dt><dd data-bill-total><?= formatMoney($bill['total']) ?></dd></div>
-              <div><dt>Nội dung</dt><dd><?= escapeHtml($transferContent) ?></dd></div>
+              <div><dt>Nội dung</dt><dd><?= $orderId !== null ? escapeHtml(formatTransferContent($orderId, $tableCode)) : '—' ?></dd></div>
             </dl>
+            <label class="transfer-confirm">
+              <input type="checkbox" name="transfer_confirmed" value="1" data-transfer-confirm>
+              <span>Tôi đã kiểm tra tiền chuyển khoản đã vào tài khoản</span>
+            </label>
           </div>
         </div>
       </label>
@@ -202,7 +207,7 @@ if ($blockers !== [] && $error === '') {
         </div>
       </label>
 
-      <button class="btn btn-block btn-pay-now" type="submit" name="action" value="pay"<?= $blockers !== [] ? ' disabled' : '' ?>>
+      <button class="btn btn-block btn-pay-now" type="submit" name="action" value="pay"<?= $blockers !== [] ? ' disabled' : '' ?> data-pay-button>
         <span>Xác nhận thanh toán <b data-bill-total><?= formatMoney($bill['total']) ?></b></span>
       </button>
     </form>

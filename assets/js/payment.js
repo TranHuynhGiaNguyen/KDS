@@ -8,7 +8,11 @@
 
     const alerts = document.querySelector('#payment-alerts');
     const summary = document.querySelector('#bill-summary');
-    const qrImage = form.querySelector('[data-qr-image]');
+    const payButton = form.querySelector('[data-pay-button]');
+    const qrRadio = form.querySelector('[name="pay"][value="qr"]');
+    const qrBox = form.querySelector('[data-qr-box]');
+    const transferConfirm = form.querySelector('[data-transfer-confirm]');
+    const blockedByServer = payButton.disabled;
     const cashInput = form.querySelector('[name="cash_received"]');
     const changeBox = form.querySelector('[data-cash-change]');
     const changeLabel = form.querySelector('[data-cash-change-label]');
@@ -43,6 +47,29 @@
         changeValue.textContent = formatMoney(Math.abs(difference));
     };
 
+    const syncPayButton = () => {
+        payButton.disabled = blockedByServer || (qrRadio.checked && !transferConfirm.checked);
+    };
+
+    const renderQr = (payload) => {
+        if (!qrBox) return;
+
+        if (!payload) {
+            qrBox.replaceChildren();
+            return;
+        }
+
+        const qr = qrcode(0, 'M');
+        qr.addData(payload);
+        qr.make();
+        qrBox.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+    };
+
+    form.querySelectorAll('[name="pay"]').forEach((radio) => radio.addEventListener('change', syncPayButton));
+    transferConfirm.addEventListener('change', syncPayButton);
+    renderQr(form.dataset.qrPayload);
+    syncPayButton();
+
     const applyDiscount = async () => {
         const body = new FormData();
         body.set('table', form.dataset.table);
@@ -60,8 +87,10 @@
             showError('');
             summary.innerHTML = result.summary;
             form.dataset.total = result.total_raw;
-            if (qrImage && result.qr_url) qrImage.src = result.qr_url;
             updateChange();
+            transferConfirm.checked = false;
+            renderQr(result.qr_payload);
+            syncPayButton();
             document.querySelectorAll('[data-bill-total]').forEach((element) => {
                 element.textContent = result.total;
             });

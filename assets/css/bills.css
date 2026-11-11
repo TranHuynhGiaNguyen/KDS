@@ -1,0 +1,71 @@
+.bills-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.bills-tabs a {
+    padding: 9px 16px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.bills-tabs a.active {
+    border-color: var(--brand-orange);
+    background: var(--brand-orange);
+    color: #fff;
+}
+
+.bills-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.bills-filter input {
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    font: inherit;
+}
+
+.bills-panel {
+    overflow-x: auto;
+}
+
+.bills-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.bills-table th,
+.bills-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.bills-table th {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.bills-note {
+    display: block;
+    color: var(--brand-orange);
+    font-size: 11px;
+}
+
+.bills-empty,
+.bills-limit {
+    margin: 12px 0 0;
+    text-align: center;
+}

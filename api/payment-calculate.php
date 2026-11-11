@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/bill-summary.php';
+require_once __DIR__ . '/../includes/checkout.php';
 require_once __DIR__ . '/../includes/vietqr.php';
 
 if (!isLoggedIn() || !canRoleAccessPage(currentRole(), 'payment')) {
@@ -37,5 +38,5 @@ respondJson(200, [
     'summary'   => renderBillSummary($bill),
     'total'     => formatMoney($bill['total']),
     'total_raw' => $bill['total'],
-    'qr_url'    => $orderId === null ? null : buildVietQrUrl($bill['total'], buildTransferContent($orderId, $tableCode)),
+    'qr_payload' => buildInvoiceQrPayload($orderId, $tableCode, $bill['total']),
 ]);
