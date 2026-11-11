@@ -32,8 +32,7 @@ try {
                 ['type' => $discountType, 'value' => $discountValue],
                 $method,
                 $cashReceived,
-                (int) $_SESSION['user_id'],
-                !empty($_POST['transfer_confirmed'])
+                (int) $_SESSION['user_id']
             );
             redirectTo($paymentUrl . '&invoice=' . $newInvoiceId);
         } catch (CheckoutException $e) {
@@ -171,7 +170,7 @@ if ($blockers !== [] && $error === '') {
         <input type="radio" name="pay" value="qr" <?= $method === 'qr' ? 'checked' : '' ?>>
         <div class="pay-content">
           <div class="pay-title-row"><b>Chuyển khoản QR</b></div>
-          <small class="muted">Khách quét mã bằng app ngân hàng, số tiền và nội dung được điền sẵn. Khi tiền đã vào tài khoản, nhân viên tick xác nhận rồi bấm thanh toán.</small>
+          <small class="muted">Khách quét mã bằng app ngân hàng, số tiền và nội dung được điền sẵn. Khi kiểm tra tiền đã vào tài khoản, nhân viên bấm Xác nhận thanh toán.</small>
           <div class="pay-detail qr-detail">
             <?php if ($qrPayload !== ''): ?>
               <div class="qr-image" data-qr-box></div>
@@ -183,10 +182,6 @@ if ($blockers !== [] && $error === '') {
               <div><dt>Số tiền</dt><dd data-bill-total><?= formatMoney($bill['total']) ?></dd></div>
               <div><dt>Nội dung</dt><dd><?= $orderId !== null ? escapeHtml(formatTransferContent($orderId, $tableCode)) : '—' ?></dd></div>
             </dl>
-            <label class="transfer-confirm">
-              <input type="checkbox" name="transfer_confirmed" value="1" data-transfer-confirm>
-              <span>Tôi đã kiểm tra tiền chuyển khoản đã vào tài khoản</span>
-            </label>
           </div>
         </div>
       </label>

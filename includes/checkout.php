@@ -46,7 +46,7 @@ function fetchOpenOrderId(PDO $pdo, string $tableCode): ?int {
     return $orderId === false ? null : (int) $orderId;
 }
 
-function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $method, int $cashReceived, int $cashierId, bool $transferConfirmed = false): int {
+function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $method, int $cashReceived, int $cashierId): int {
     if (!isset(PAYMENT_METHODS[$method])) {
         throw new CheckoutException('Phương thức thanh toán không hợp lệ.');
     }
@@ -83,10 +83,6 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
 
         if ($method === 'cash' && $cashReceived < $bill['total']) {
             throw new CheckoutException('Tiền khách đưa chưa đủ. Cần tối thiểu ' . formatMoney($bill['total']) . '.');
-        }
-
-        if ($method === 'qr' && !$transferConfirmed) {
-            throw new CheckoutException('Vui lòng xác nhận đã kiểm tra tiền chuyển khoản vào tài khoản trước khi thanh toán.');
         }
 
         $invoiceId = insertInvoice($pdo, $orderId, $tableCode, $bill);

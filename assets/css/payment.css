@@ -94,15 +94,6 @@
     height: auto;
 }
 
-.transfer-confirm {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-top: 10px;
-    font-size: 13px;
-    font-weight: 600;
-}
-
 .qr-status {
     margin: 0 0 10px;
     text-align: center;
