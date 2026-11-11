@@ -36,15 +36,17 @@ $page = $_GET['page'] ?? '';
 // Kiểm tra quyền hạn và điều hướng phân quyền (RBAC)
 enforceAuthorization($page);
 
-$allowed = ['bills', 'staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment'];
+$allowed = ['bills', 'staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'tables', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment'];
 if (!in_array($page, $allowed, true)) {
     $page = isLoggedIn() ? getDefaultPageForRole(currentRole()) : 'login';
 }
 
-function assetUrl(string $path): string {
-    $file = __DIR__ . '/' . $path;
+if (!function_exists('assetUrl')) {
+    function assetUrl(string $path): string {
+        $file = __DIR__ . '/' . $path;
 
-    return $path . (is_file($file) ? '?v=' . filemtime($file) : '');
+        return $path . (is_file($file) ? '?v=' . filemtime($file) : '');
+    }
 }
 
 function active($name, $page) {
@@ -56,6 +58,7 @@ $pageTitles = [
     'admin'       => 'Tổng quan Quản trị — SmartDine',
     'users'       => 'Quản lý tài khoản nhân viên — SmartDine',
     'dishes'      => 'Quản lý Thực đơn & Món ăn — SmartDine',
+    'tables'      => 'Quản lý Bàn & Khu vực — SmartDine',
     'staff'       => 'Sơ đồ bàn & Vận hành — SmartDine',
     'table-order' => 'Chi tiết đơn hàng bàn — SmartDine',
     'kitchen'     => 'Màn hình bếp KDS — SmartDine',
@@ -67,7 +70,7 @@ $pageTitles = [
     'payment'     => 'Thanh toán đơn hàng — SmartDine',
 ];
 $currentTitle = $pageTitles[$page] ?? 'SmartDine Restaurant System';
-$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'admin', 'users', 'payment', 'dishes'], true);
+$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'admin', 'users', 'payment', 'dishes', 'tables'], true);
 ?>
 <!doctype html>
 <html lang="vi">
@@ -75,7 +78,10 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($currentTitle) ?></title>
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="<?= assetUrl('assets/css/style.css') ?>">
+  <?php if (in_array($page, ['staff', 'tables'], true)): ?>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/visual-floor.css') ?>">
+  <?php endif; ?>
   <?php if ($page === 'payment'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/payment.css') ?>">
     <link rel="stylesheet" href="<?= assetUrl('assets/css/receipt.css') ?>">
@@ -132,6 +138,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
     <?php if ($page === 'users') include __DIR__ . '/pages/users.php'; ?>
     <?php if ($page === 'payment') include __DIR__ . '/pages/payment.php'; ?>
     <?php if ($page === 'dishes') include __DIR__ . '/pages/dishes.php'; ?>
+    <?php if ($page === 'tables') include __DIR__ . '/pages/tables.php'; ?>
   </main>
 
 <?php else: ?>

@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/../includes/tables.php';
+$adminTableStats = getTableStats();
+?>
 <div class="dash-header">
   <div>
     <span class="eyebrow">SMARTDINE MANAGEMENT</span>
@@ -15,6 +19,10 @@
     <a class="btn btn-outline" href="index.php?page=dishes">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
       <span>Quản lý thực đơn</span>
+    </a>
+    <a class="btn btn-outline" href="index.php?page=tables">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>
+      <span>Quản lý bàn & khu vực</span>
     </a>
     <a class="btn btn-primary-tool" href="index.php?page=kitchen">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
@@ -54,10 +62,10 @@
   <div class="stat-card">
     <div class="stat-card-head">
       <span>Công suất phục vụ bàn</span>
-      <span class="stat-badge neutral">37.5%</span>
+      <span class="stat-badge <?= $adminTableStats['occupancy_rate'] > 70 ? 'urgent' : 'neutral' ?>"><?= $adminTableStats['occupancy_rate'] ?>%</span>
     </div>
-    <b>12 / 32 bàn</b>
-    <small>Còn trống 20 bàn sẵn sàng</small>
+    <b><?= $adminTableStats['occupied_tables'] ?> / <?= $adminTableStats['active_tables'] ?> bàn</b>
+    <small><?= $adminTableStats['empty_tables'] ?> bàn trống sẵn sàng · <?= $adminTableStats['total_areas'] ?> khu vực</small>
   </div>
 </div>
 
