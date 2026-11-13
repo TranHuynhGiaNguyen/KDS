@@ -79,6 +79,9 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($currentTitle) ?></title>
   <link rel="stylesheet" href="<?= assetUrl('assets/css/style.css') ?>">
+  <?php if ($page === 'admin'): ?>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/revenue.css') ?>">
+  <?php endif; ?>
   <?php if (in_array($page, ['staff', 'tables'], true)): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/visual-floor.css') ?>">
   <?php endif; ?>

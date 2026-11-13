@@ -53,4 +53,29 @@ assert(strpos($layoutHtml, 'btn-save-layout') !== false, "btn-save-layout not fo
 assert(strpos($layoutHtml, 'btn-toggle-shape') !== false, "btn-toggle-shape not found");
 echo "  [PASS] pages/tables.php (Tab 3: layout) rendered successfully with 2D Visual Editor\n";
 
+// 5. Render pages/admin.php (mode=day)
+$_GET['page'] = 'admin';
+$_GET['mode'] = 'day';
+$_GET['date'] = '2026-11-13';
+ob_start();
+include __DIR__ . '/../pages/admin.php';
+$adminDayHtml = ob_get_clean();
+assert(strpos($adminDayHtml, 'Tổng quan & Báo cáo Doanh thu') !== false, "Dashboard title not found");
+assert(strpos($adminDayHtml, 'revenue-svg-chart') !== false, "SVG chart not found in day mode");
+assert(strpos($adminDayHtml, 'Danh sách Hóa đơn thanh toán') !== false, "Invoice list table not found in day mode");
+echo "  [PASS] pages/admin.php (Dashboard mode=day) rendered successfully with SVG chart & invoice table\n";
+
+// 6. Render pages/admin.php (mode=month)
+$_GET['page'] = 'admin';
+$_GET['mode'] = 'month';
+$_GET['month'] = '2026-11';
+ob_start();
+include __DIR__ . '/../pages/admin.php';
+$adminMonthHtml = ob_get_clean();
+assert(strpos($adminMonthHtml, 'Bảng kê Doanh thu từng ngày') !== false, "Monthly breakdown table not found in month mode");
+assert(strpos($adminMonthHtml, 'revenue-svg-chart') !== false, "SVG chart not found in month mode");
+assert(strpos($adminMonthHtml, 'Top 5 món bán chạy nhất') !== false, "Top dishes not found");
+assert(strpos($adminMonthHtml, 'Doanh thu theo Khu vực Nhà hàng') !== false, "Area breakdown not found");
+echo "  [PASS] pages/admin.php (Dashboard mode=month) rendered successfully with 30-day breakdown\n";
+
 echo "\n>>> TẤT CẢ CÁC TRANG RENDER HOÀN HẢO! <<<\n";

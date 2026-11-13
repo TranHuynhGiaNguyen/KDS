@@ -1,0 +1,470 @@
+/**
+ * SmartDine - Báo cáo & Thống kê Doanh thu (CSS)
+ * Hỗ trợ giao diện responsive, biểu đồ SVG, bộ lọc thời gian và chế độ in ấn A4
+ */
+
+/* ==========================================================
+   1. BỘ LỌC THỜI GIAN & THANH CÔNG CỤ
+   ========================================================== */
+.revenue-filter-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #fff;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--line, #e2e8f0);
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.revenue-view-tabs {
+  display: inline-flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  gap: 4px;
+}
+
+.revenue-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  color: #64748b;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.revenue-tab-btn:hover {
+  color: #0f172a;
+}
+
+.revenue-tab-btn.active {
+  background: #fff;
+  color: #ea580c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.revenue-filter-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.revenue-filter-form input[type="date"],
+.revenue-filter-form input[type="month"] {
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.revenue-filter-form input:focus {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+.quick-filter-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quick-chip {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.quick-chip:hover,
+.quick-chip.active {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #ea580c;
+}
+
+.revenue-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ==========================================================
+   2. THẺ CHỈ SỐ KPI DOANH THU (STAT CARDS)
+   ========================================================== */
+.revenue-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.revenue-stat-card {
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.revenue-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.revenue-stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.revenue-stat-head span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.stat-trend-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stat-trend-badge.positive {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.stat-trend-badge.negative {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.stat-trend-badge.neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.revenue-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #0f172a;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.revenue-stat-sub {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.split-bar-wrap {
+  margin-top: 10px;
+}
+
+.split-bar-track {
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  margin-bottom: 6px;
+}
+
+.split-bar-qr {
+  background: #0284c7;
+  height: 100%;
+}
+
+.split-bar-cash {
+  background: #ea580c;
+  height: 100%;
+}
+
+.split-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* ==========================================================
+   3. BIỂU ĐỒ SVG DOANH THU TRỰC QUAN
+   ========================================================== */
+.revenue-chart-panel {
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chart-title h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: #0f172a;
+}
+
+.chart-title p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.chart-svg-container {
+  width: 100%;
+  overflow-x: auto;
+  position: relative;
+}
+
+.revenue-svg-chart {
+  display: block;
+  width: 100%;
+  min-width: 600px;
+  height: 250px;
+}
+
+.revenue-bar {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.revenue-bar:hover {
+  filter: brightness(1.15);
+  opacity: 0.9;
+}
+
+/* ==========================================================
+   4. BẢNG CHI TIẾT DOANH THU & TOP MÓN
+   ========================================================== */
+.revenue-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .revenue-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.area-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.area-list-item:last-child {
+  border-bottom: none;
+}
+
+.area-meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.area-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.area-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.area-dot.indoor { background: #ea580c; }
+.area-dot.garden { background: #16a34a; }
+.area-dot.vip { background: #9333ea; }
+.area-dot.other { background: #64748b; }
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.revenue-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.revenue-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.revenue-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.revenue-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.revenue-table .num-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.revenue-table tr.total-row {
+  background: #fff7ed;
+  font-weight: 800;
+  border-top: 2px solid #fdba74;
+}
+
+.revenue-table tr.total-row td {
+  color: #9a3412;
+  font-size: 13px;
+}
+
+.badge-method {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-method.qr {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.badge-method.cash {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+/* ==========================================================
+   5. CHẾ ĐỘ IN ẤN A4 (PRINT STYLES)
+   ========================================================== */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  .sidebar,
+  .revenue-filter-toolbar,
+  .revenue-actions,
+  .btn,
+  .filter-row,
+  .side-bottom {
+    display: none !important;
+  }
+
+  .dashboard-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .revenue-chart-panel,
+  .revenue-stat-card,
+  .panel {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .revenue-svg-chart {
+    height: 180px !important;
+  }
+
+  .print-header {
+    display: block !important;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 10px;
+  }
+}
+
+.print-header {
+  display: none;
+}
+
