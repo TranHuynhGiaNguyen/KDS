@@ -87,17 +87,22 @@ $userInitial = mb_substr($user['fullname'] ?? $user['username'] ?? 'U', 0, 1, 'U
 
   <!-- USER FOOTER -->
   <div class="side-bottom">
-    <div class="avatar avatar-role-<?= htmlspecialchars($currentRole) ?>" title="<?= htmlspecialchars($user['fullname']) ?>">
-      <?= htmlspecialchars($userInitial) ?>
-    </div>
-    <div class="grow user-info-meta">
-      <b class="user-fullname" title="<?= htmlspecialchars($user['fullname']) ?>">
-        <?= htmlspecialchars($user['fullname'] ?: $user['username']) ?>
-      </b>
-      <div class="user-role-line">
-        <?= getRoleBadgeHtml($currentRole) ?>
+    <a href="index.php?page=profile" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; flex-grow: 1; overflow: hidden;" title="Xem hồ sơ & đổi mật khẩu">
+      <div class="avatar avatar-role-<?= htmlspecialchars($currentRole) ?>" title="<?= htmlspecialchars($user['fullname']) ?>">
+        <?= htmlspecialchars($userInitial) ?>
       </div>
-    </div>
+      <div class="grow user-info-meta" style="overflow: hidden;">
+        <b class="user-fullname" style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($user['fullname']) ?>">
+          <?= htmlspecialchars($user['fullname'] ?: $user['username']) ?>
+        </b>
+        <div class="user-role-line">
+          <?= getRoleBadgeHtml($currentRole) ?>
+        </div>
+      </div>
+    </a>
+    <a href="index.php?page=profile" class="btn-sidebar-profile <?= $page === 'profile' ? 'active' : '' ?>" title="Hồ sơ cá nhân & Đổi mật khẩu" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; color: #64748b; text-decoration: none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+    </a>
     <a href="index.php?action=logout" class="btn-sidebar-logout" title="Đăng xuất khỏi hệ thống">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
     </a>

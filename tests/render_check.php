@@ -78,4 +78,47 @@ assert(strpos($adminMonthHtml, 'Top 5 món bán chạy nhất') !== false, "Top 
 assert(strpos($adminMonthHtml, 'Doanh thu theo Khu vực Nhà hàng') !== false, "Area breakdown not found");
 echo "  [PASS] pages/admin.php (Dashboard mode=month) rendered successfully with 30-day breakdown\n";
 
+// 7. Render pages/admin.php (mode=range)
+$_GET['page'] = 'admin';
+$_GET['mode'] = 'range';
+$_GET['start_date'] = '2026-11-01';
+$_GET['end_date'] = '2026-11-13';
+ob_start();
+include __DIR__ . '/../pages/admin.php';
+$adminRangeHtml = ob_get_clean();
+assert(strpos($adminRangeHtml, 'Bảng kê Doanh thu từng ngày') !== false, "Daily table not found in range mode");
+assert(strpos($adminRangeHtml, 'Theo khoảng ngày') !== false, "Range tab not found");
+echo "  [PASS] pages/admin.php (Dashboard mode=range) rendered successfully with date range breakdown\n";
+
+// 8. Render pages/dishes.php
+$_GET['page'] = 'dishes';
+$_GET['tab'] = 'dishes';
+ob_start();
+include __DIR__ . '/../pages/dishes.php';
+$dishesHtml = ob_get_clean();
+assert(strpos($dishesHtml, 'Quản lý Thực đơn, Món ăn & Giá bán') !== false, "Dishes page title not found");
+assert(strpos($dishesHtml, 'modal-delete-dish') !== false, "Delete dish modal not found");
+assert(strpos($dishesHtml, 'delete_type') !== false, "Delete type soft/hard not found");
+assert(strpos($dishesHtml, 'pagination-bar') !== false, "Dishes pagination bar not found");
+echo "  [PASS] pages/dishes.php rendered successfully with Soft Delete modal & Pagination\n";
+
+// 9. Render pages/users.php
+$_GET['page'] = 'users';
+ob_start();
+include __DIR__ . '/../pages/users.php';
+$usersHtml = ob_get_clean();
+assert(strpos($usersHtml, 'Quản lý Tài khoản & Phân quyền') !== false, "Users page title not found");
+assert(strpos($usersHtml, 'pagination-bar') !== false, "Users pagination bar not found");
+echo "  [PASS] pages/users.php rendered successfully with Pagination & RBAC controls\n";
+
+// 10. Render pages/profile.php
+$_GET['page'] = 'profile';
+ob_start();
+include __DIR__ . '/../pages/profile.php';
+$profileHtml = ob_get_clean();
+assert(strpos($profileHtml, 'Hồ sơ Cá nhân & Bảo mật') !== false, "Profile page title not found");
+assert(strpos($profileHtml, 'update_profile') !== false, "Update profile form not found");
+assert(strpos($profileHtml, 'change_password') !== false, "Change password form not found");
+echo "  [PASS] pages/profile.php rendered successfully with Profile update & Password change forms\n";
+
 echo "\n>>> TẤT CẢ CÁC TRANG RENDER HOÀN HẢO! <<<\n";

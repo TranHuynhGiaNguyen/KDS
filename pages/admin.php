@@ -10,10 +10,22 @@ require_once __DIR__ . '/../includes/revenue.php';
 // Xử lý xuất file CSV nếu có yêu cầu
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $pdo = getRevenueDb();
-    $viewMode = ($_GET['mode'] ?? 'day') === 'month' ? 'month' : 'day';
+    $viewMode = $_GET['mode'] ?? 'day';
+    if (!in_array($viewMode, ['day', 'month', 'range'], true)) {
+        $viewMode = 'day';
+    }
     $selectedDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
     $selectedMonth = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['month'] : date('Y-m');
-    $report = $viewMode === 'month' ? getRevenueByMonth($pdo, $selectedMonth) : getRevenueByDate($pdo, $selectedDate);
+    $startDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'] ?? '') ? $_GET['start_date'] : date('Y-m-d', strtotime('-6 days'));
+    $endDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'] ?? '') ? $_GET['end_date'] : date('Y-m-d');
+
+    if ($viewMode === 'range') {
+        $report = getRevenueByRange($pdo, $startDate, $endDate);
+    } elseif ($viewMode === 'month') {
+        $report = getRevenueByMonth($pdo, $selectedMonth);
+    } else {
+        $report = getRevenueByDate($pdo, $selectedDate);
+    }
     exportRevenueCsv($report);
     exit;
 }
@@ -21,26 +33,46 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 $pdo = getRevenueDb();
 $adminTableStats = getTableStats();
 
-// Xác định chế độ xem: theo ngày (day) hay theo tháng (month)
-$viewMode = ($_GET['mode'] ?? 'day') === 'month' ? 'month' : 'day';
+// Xác định chế độ xem: theo ngày (day), theo tháng (month) hay theo khoảng ngày (range)
+$viewMode = $_GET['mode'] ?? 'day';
+if (!in_array($viewMode, ['day', 'month', 'range'], true)) {
+    $viewMode = 'day';
+}
 $selectedDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
 $selectedMonth = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['month'] : date('Y-m');
+$startDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'] ?? '') ? $_GET['start_date'] : date('Y-m-d', strtotime('-6 days'));
+$endDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'] ?? '') ? $_GET['end_date'] : date('Y-m-d');
+if ($startDate > $endDate) {
+    $tmp = $startDate;
+    $startDate = $endDate;
+    $endDate = $tmp;
+}
 
 // Lấy dữ liệu báo cáo tương ứng
-$report = $viewMode === 'month' ? getRevenueByMonth($pdo, $selectedMonth) : getRevenueByDate($pdo, $selectedDate);
+if ($viewMode === 'range') {
+    $report = getRevenueByRange($pdo, $startDate, $endDate);
+} elseif ($viewMode === 'month') {
+    $report = getRevenueByMonth($pdo, $selectedMonth);
+} else {
+    $report = getRevenueByDate($pdo, $selectedDate);
+}
 
 // Các mốc ngày nhanh
 $todayStr = date('Y-m-d');
 $yesterdayStr = date('Y-m-d', strtotime('-1 day'));
+$sevenDaysAgoStr = date('Y-m-d', strtotime('-7 days'));
 $thisMonthStr = date('Y-m');
 $prevMonthStr = date('Y-m', strtotime('-1 month'));
+$range7Start = date('Y-m-d', strtotime('-6 days'));
+$range30Start = date('Y-m-d', strtotime('-29 days'));
+$thisMonthStart = date('Y-m-01');
 ?>
 
 <!-- Header in ấn A4 (Chỉ hiển thị khi in hoặc lưu PDF) -->
 <div class="print-header">
   <h1 style="margin: 0 0 6px; font-size: 20pt;">SMARTDINE RESTAURANT — BÁO CÁO DOANH THU</h1>
   <p style="margin: 0; color: #555;">
-    Thời gian thống kê: <b><?= $viewMode === 'month' ? 'Tháng ' . $report['month_display'] : 'Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')' ?></b>
+    Thời gian thống kê: <b><?= $viewMode === 'month' ? 'Tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'Khoảng ' . $report['date_display'] : 'Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')') ?></b>
     · Xuất lúc: <?= date('d/m/Y H:i:s') ?> · Người lập: Quản trị viên
   </p>
 </div>
@@ -50,7 +82,7 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
   <div>
     <span class="eyebrow">SMARTDINE MANAGEMENT & REVENUE DASHBOARD</span>
     <h1>Tổng quan & Báo cáo Doanh thu</h1>
-    <p>Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng và phân bổ vận hành nhà hàng.</p>
+    <p>Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng / khoảng ngày và phân bổ vận hành nhà hàng.</p>
   </div>
   <div class="filter-row">
     <a class="btn btn-outline" href="index.php?page=users">
@@ -73,10 +105,10 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
 </div>
 
 <!-- ==========================================================
-     BỘ LỌC DOANH THU THEO NGÀY / THÁNG & CÔNG CỤ
+     BỘ LỌC DOANH THU THEO NGÀY / THÁNG / KHOẢNG NGÀY & CÔNG CỤ
      ========================================================== -->
 <section class="revenue-filter-toolbar">
-  <!-- Tabs chuyển chế độ: Theo ngày vs Theo tháng -->
+  <!-- Tabs chuyển chế độ: Theo ngày vs Theo tháng vs Khoảng ngày -->
   <div class="revenue-view-tabs">
     <a class="revenue-tab-btn <?= $viewMode === 'day' ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= htmlspecialchars($selectedDate) ?>">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -86,9 +118,13 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
       <span>Theo tháng</span>
     </a>
+    <a class="revenue-tab-btn <?= $viewMode === 'range' ? 'active' : '' ?>" href="index.php?page=admin&mode=range&start_date=<?= htmlspecialchars($startDate) ?>&end_date=<?= htmlspecialchars($endDate) ?>">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <span>Theo khoảng ngày</span>
+    </a>
   </div>
 
-  <!-- Form chọn ngày / tháng cụ thể -->
+  <!-- Form chọn ngày / tháng / khoảng cụ thể -->
   <form class="revenue-filter-form" method="get" action="index.php">
     <input type="hidden" name="page" value="admin">
     <input type="hidden" name="mode" value="<?= htmlspecialchars($viewMode) ?>">
@@ -98,13 +134,24 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
       <div class="quick-filter-chips">
         <a class="quick-chip <?= $selectedDate === $todayStr ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= $todayStr ?>">Hôm nay</a>
         <a class="quick-chip <?= $selectedDate === $yesterdayStr ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= $yesterdayStr ?>">Hôm qua</a>
-        <a class="quick-chip <?= $selectedDate === '2026-11-10' ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=2026-11-10">10/11</a>
+        <a class="quick-chip <?= $selectedDate === $sevenDaysAgoStr ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= $sevenDaysAgoStr ?>">7 ngày trước (<?= date('d/m', strtotime('-7 days')) ?>)</a>
       </div>
-    <?php else: ?>
+    <?php elseif ($viewMode === 'month'): ?>
       <input type="month" name="month" value="<?= htmlspecialchars($selectedMonth) ?>" aria-label="Chọn tháng xem doanh thu">
       <div class="quick-filter-chips">
-        <a class="quick-chip <?= $selectedMonth === $thisMonthStr ? 'active' : '' ?>" href="index.php?page=admin&mode=month&month=<?= $thisMonthStr ?>">Tháng này (11/2026)</a>
-        <a class="quick-chip <?= $selectedMonth === $prevMonthStr ? 'active' : '' ?>" href="index.php?page=admin&mode=month&month=<?= $prevMonthStr ?>">Tháng trước (10/2026)</a>
+        <a class="quick-chip <?= $selectedMonth === $thisMonthStr ? 'active' : '' ?>" href="index.php?page=admin&mode=month&month=<?= $thisMonthStr ?>">Tháng này (<?= date('m/Y') ?>)</a>
+        <a class="quick-chip <?= $selectedMonth === $prevMonthStr ? 'active' : '' ?>" href="index.php?page=admin&mode=month&month=<?= $prevMonthStr ?>">Tháng trước (<?= date('m/Y', strtotime('-1 month')) ?>)</a>
+      </div>
+    <?php else: ?>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="date" name="start_date" value="<?= htmlspecialchars($startDate) ?>" aria-label="Từ ngày">
+        <span style="color: #64748b; font-size: 13px;">đến</span>
+        <input type="date" name="end_date" value="<?= htmlspecialchars($endDate) ?>" aria-label="Đến ngày">
+      </div>
+      <div class="quick-filter-chips">
+        <a class="quick-chip <?= ($startDate === $range7Start && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=range&start_date=<?= $range7Start ?>&end_date=<?= $todayStr ?>">7 ngày qua</a>
+        <a class="quick-chip <?= ($startDate === $range30Start && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=range&start_date=<?= $range30Start ?>&end_date=<?= $todayStr ?>">30 ngày qua</a>
+        <a class="quick-chip <?= ($startDate === $thisMonthStart && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=range&start_date=<?= $thisMonthStart ?>&end_date=<?= $todayStr ?>">Tháng này</a>
       </div>
     <?php endif; ?>
 
@@ -113,7 +160,17 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
 
   <!-- Nút Thao tác: Xuất CSV & In báo cáo -->
   <div class="revenue-actions">
-    <a class="btn btn-small btn-outline" href="index.php?page=admin&export=csv&mode=<?= $viewMode ?>&<?= $viewMode === 'month' ? 'month=' . $selectedMonth : 'date=' . $selectedDate ?>" title="Xuất báo cáo sang file Excel CSV">
+    <?php
+    $exportParams = 'mode=' . urlencode($viewMode);
+    if ($viewMode === 'range') {
+        $exportParams .= '&start_date=' . urlencode($startDate) . '&end_date=' . urlencode($endDate);
+    } elseif ($viewMode === 'month') {
+        $exportParams .= '&month=' . urlencode($selectedMonth);
+    } else {
+        $exportParams .= '&date=' . urlencode($selectedDate);
+    }
+    ?>
+    <a class="btn btn-small btn-outline" href="index.php?page=admin&export=csv&<?= $exportParams ?>" title="Xuất báo cáo sang file Excel CSV">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       <span>Xuất CSV (Excel)</span>
     </a>
@@ -157,7 +214,7 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
     </div>
     <div class="revenue-stat-value"><?= number_format($report['total_invoices']) ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">hóa đơn</span></div>
     <div class="revenue-stat-sub">
-      So với kỳ trước: <b><?= $report['comparison']['prev_invoices'] ?> đơn</b> (<?= $viewMode === 'month' ? 'Tháng trước' : 'Hôm trước' ?>)
+      So với kỳ trước: <b><?= $report['comparison']['prev_invoices'] ?> đơn</b> (<?= $viewMode === 'month' ? 'Tháng trước' : ($viewMode === 'range' ? 'Kỳ trước' : 'Hôm trước') ?>)
     </div>
     <small style="color: #16a34a; font-size: 11px; font-weight: 600;">
       ✓ 100% đơn thanh toán hợp lệ
@@ -211,7 +268,7 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
 <section class="revenue-chart-panel">
   <div class="chart-header">
     <div class="chart-title">
-      <h2>Biểu đồ Doanh thu <?= $viewMode === 'month' ? 'các ngày trong Tháng ' . $report['month_display'] : 'theo khung giờ Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')' ?></h2>
+      <h2>Biểu đồ Doanh thu <?= $viewMode === 'month' ? 'các ngày trong Tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'các ngày trong ' . $report['date_display'] : 'theo khung giờ Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')') ?></h2>
       <p>Cột biểu thị doanh thu thực nhận sau chiết khấu và thuế phí · Di chuột vào từng cột để xem chi tiết</p>
     </div>
     <div class="chart-legend">
@@ -228,7 +285,7 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
 
   <?php
   // Tính toán tọa độ và mốc trục Y cho biểu đồ SVG
-  $chartItems = $viewMode === 'month' ? $report['daily_data'] : $report['hourly_data'];
+  $chartItems = ($viewMode === 'month' || $viewMode === 'range') ? $report['daily_data'] : $report['hourly_data'];
   $maxRevenue = 0;
   $sumRevenue = 0;
   $countWithRevenue = 0;
@@ -308,11 +365,11 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
         $barX = $padLeft + $i * $slotW + ($slotW - $barW) / 2;
         $barY = ($padTop + $plotH) - $barH;
 
-        $isHighlight = ($viewMode === 'month' && isset($item['date']) && $item['date'] === $todayStr);
+        $isHighlight = (($viewMode === 'month' || $viewMode === 'range') && isset($item['date']) && $item['date'] === $todayStr);
         $grad = $isHighlight ? 'url(#barGradientToday)' : 'url(#barGradient)';
         $invCount = $item['invoices'];
 
-        $tooltipText = $viewMode === 'month'
+        $tooltipText = ($viewMode === 'month' || $viewMode === 'range')
           ? "Ngày {$item['label']} ({$item['day_name']}): " . formatVnd($val) . " ({$invCount} hóa đơn)"
           : "Khung giờ {$item['label']}: " . formatVnd($val) . " ({$invCount} hóa đơn)";
       ?>
@@ -329,15 +386,15 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
 
         <!-- Nhãn trục X dưới đáy -->
         <?php 
-        // Hiển thị nhãn thưa ra nếu có quá nhiều cột trong tháng
+        // Hiển thị nhãn thưa ra nếu có quá nhiều cột
         $showLabel = true;
-        if ($viewMode === 'month' && $nItems > 20) {
+        if (($viewMode === 'month' || $viewMode === 'range') && $nItems > 20) {
             $showLabel = ($item['day_num'] === 1 || $item['day_num'] % 3 === 0 || $item['day_num'] === $nItems);
         }
         ?>
         <?php if ($showLabel): ?>
           <text x="<?= round($barX + $barW / 2, 1) ?>" y="<?= $padTop + $plotH + 18 ?>" text-anchor="middle" font-size="10" font-weight="<?= $isHighlight ? '800' : '600' ?>" fill="<?= $isHighlight ? '#0284c7' : '#64748b' ?>">
-            <?= htmlspecialchars($viewMode === 'month' ? sprintf('%02d', $item['day_num']) : $item['label']) ?>
+            <?= htmlspecialchars($item['label']) ?>
           </text>
         <?php endif; ?>
       <?php endforeach; ?>
@@ -354,9 +411,9 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
     <div class="panel-title">
       <div>
         <h2>Top 5 món bán chạy nhất</h2>
-        <p class="muted">Dựa trên doanh thu và số lượt gọi món trong <?= $viewMode === 'month' ? 'tháng ' . $report['month_display'] : 'ngày ' . $report['date_display'] ?></p>
+        <p class="muted">Dựa trên doanh thu và số lượt gọi món trong <?= $viewMode === 'month' ? 'tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'khoảng ' . $report['date_display'] : 'ngày ' . $report['date_display']) ?></p>
       </div>
-      <span class="badge-pill"><?= $viewMode === 'month' ? 'Tháng này' : 'Ngày này' ?></span>
+      <span class="badge-pill"><?= $viewMode === 'month' ? 'Tháng này' : ($viewMode === 'range' ? 'Khoảng này' : 'Ngày này') ?></span>
     </div>
 
     <div class="rank-list">
@@ -424,17 +481,17 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
 <section class="panel" style="margin-bottom: 28px;">
   <div class="panel-title">
     <div>
-      <h2><?= $viewMode === 'month' ? 'Bảng kê Doanh thu từng ngày — Tháng ' . $report['month_display'] : 'Danh sách Hóa đơn thanh toán — Ngày ' . $report['date_display'] ?></h2>
-      <p class="muted"><?= $viewMode === 'month' ? 'Tổng hợp 30 ngày trong tháng kèm phân tách tiền mặt và chuyển khoản QR' : 'Chi tiết tất cả hóa đơn đã thanh toán thành công trong ngày' ?></p>
+      <h2><?= $viewMode === 'month' ? 'Bảng kê Doanh thu từng ngày — Tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'Bảng kê Doanh thu từng ngày — ' . $report['date_display'] : 'Danh sách Hóa đơn thanh toán — Ngày ' . $report['date_display']) ?></h2>
+      <p class="muted"><?= ($viewMode === 'month' || $viewMode === 'range') ? 'Tổng hợp doanh thu từng ngày kèm phân tách tiền mặt và chuyển khoản QR' : 'Chi tiết tất cả hóa đơn đã thanh toán thành công trong ngày' ?></p>
     </div>
     <div>
-      <span class="badge-pill"><?= $viewMode === 'month' ? count($report['daily_data']) . ' ngày' : count($report['invoices_list']) . ' hóa đơn' ?></span>
+      <span class="badge-pill"><?= ($viewMode === 'month' || $viewMode === 'range') ? count($report['daily_data']) . ' ngày' : count($report['invoices_list']) . ' hóa đơn' ?></span>
     </div>
   </div>
 
   <div class="table-responsive">
-    <?php if ($viewMode === 'month'): ?>
-      <!-- Bảng doanh thu từng ngày trong tháng -->
+    <?php if ($viewMode === 'month' || $viewMode === 'range'): ?>
+      <!-- Bảng doanh thu từng ngày trong tháng / khoảng ngày -->
       <table class="revenue-table">
         <thead>
           <tr>
@@ -472,7 +529,7 @@ $prevMonthStr = date('Y-m', strtotime('-1 month'));
         </tbody>
         <tfoot>
           <tr class="total-row">
-            <td colspan="2">TỔNG CỘNG THÁNG <?= $report['month_display'] ?></td>
+            <td colspan="2">TỔNG CỘNG <?= $viewMode === 'month' ? 'THÁNG ' . $report['month_display'] : 'KHOẢNG ' . $report['date_display'] ?></td>
             <td class="num-col"><?= number_format($report['total_invoices']) ?></td>
             <td class="num-col"><?= formatVnd($report['total_subtotal']) ?></td>
             <td class="num-col" style="color: #b91c1c;">-<?= formatVnd($report['total_discount']) ?></td>

@@ -645,6 +645,297 @@ function getRevenueByMonth(PDO $pdo, string $yearMonth): array {
 }
 
 /**
+ * Lấy báo cáo doanh thu chi tiết theo khoảng ngày tùy chọn (Từ startDate đến endDate)
+ */
+function getRevenueByRange(PDO $pdo, string $startDate, string $endDate): array {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
+        $startDate = date('Y-m-d', strtotime('-6 days'));
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        $endDate = date('Y-m-d');
+    }
+    if ($startDate > $endDate) {
+        $tmp = $startDate;
+        $startDate = $endDate;
+        $endDate = $tmp;
+    }
+
+    $start = $startDate . ' 00:00:00';
+    $end = date('Y-m-d', strtotime($endDate . ' +1 day')) . ' 00:00:00';
+
+    // 1. Thống kê tổng quan
+    $summaryStmt = $pdo->prepare('
+        SELECT 
+            COUNT(v.`id`) AS `total_invoices`,
+            COALESCE(SUM(v.`subtotal`), 0) AS `total_subtotal`,
+            COALESCE(SUM(v.`discount_amount`), 0) AS `total_discount`,
+            COALESCE(SUM(v.`service_fee`), 0) AS `total_service_fee`,
+            COALESCE(SUM(v.`vat`), 0) AS `total_vat`,
+            COALESCE(SUM(v.`total`), 0) AS `total_revenue`
+        FROM `invoices` v
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+    ');
+    $summaryStmt->execute([$start, $end]);
+    $summary = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [
+        'total_invoices' => 0,
+        'total_subtotal' => 0,
+        'total_discount' => 0,
+        'total_service_fee' => 0,
+        'total_vat' => 0,
+        'total_revenue' => 0,
+    ];
+
+    $totalInvoices = (int) $summary['total_invoices'];
+    $totalRevenue = (int) $summary['total_revenue'];
+    $avgOrderValue = $totalInvoices > 0 ? (int) round($totalRevenue / $totalInvoices) : 0;
+
+    // 2. Tổng số món đã bán
+    $itemsSoldStmt = $pdo->prepare('
+        SELECT COALESCE(SUM(ii.`qty`), 0) AS `total_items`
+        FROM `invoice_items` ii
+        JOIN `invoices` v ON v.`id` = ii.`invoice_id`
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+    ');
+    $itemsSoldStmt->execute([$start, $end]);
+    $totalItemsSold = (int) $itemsSoldStmt->fetchColumn();
+
+    // 3. Phân bổ phương thức thanh toán
+    $methodStmt = $pdo->prepare('
+        SELECT p.`method`, COUNT(p.`id`) AS `count`, COALESCE(SUM(p.`amount`), 0) AS `total`
+        FROM `payments` p
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+        GROUP BY p.`method`
+    ');
+    $methodStmt->execute([$start, $end]);
+    $methodsRaw = $methodStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $paymentMethods = [
+        'cash' => ['name' => 'Tiền mặt', 'count' => 0, 'total' => 0, 'percent' => 0],
+        'qr' => ['name' => 'Chuyển khoản QR', 'count' => 0, 'total' => 0, 'percent' => 0],
+    ];
+    foreach ($methodsRaw as $row) {
+        $m = $row['method'];
+        if (isset($paymentMethods[$m])) {
+            $paymentMethods[$m]['count'] = (int) $row['count'];
+            $paymentMethods[$m]['total'] = (int) $row['total'];
+        }
+    }
+    if ($totalRevenue > 0) {
+        $paymentMethods['cash']['percent'] = (int) round(($paymentMethods['cash']['total'] / $totalRevenue) * 100);
+        $paymentMethods['qr']['percent'] = 100 - $paymentMethods['cash']['percent'];
+    }
+
+    // 4. Doanh thu theo từng ngày trong khoảng (daily_data cho SVG chart & table)
+    $dailyStmt = $pdo->prepare('
+        SELECT 
+            DATE(p.`paid_at`) AS `rev_date`,
+            COUNT(DISTINCT v.`id`) AS `invoices_count`,
+            COALESCE(SUM(v.`subtotal`), 0) AS `subtotal_amount`,
+            COALESCE(SUM(v.`discount_amount`), 0) AS `discount_amount`,
+            COALESCE(SUM(v.`service_fee` + v.`vat`), 0) AS `tax_fee_amount`,
+            COALESCE(SUM(v.`total`), 0) AS `daily_revenue`,
+            COALESCE(SUM(CASE WHEN p.`method` = "cash" THEN p.`amount` ELSE 0 END), 0) AS `cash_amount`,
+            COALESCE(SUM(CASE WHEN p.`method` = "qr" THEN p.`amount` ELSE 0 END), 0) AS `qr_amount`
+        FROM `invoices` v
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+        GROUP BY DATE(p.`paid_at`)
+    ');
+    $dailyStmt->execute([$start, $end]);
+    $dailyDb = [];
+    foreach ($dailyStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $dailyDb[$row['rev_date']] = $row;
+    }
+
+    $dailyData = [];
+    $currDt = new DateTime($startDate, new DateTimeZone(REVENUE_TIMEZONE));
+    $endDt = new DateTime($endDate, new DateTimeZone(REVENUE_TIMEZONE));
+    $dayIndex = 1;
+
+    while ($currDt <= $endDt) {
+        $dStr = $currDt->format('Y-m-d');
+        $row = $dailyDb[$dStr] ?? null;
+        $rev = (int) ($row['daily_revenue'] ?? 0);
+        $inv = (int) ($row['invoices_count'] ?? 0);
+        $sub = (int) ($row['subtotal_amount'] ?? 0);
+        $disc = (int) ($row['discount_amount'] ?? 0);
+        $tf = (int) ($row['tax_fee_amount'] ?? 0);
+        $cashT = (int) ($row['cash_amount'] ?? 0);
+        $qrT = (int) ($row['qr_amount'] ?? 0);
+
+        $dailyData[] = [
+            'day_num' => $dayIndex++,
+            'date' => $dStr,
+            'label' => $currDt->format('d/m'),
+            'day_name' => getVietnameseDayOfWeek($dStr),
+            'revenue' => $rev,
+            'invoices' => $inv,
+            'subtotal' => $sub,
+            'discount' => $disc,
+            'tax_fee' => $tf,
+            'cash_total' => $cashT,
+            'qr_total' => $qrT,
+            'avg_order' => $inv > 0 ? (int) round($rev / $inv) : 0,
+        ];
+        $currDt->modify('+1 day');
+    }
+
+    // 5. Top 5 món bán chạy nhất trong khoảng
+    $topStmt = $pdo->prepare('
+        SELECT 
+            ii.`item_name`,
+            SUM(ii.`qty`) AS `total_qty`,
+            SUM(ii.`amount`) AS `total_amount`
+        FROM `invoice_items` ii
+        JOIN `invoices` v ON v.`id` = ii.`invoice_id`
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+        GROUP BY ii.`item_name`
+        ORDER BY `total_amount` DESC, `total_qty` DESC
+        LIMIT 5
+    ');
+    $topStmt->execute([$start, $end]);
+    $topDishesRaw = $topStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $topDishes = [];
+    foreach ($topDishesRaw as $dish) {
+        $amount = (int) $dish['total_amount'];
+        $pct = $totalRevenue > 0 ? round(($amount / $totalRevenue) * 100, 1) : 0;
+        $topDishes[] = [
+            'item_name' => $dish['item_name'],
+            'total_qty' => (int) $dish['total_qty'],
+            'total_amount' => $amount,
+            'percentage' => $pct,
+        ];
+    }
+
+    // 6. Phân bổ theo khu vực
+    $areaStmt = $pdo->prepare('
+        SELECT 
+            COALESCE(ra.`name`, "Trong nhà") AS `area_name`,
+            COALESCE(ra.`code`, "indoor") AS `area_code`,
+            COUNT(DISTINCT v.`id`) AS `invoice_count`,
+            COALESCE(SUM(v.`total`), 0) AS `total_revenue`
+        FROM `invoices` v
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        LEFT JOIN `dining_tables` dt ON dt.`code` = v.`table_code`
+        LEFT JOIN `restaurant_areas` ra ON ra.`id` = dt.`area_id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+        GROUP BY `area_name`, `area_code`
+        ORDER BY `total_revenue` DESC
+    ');
+    $areaStmt->execute([$start, $end]);
+    $areasRaw = $areaStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $areaBreakdown = [];
+    foreach ($areasRaw as $ar) {
+        $rev = (int) $ar['total_revenue'];
+        $pct = $totalRevenue > 0 ? round(($rev / $totalRevenue) * 100, 1) : 0;
+        $areaBreakdown[] = [
+            'area_name' => $ar['area_name'],
+            'area_code' => $ar['area_code'],
+            'invoice_count' => (int) $ar['invoice_count'],
+            'total_revenue' => $rev,
+            'percentage' => $pct,
+        ];
+    }
+
+    // 7. Danh sách hóa đơn (giới hạn 100 hóa đơn gần nhất)
+    $invStmt = $pdo->prepare('
+        SELECT 
+            v.`id`,
+            CONCAT("INV-", LPAD(v.`id`, 4, "0")) AS `code`,
+            v.`table_code`,
+            v.`subtotal`,
+            v.`discount_amount`,
+            v.`service_fee`,
+            v.`vat`,
+            v.`total`,
+            p.`method`,
+            p.`paid_at`,
+            COALESCE(u.`fullname`, u.`username`, "Thu ngân") AS `cashier_name`
+        FROM `invoices` v
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        LEFT JOIN `users` u ON u.`id` = p.`cashier_id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+        ORDER BY p.`paid_at` DESC
+        LIMIT 100
+    ');
+    $invStmt->execute([$start, $end]);
+    $invoicesListRaw = $invStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $invoicesList = [];
+    foreach ($invoicesListRaw as $inv) {
+        $invoicesList[] = [
+            'id' => (int) $inv['id'],
+            'code' => $inv['code'],
+            'table_code' => $inv['table_code'],
+            'subtotal' => (int) $inv['subtotal'],
+            'discount_amount' => (int) $inv['discount_amount'],
+            'service_fee' => (int) $inv['service_fee'],
+            'vat' => (int) $inv['vat'],
+            'total' => (int) $inv['total'],
+            'method' => $inv['method'],
+            'method_label' => $inv['method'] === 'cash' ? 'Tiền mặt' : 'QR chuyển khoản',
+            'paid_at' => date('d/m H:i', strtotime($inv['paid_at'])),
+            'cashier_name' => $inv['cashier_name'],
+        ];
+    }
+
+    // 8. So sánh với kỳ trước có cùng độ dài ngày
+    $diffDays = (new DateTime($startDate))->diff(new DateTime($endDate))->days + 1;
+    $prevEndDate = date('Y-m-d', strtotime($startDate . ' -1 day'));
+    $prevStartDate = date('Y-m-d', strtotime($prevEndDate . ' -' . ($diffDays - 1) . ' days'));
+
+    $prevStmt = $pdo->prepare('
+        SELECT 
+            COALESCE(SUM(v.`total`), 0) AS `prev_revenue`,
+            COUNT(v.`id`) AS `prev_invoices`
+        FROM `invoices` v
+        JOIN `payments` p ON p.`invoice_id` = v.`id`
+        WHERE p.`paid_at` >= ? AND p.`paid_at` < ?
+    ');
+    $prevStmt->execute([$prevStartDate . ' 00:00:00', date('Y-m-d', strtotime($prevEndDate . ' +1 day')) . ' 00:00:00']);
+    $prevRow = $prevStmt->fetch(PDO::FETCH_ASSOC);
+    $prevRevenue = (int) ($prevRow['prev_revenue'] ?? 0);
+    $prevInvoices = (int) ($prevRow['prev_invoices'] ?? 0);
+
+    $diffRevenue = $totalRevenue - $prevRevenue;
+    $diffPercent = $prevRevenue > 0 ? round(($diffRevenue / $prevRevenue) * 100, 1) : ($totalRevenue > 0 ? 100.0 : 0.0);
+
+    return [
+        'mode' => 'range',
+        'start_date' => $startDate,
+        'end_date' => $endDate,
+        'date_display' => date('d/m/Y', strtotime($startDate)) . ' – ' . date('d/m/Y', strtotime($endDate)),
+        'day_name' => $diffDays . ' ngày',
+        'total_revenue' => $totalRevenue,
+        'total_subtotal' => (int) $summary['total_subtotal'],
+        'total_discount' => (int) $summary['total_discount'],
+        'total_service_fee' => (int) $summary['total_service_fee'],
+        'total_vat' => (int) $summary['total_vat'],
+        'total_invoices' => $totalInvoices,
+        'total_items_sold' => $totalItemsSold,
+        'avg_order_value' => $avgOrderValue,
+        'payment_methods' => $paymentMethods,
+        'daily_data' => $dailyData,
+        'invoices_list' => $invoicesList,
+        'top_dishes' => $topDishes,
+        'area_breakdown' => $areaBreakdown,
+        'comparison' => [
+            'prev_date' => date('d/m/Y', strtotime($prevStartDate)) . ' – ' . date('d/m/Y', strtotime($prevEndDate)),
+            'prev_revenue' => $prevRevenue,
+            'prev_invoices' => $prevInvoices,
+            'diff_amount' => $diffRevenue,
+            'diff_percent' => $diffPercent,
+            'direction' => $diffRevenue >= 0 ? 'positive' : 'negative',
+        ],
+    ];
+}
+
+/**
  * Trả về thứ tiếng Việt từ chuỗi ngày (YYYY-MM-DD)
  */
 function getVietnameseDayOfWeek(string $date): string {
@@ -666,9 +957,16 @@ function getVietnameseDayOfWeek(string $date): string {
  */
 function exportRevenueCsv(array $report): void {
     $mode = $report['mode'] ?? 'day';
-    $filename = $mode === 'month' 
-        ? 'Bao_cao_doanh_thu_thang_' . str_replace('-', '_', $report['year_month']) . '.csv'
-        : 'Bao_cao_doanh_thu_ngay_' . str_replace('-', '_', $report['date']) . '.csv';
+    if ($mode === 'range') {
+        $filename = 'Bao_cao_doanh_thu_' . str_replace('-', '', $report['start_date']) . '_den_' . str_replace('-', '', $report['end_date']) . '.csv';
+        $titlePeriod = 'KHOẢNG THỜI GIAN ' . $report['date_display'];
+    } elseif ($mode === 'month') {
+        $filename = 'Bao_cao_doanh_thu_thang_' . str_replace('-', '_', $report['year_month']) . '.csv';
+        $titlePeriod = 'THÁNG ' . $report['month_display'];
+    } else {
+        $filename = 'Bao_cao_doanh_thu_ngay_' . str_replace('-', '_', $report['date']) . '.csv';
+        $titlePeriod = 'NGÀY ' . $report['date_display'];
+    }
 
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -681,7 +979,7 @@ function exportRevenueCsv(array $report): void {
     $output = fopen('php://output', 'w');
 
     // Tiêu đề báo cáo
-    fputcsv($output, ['SMARTDINE - BÁO CÁO DOANH THU ' . ($mode === 'month' ? 'THÁNG ' . $report['month_display'] : 'NGÀY ' . $report['date_display'])]);
+    fputcsv($output, ['SMARTDINE - BÁO CÁO DOANH THU ' . $titlePeriod]);
     fputcsv($output, ['Thời gian xuất:', date('d/m/Y H:i:s')]);
     fputcsv($output, ['Tổng doanh thu thực nhận:', number_format($report['total_revenue'], 0, ',', '.') . ' đ']);
     fputcsv($output, ['Tổng số hóa đơn:', $report['total_invoices']]);
@@ -691,9 +989,9 @@ function exportRevenueCsv(array $report): void {
     fputcsv($output, ['Doanh thu Tiền mặt:', number_format($report['payment_methods']['cash']['total'], 0, ',', '.') . ' đ (' . $report['payment_methods']['cash']['count'] . ' đơn)']);
     fputcsv($output, []); // Dòng trống
 
-    if ($mode === 'month') {
-        // Bảng chi tiết từng ngày trong tháng
-        fputcsv($output, ['BẢNG CHI TIẾT DOANH THU TỪNG NGÀY TRONG THÁNG']);
+    if ($mode === 'month' || $mode === 'range') {
+        // Bảng chi tiết từng ngày trong khoảng/tháng
+        fputcsv($output, ['BẢNG CHI TIẾT DOANH THU TỪNG NGÀY']);
         fputcsv($output, ['Ngày', 'Thứ', 'Số hóa đơn', 'Doanh thu món (Tạm tính)', 'Giảm giá', 'Thuế & Phí', 'Doanh thu thực nhận', 'Tiền mặt', 'Chuyển khoản QR', 'TB/Đơn']);
 
         foreach ($report['daily_data'] as $d) {
