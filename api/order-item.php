@@ -1,4 +1,10 @@
 <?php
+
+/**
+ * API (POST): nhân viên thao tác trên một món của bàn.
+ * action=cancel : hủy món, chỉ khi bếp chưa in phiếu.
+ */
+
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/orders.php';
 
@@ -26,29 +32,19 @@ try {
     }
 
     if (!in_array($action, ORDER_ITEM_ACTIONS[$item['status']], true)) {
+        if (in_array($action, ORDER_ITEM_LOCKED_ACTIONS[$item['status']] ?? [], true)) {
+            respondJson(409, ['error' => ORDER_CANCEL_LOCKED_MESSAGE]);
+        }
+
         $statusLabel = ORDER_ITEM_STATUSES[$item['status']]['label'];
         respondJson(409, ['error' => "Món đang ở trạng thái \"$statusLabel\" nên không thực hiện được thao tác này."]);
     }
 
-    if ($action === 'send' && !sendItemToKitchen($pdo, $itemId, (int) $_SESSION['user_id'])) {
-        respondJson(409, ['error' => 'Món này vừa được xuất bill trước đó.']);
+    if (!cancelOrderItem($pdo, $itemId)) {
+        respondJson(409, ['error' => 'Bếp vừa in phiếu món này nên không thể hủy nữa.']);
     }
 
-    if ($action === 'serve') {
-        if (!markItemServed($pdo, $itemId)) {
-            respondJson(409, ['error' => 'Món này đã được xác nhận ra bàn trước đó.']);
-        }
-        respondJson(200, ['ok' => true]);
-    }
-
-    if ($action === 'cancel') {
-        if (!cancelOrderItem($pdo, $itemId)) {
-            respondJson(409, ['error' => 'Không thể hủy món ở trạng thái hiện tại.']);
-        }
-        respondJson(200, ['ok' => true]);
-    }
-
-    respondJson(200, ['ticket' => fetchItemTicket($pdo, $itemId)]);
+    respondJson(200, ['ok' => true]);
 } catch (RuntimeException | PDOException $e) {
     error_log('order-item API: ' . $e->getMessage());
     respondJson(500, ['error' => 'Lỗi hệ thống, vui lòng thử lại.']);

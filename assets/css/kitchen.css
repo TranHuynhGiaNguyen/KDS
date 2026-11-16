@@ -38,33 +38,30 @@
 .kds-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
     width: 100%;
     padding: 12px;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: #fff;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
     transition: var(--transition);
 }
 
-button.kds-item:hover {
-    border-color: var(--brand-orange);
+.kds-item-cooking {
+    border-color: #fdba74;
     background: #fff7ed;
-}
-
-button.kds-item:disabled {
-    opacity: 0.5;
-    cursor: wait;
 }
 
 .kds-item-main {
     display: flex;
+    flex: 1;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
+}
+
+.kds-item .item-qty {
+    flex-shrink: 0;
 }
 
 .kds-item-meta {
@@ -72,14 +69,35 @@ button.kds-item:disabled {
     font-size: 11px;
 }
 
-.kds-item-cancelled {
-    border-color: #dc2626;
-    background: #fef2f2;
-    cursor: default;
+.kds-item-action {
+    flex-shrink: 0;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
-.kds-item-cancelled .item-name {
-    text-decoration: line-through;
+.btn-kds-print {
+    border: 1px solid var(--brand-orange);
+    background: var(--brand-orange);
+    color: #fff;
+}
+
+.btn-kds-print:hover {
+    background: #d96a00;
+}
+
+.btn-kds-finish {
+    border: 1px solid #16a34a;
+    background: #16a34a;
+    color: #fff;
+}
+
+.btn-kds-finish:hover {
+    background: #15803d;
+}
+
+.kds-item-action:disabled {
+    opacity: 0.5;
+    cursor: wait;
 }
 
 .kds-tap-hint {
@@ -92,6 +110,11 @@ button.kds-item:disabled {
 body.kds-dark .kds-item {
     background: #1e293b;
     border-color: #334155;
+}
+
+body.kds-dark .kds-item-cooking {
+    border-color: #9a3412;
+    background: #3b2412;
 }
 
 body.kds-dark .kds-summary,

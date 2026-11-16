@@ -5,9 +5,9 @@
 }
 
 .status-done {
-    color: #1d4ed8;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
+    color: #15803d;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
 }
 
 .status-cancelled {
@@ -26,6 +26,44 @@
 .order-food-cancelled .food-amount {
     text-decoration: line-through;
     opacity: 0.55;
+}
+
+.btn-complete {
+    color: #15803d;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    font-weight: 700;
+}
+
+.btn-complete.is-static,
+.btn-complete.is-static:hover {
+    color: #15803d;
+    background: #f0fdf4;
+    border-color: #86efac;
+    cursor: default;
+}
+
+.btn.is-locked,
+.btn.is-locked:hover {
+    color: #dc2626;
+    background: #fff;
+    border-color: #fecaca;
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.btn.is-locked:hover {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='white' stroke='%23dc2626' stroke-width='2.5'/%3E%3Cline x1='5.6' y1='5.6' x2='18.4' y2='18.4' stroke='%23dc2626' stroke-width='2.5'/%3E%3C/svg%3E") 12 12, not-allowed;
+}
+
+.order-food-hint {
+    margin: 14px 0 0;
+    font-size: 13px;
+}
+
+.order-food-hint a {
+    font-weight: 700;
+    color: var(--brand-orange);
 }
 
 .bill-ticket-dialog {

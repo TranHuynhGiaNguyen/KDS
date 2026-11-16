@@ -5,10 +5,10 @@ $tickets = [];
 $error   = '';
 
 try {
-    $tickets = fetchKitchenTickets(getOrdersDb());
+  $tickets = fetchKitchenTickets(getOrdersDb());
 } catch (RuntimeException | PDOException $e) {
-    error_log('kitchen page: ' . $e->getMessage());
-    $error = 'Không tải được danh sách món của bếp, vui lòng thử lại.';
+  error_log('kitchen page: ' . $e->getMessage());
+  $error = 'Không tải được danh sách món của bếp, vui lòng thử lại.';
 }
 
 $counts = countKitchenTickets($tickets);
@@ -29,7 +29,7 @@ $counts = countKitchenTickets($tickets);
       <span class="kds-clock-label">GIỜ HỆ THỐNG</span>
       <b class="kds-digital-clock" id="kds-clock">18:45:00</b>
     </div>
-    
+
     <div class="kds-control-buttons">
       <button class="kds-btn-tool" id="kds-theme-toggle" title="Chuyển chế độ tương phản cao (Dark Mode)">
         <span class="theme-icon">🌙</span>
@@ -37,7 +37,9 @@ $counts = countKitchenTickets($tickets);
       </button>
 
       <button class="kds-btn-tool" id="kds-fullscreen-toggle" title="Toàn màn hình cho tablet / TV bếp">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
         <span class="btn-text">Toàn màn hình</span>
       </button>
 
@@ -47,7 +49,11 @@ $counts = countKitchenTickets($tickets);
       </button>
 
       <button class="kds-btn-tool btn-primary-tool" data-kds-refresh>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
         <span class="btn-text">Làm mới</span>
       </button>
     </div>
@@ -61,7 +67,8 @@ $counts = countKitchenTickets($tickets);
 <div class="kds-filter-bar">
   <div class="kds-summary">
     <span><b data-kds-count="tables"><?= $counts['tables'] ?></b> bàn</span>
-    <span><b data-kds-count="pending"><?= $counts['pending'] ?></b> món chờ làm</span>
+    <span><b data-kds-count="pending"><?= $counts['pending'] ?></b> món chờ tiếp nhận</span>
+    <span><b data-kds-count="cooking"><?= $counts['cooking'] ?></b> món đang nấu</span>
     <a class="kds-history-link" href="index.php?page=bills">Lịch sử bill</a>
   </div>
 
