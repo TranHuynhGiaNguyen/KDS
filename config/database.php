@@ -1172,7 +1172,7 @@ function updateDish($id, $data) {
     }
 }
 
-function deleteDish($id) {
+function deleteDish($id, $soft = true) {
     $pdo = getDbConnection();
     if (!$pdo) return ['success' => false, 'message' => 'Không thể kết nối cơ sở dữ liệu!'];
 
@@ -1181,7 +1181,22 @@ function deleteDish($id) {
         return ['success' => false, 'message' => 'Không tìm thấy món ăn cần xóa!'];
     }
 
-    // Nếu ảnh là file lưu cục bộ, xóa file để giải phóng bộ nhớ
+    // 1. Soft delete (Mặc định): Chuyển trạng thái sang hidden để bảo toàn lịch sử hóa đơn & doanh thu
+    if ($soft) {
+        $stmt = $pdo->prepare("UPDATE `dishes` SET `status` = 'hidden' WHERE `id` = :id");
+        try {
+            $stmt->execute([':id' => (int) $id]);
+            return [
+                'success' => true,
+                'soft' => true,
+                'message' => 'Đã ẩn món ăn "' . htmlspecialchars($dish['name']) . '" khỏi thực đơn (Lưu trữ an toàn, bảo vệ dữ liệu doanh thu cũ)!'
+            ];
+        } catch (PDOException $e) {
+            return ['success' => false, 'message' => 'Lỗi khi ẩn món ăn: ' . $e->getMessage()];
+        }
+    }
+
+    // 2. Hard delete (Xóa vĩnh viễn): Xóa file ảnh và bản ghi khỏi cơ sở dữ liệu
     if (!empty($dish['image']) && strpos($dish['image'], 'uploads/dishes/') === 0) {
         $filePath = __DIR__ . '/../' . $dish['image'];
         if (file_exists($filePath)) {
@@ -1192,7 +1207,7 @@ function deleteDish($id) {
     $stmt = $pdo->prepare("DELETE FROM `dishes` WHERE `id` = :id");
     try {
         $stmt->execute([':id' => (int) $id]);
-        return ['success' => true, 'message' => 'Đã xóa món ăn "' . htmlspecialchars($dish['name']) . '" thành công!'];
+        return ['success' => true, 'soft' => false, 'message' => 'Đã xóa vĩnh viễn món ăn "' . htmlspecialchars($dish['name']) . '" khỏi cơ sở dữ liệu!'];
     } catch (PDOException $e) {
         return ['success' => false, 'message' => 'Lỗi xóa món ăn: ' . $e->getMessage()];
     }

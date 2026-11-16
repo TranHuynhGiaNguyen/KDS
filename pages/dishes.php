@@ -13,7 +13,7 @@ if (!isAdmin()) {
 // ==========================================================
 // XỬ LÝ CÁC HÀNH ĐỘNG POST (CRUD)
 // ==========================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $action = $_POST['action'] ?? '';
 
     // 1. THÊM MÓN ĂN MỚI
@@ -133,10 +133,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // 4. XÓA MÓN ĂN
+    // 4. XÓA MÓN ĂN (Mặc định Soft Delete bảo vệ dữ liệu, hỗ trợ Hard Delete khi cần)
     if ($action === 'delete_dish') {
         $id = (int) ($_POST['id'] ?? 0);
-        $res = deleteDish($id);
+        $deleteType = $_POST['delete_type'] ?? 'soft';
+        $soft = ($deleteType === 'soft');
+        $res = deleteDish($id, $soft);
         if ($res['success']) {
             $_SESSION['flash_success'] = $res['message'];
         } else {
@@ -245,6 +247,13 @@ $search         = trim($_GET['search'] ?? '');
 
 $allCategories  = getAllCategories();
 $allDishes      = getAllDishes($filterCategory, $filterStatus, $search, $filterStation);
+$totalDishesCount = count($allDishes);
+$perPageDishes  = 10;
+$totalDishPages = max(1, (int) ceil($totalDishesCount / $perPageDishes));
+$currentDishPage = max(1, min($totalDishPages, (int) ($_GET['p'] ?? 1)));
+$dishOffset     = ($currentDishPage - 1) * $perPageDishes;
+$dishes         = array_slice($allDishes, $dishOffset, $perPageDishes);
+
 $dishStats      = getDishStats();
 ?>
 
@@ -399,7 +408,7 @@ $dishStats      = getDishStats();
               </td>
             </tr>
           <?php else: ?>
-            <?php foreach ($allDishes as $dish): 
+            <?php foreach ($dishes as $dish): 
               $imgUrl = getDishImageUrl($dish['image']);
               $isOut = ($dish['status'] === 'out_of_stock');
             ?>
@@ -499,6 +508,39 @@ $dishStats      = getDishStats();
           <?php endif; ?>
         </tbody>
       </table>
+    </div>
+
+    <!-- Phân trang danh sách món ăn -->
+    <div class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 12px;">
+      <div class="pagination-info" style="font-size: 13px; color: var(--muted);">
+        Hiển thị từ <b><?= $totalDishesCount > 0 ? $dishOffset + 1 : 0 ?></b> đến <b><?= min($dishOffset + $perPageDishes, $totalDishesCount) ?></b> trên tổng số <b><?= $totalDishesCount ?></b> món ăn
+      </div>
+      <?php if ($totalDishPages > 1): ?>
+        <div class="pagination-controls" style="display: flex; gap: 6px; align-items: center;">
+          <?php
+          $buildDishQuery = function($p) use ($filterCategory, $filterStatus, $filterStation, $search) {
+              return 'index.php?page=dishes&tab=dishes&p=' . $p
+                . (!empty($filterCategory) ? '&category=' . urlencode($filterCategory) : '')
+                . (!empty($filterStatus) ? '&status=' . urlencode($filterStatus) : '')
+                . (!empty($filterStation) ? '&station=' . urlencode($filterStation) : '')
+                . (!empty($search) ? '&search=' . urlencode($search) : '');
+          };
+          ?>
+          <?php if ($currentDishPage > 1): ?>
+            <a class="btn btn-small btn-outline" href="<?= $buildDishQuery($currentDishPage - 1) ?>">‹ Trước</a>
+          <?php endif; ?>
+
+          <?php for ($i = 1; $i <= $totalDishPages; $i++): ?>
+            <a class="btn btn-small <?= $i === $currentDishPage ? 'btn-primary' : 'btn-outline' ?>" href="<?= $buildDishQuery($i) ?>" style="<?= $i === $currentDishPage ? 'font-weight: 700;' : '' ?>">
+              <?= $i ?>
+            </a>
+          <?php endfor; ?>
+
+          <?php if ($currentDishPage < $totalDishPages): ?>
+            <a class="btn btn-small btn-outline" href="<?= $buildDishQuery($currentDishPage + 1) ?>">Sau ›</a>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -822,7 +864,7 @@ $dishStats      = getDishStats();
 </div>
 
 <!-- ==========================================================
-     MODAL 3: XÁC NHẬN XÓA MÓN ĂN
+     MODAL 3: XÁC NHẬN XÓA / ẨN MÓN ĂN (SOFT / HARD DELETE)
      ========================================================== -->
 <div class="custom-modal-backdrop" id="modal-delete-dish" style="display: none;">
   <div class="custom-modal-dialog custom-modal-sm">
@@ -832,8 +874,8 @@ $dishStats      = getDishStats();
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </div>
         <div>
-          <h3>Xóa món ăn</h3>
-          <p>Hành động này sẽ xóa vĩnh viễn món ăn</p>
+          <h3>Xác nhận xóa / ẩn món</h3>
+          <p>Tùy chọn lưu trữ an toàn hoặc xóa khỏi hệ thống</p>
         </div>
       </div>
       <button type="button" class="btn-close-modal" data-modal-close="modal-delete-dish">&times;</button>
@@ -843,18 +885,35 @@ $dishStats      = getDishStats();
       <input type="hidden" name="action" value="delete_dish">
       <input type="hidden" name="id" id="delete-dish-id" value="">
 
-      <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 18px;">
+      <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 16px;">
         <img src="" id="delete-dish-img" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">
         <div>
-          <p style="margin: 0; font-size: 14px;">Bạn có chắc chắn muốn xóa món: <strong id="delete-dish-name">...</strong>?</p>
-          <small class="muted">Món ăn này sẽ không còn hiển thị trên thực đơn khách hàng.</small>
+          <p style="margin: 0; font-size: 14px;">Món ăn: <strong id="delete-dish-name">...</strong></p>
+          <small class="muted">Chọn phương thức xử lý an toàn bên dưới:</small>
         </div>
+      </div>
+
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 18px;">
+        <label style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; cursor: pointer;">
+          <input type="radio" name="delete_type" value="soft" checked style="margin-top: 3px;">
+          <div>
+            <b style="color: #0f172a; font-size: 13px;">Ẩn món ăn (Khuyên dùng - Soft Delete)</b>
+            <p style="margin: 2px 0 0; color: #64748b; font-size: 12px;">Món sẽ ẩn khỏi thực đơn khách nhưng giữ lại trọn vẹn dữ liệu doanh thu, hóa đơn lịch sử và báo cáo.</p>
+          </div>
+        </label>
+        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+          <input type="radio" name="delete_type" value="hard" style="margin-top: 3px;">
+          <div>
+            <b style="color: #dc2626; font-size: 13px;">Xóa vĩnh viễn (Hard Delete)</b>
+            <p style="margin: 2px 0 0; color: #64748b; font-size: 12px;">Xóa hoàn toàn bản ghi khỏi database. Chỉ nên dùng khi tạo nhầm món chưa từng phát sinh hóa đơn.</p>
+          </div>
+        </label>
       </div>
 
       <div class="modal-actions-footer">
         <button type="button" class="btn btn-outline" data-modal-close="modal-delete-dish">Hủy</button>
         <button type="submit" class="btn btn-danger">
-          <span>Xóa vĩnh viễn</span>
+          <span>Xác nhận thực hiện</span>
         </button>
       </div>
     </form>

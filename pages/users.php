@@ -10,7 +10,7 @@ $msgSuccess = '';
 $msgError = '';
 
 // 1. Thêm nhân viên mới
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
     $username = trim($_POST['username'] ?? '');
     $password = trim($_POST['password'] ?? '');
     $fullname = trim($_POST['fullname'] ?? '');
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 2. Sửa thông tin nhân viên
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_user') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_user') {
     $userId   = (int) ($_POST['user_id'] ?? 0);
     $username = trim($_POST['username'] ?? '');
     $fullname = trim($_POST['fullname'] ?? '');
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 3. Đổi mật khẩu
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reset_password') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reset_password') {
     $userId = (int) ($_POST['user_id'] ?? 0);
     $newPassword = trim($_POST['new_password'] ?? '');
 
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 4. Khóa / Mở khóa nhanh
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_status') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_status') {
     $userId = (int) ($_POST['user_id'] ?? 0);
     if ($userId === (int) $_SESSION['user_id']) {
         $msgError = 'Bạn không thể khóa tài khoản đang đăng nhập của chính mình!';
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 5. Xóa nhân viên
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_user') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_user') {
     $userId = (int) ($_POST['user_id'] ?? 0);
     if ($userId === (int) $_SESSION['user_id']) {
         $msgError = 'Bạn không thể tự xóa tài khoản của chính mình!';
@@ -163,7 +163,14 @@ $filterRole   = trim($_GET['role'] ?? '');
 $filterStatus = trim($_GET['status'] ?? '');
 $search       = trim($_GET['q'] ?? '');
 
-$users = getAllUsers($filterRole, $filterStatus, $search);
+$allUsers = getAllUsers($filterRole, $filterStatus, $search);
+$totalUsersCount = count($allUsers);
+$perPage = 10;
+$totalPages = max(1, (int) ceil($totalUsersCount / $perPage));
+$currentPage = max(1, min($totalPages, (int) ($_GET['p'] ?? 1)));
+$offset = ($currentPage - 1) * $perPage;
+$users = array_slice($allUsers, $offset, $perPage);
+
 $stats = getUserStats();
 ?>
 
@@ -400,6 +407,38 @@ $stats = getUserStats();
         <?php endif; ?>
       </tbody>
     </table>
+  </div>
+
+  <!-- Phân trang danh sách nhân viên -->
+  <div class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 12px;">
+    <div class="pagination-info" style="font-size: 13px; color: var(--muted);">
+      Hiển thị từ <b><?= $totalUsersCount > 0 ? $offset + 1 : 0 ?></b> đến <b><?= min($offset + $perPage, $totalUsersCount) ?></b> trên tổng số <b><?= $totalUsersCount ?></b> nhân sự
+    </div>
+    <?php if ($totalPages > 1): ?>
+      <div class="pagination-controls" style="display: flex; gap: 6px; align-items: center;">
+        <?php
+        $buildUserQuery = function($p) use ($filterRole, $filterStatus, $search) {
+            return 'index.php?page=users&p=' . $p
+              . (!empty($filterRole) ? '&role=' . urlencode($filterRole) : '')
+              . (!empty($filterStatus) ? '&status=' . urlencode($filterStatus) : '')
+              . (!empty($search) ? '&q=' . urlencode($search) : '');
+        };
+        ?>
+        <?php if ($currentPage > 1): ?>
+          <a class="btn btn-small btn-outline" href="<?= $buildUserQuery($currentPage - 1) ?>">‹ Trước</a>
+        <?php endif; ?>
+
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+          <a class="btn btn-small <?= $i === $currentPage ? 'btn-primary' : 'btn-outline' ?>" href="<?= $buildUserQuery($i) ?>" style="<?= $i === $currentPage ? 'font-weight: 700;' : '' ?>">
+            <?= $i ?>
+          </a>
+        <?php endfor; ?>
+
+        <?php if ($currentPage < $totalPages): ?>
+          <a class="btn btn-small btn-outline" href="<?= $buildUserQuery($currentPage + 1) ?>">Sau ›</a>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 
