@@ -1,3 +1,7 @@
+/**
+ * SmartDine - Màn hình bếp (KDS): tự làm mới danh sách, lọc theo trạm,
+ * "In phiếu bếp" để nhận món và "Hoàn thành món" khi nấu xong.
+ */
 (() => {
     const grid = document.querySelector('#kds-grid');
     if (!grid) return;
@@ -9,7 +13,7 @@
     const sidebarCounter = document.querySelector('.kitchen-counter');
 
     let knownPendingIds = new Set(
-        [...grid.querySelectorAll('[data-kds-item]')].map((row) => row.dataset.itemId)
+        [...grid.querySelectorAll('[data-kds-item][data-status="pending"]')].map((row) => row.dataset.itemId)
     );
 
     const ticketDialog = document.createElement('dialog');
@@ -101,12 +105,16 @@
         window.print();
     };
 
-    const takeItem = async (row) => {
+    const runItemAction = async (button) => {
+        const row = button.closest('[data-kds-item]');
+        const action = button.dataset.kdsAction;
+
         const body = new FormData();
-        body.set('action', 'start');
+        body.set('action', action);
         body.set('item_id', row.dataset.itemId);
 
-        row.disabled = true;
+        button.disabled = true;
+        let ticket = null;
 
         try {
             const response = await fetch(actionUrl, { method: 'POST', body });
@@ -114,20 +122,23 @@
 
             if (!response.ok) {
                 showMessage(result.error);
-            } else if (result.ticket) {
-                row.hidden = true;
-                printTicket(result.ticket);
+            } else if (action === 'start') {
+                ticket = result.ticket || null;
+            } else {
+                showMessage('Đã hoàn thành món, nhân viên phục vụ sẽ thấy trạng thái Đã nấu xong');
             }
         } catch (error) {
             showMessage('Không thể kết nối máy chủ. Vui lòng thử lại.');
         }
 
         await refresh();
+
+        if (ticket) printTicket(ticket);
     };
 
     grid.addEventListener('click', (event) => {
-        const row = event.target.closest('[data-kds-item]');
-        if (row) takeItem(row);
+        const button = event.target.closest('[data-kds-action]');
+        if (button && !button.disabled) runItemAction(button);
     });
 
     ticketDialog.addEventListener('click', (event) => {

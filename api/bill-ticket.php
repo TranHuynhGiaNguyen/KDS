@@ -1,6 +1,7 @@
 <?php
+
 /**
- * API (GET): nội dung bill món để in lại từ trang lịch sử bill.
+ * API (GET): nội dung phiếu món ăn để in lại từ trang lịch sử bill.
  */
 
 require_once __DIR__ . '/../includes/auth.php';
@@ -22,7 +23,7 @@ try {
 }
 
 if ($ticket === null) {
-    respondJson(404, ['error' => 'Không tìm thấy bill món này.']);
+    respondJson(404, ['error' => 'Không tìm thấy phiếu món ăn này.']);
 }
 
 respondJson(200, ['ticket' => $ticket]);

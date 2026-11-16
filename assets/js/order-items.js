@@ -1,21 +1,14 @@
+/**
+ * SmartDine - Trang chi tiết bàn của nhân viên: hủy món (khi bếp chưa in phiếu),
+ * in phiếu tạm tính và tự cập nhật trạng thái món khi bếp thao tác.
+ */
 (() => {
     const list = document.querySelector('.order-food-list');
     if (!list) return;
 
     const apiUrl = 'api/order-item.php';
-    const dialog = document.createElement('dialog');
-    dialog.className = 'bill-ticket-dialog';
-    dialog.innerHTML = `
-    <div class="bill-ticket">
-      <p data-ticket="staff"></p>
-      <p data-ticket="table"></p>
-      <p data-ticket="dish"></p>
-    </div>
-    <div class="bill-ticket-actions">
-      <button class="btn btn-primary" type="button" data-ticket-print>In bill</button>
-      <button class="btn btn-outline" type="button" data-ticket-close>Đóng</button>
-    </div>`;
-    document.body.append(dialog);
+    const POLL_INTERVAL_MS = 5000;
+    let busy = false;
 
     const provisionalDialog = document.createElement('dialog');
     provisionalDialog.className = 'receipt-dialog';
@@ -33,13 +26,6 @@
         } else {
             alert(message);
         }
-    };
-
-    const showTicket = (ticket) => {
-        dialog.querySelector('[data-ticket="staff"]').textContent = `Nhân viên: ${ticket.staff}`;
-        dialog.querySelector('[data-ticket="table"]').textContent = `Bàn ${ticket.table} - ${ticket.time}`;
-        dialog.querySelector('[data-ticket="dish"]').textContent = `${ticket.name} - ${ticket.qty}`;
-        dialog.showModal();
     };
 
     const callApi = async (action, itemId) => {
@@ -62,31 +48,62 @@
         }
     };
 
+    const refreshList = async () => {
+        try {
+            const response = await fetch(window.location.href, { cache: 'no-store' });
+            if (!response.ok) return false;
+
+            const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const freshList = doc.querySelector('.order-food-list');
+
+            if (!freshList) {
+                location.reload();
+                return true;
+            }
+
+            if (freshList.innerHTML !== list.innerHTML) {
+                list.innerHTML = freshList.innerHTML;
+            }
+
+            const summary = document.querySelector('.bill-summary-box');
+            const freshSummary = doc.querySelector('.bill-summary-box');
+            if (summary && freshSummary && freshSummary.innerHTML !== summary.innerHTML) {
+                summary.innerHTML = freshSummary.innerHTML;
+            }
+            return true;
+        } catch (error) {
+            return false;
+        }
+    };
+
     list.addEventListener('click', async (event) => {
         const button = event.target.closest('[data-item-action]');
-        if (!button) return;
+        if (!button || button.disabled) return;
 
         const row = button.closest('.order-food');
         const action = button.dataset.itemAction;
         const itemId = row.dataset.itemId;
 
         if (action === 'cancel') {
-            const confirmed = confirm(`Hủy món "${row.dataset.itemName}"?\nMón sẽ bị loại khỏi hóa đơn và bếp không làm nữa.`);
+            const confirmed = confirm(`Hủy món "${row.dataset.itemName}"?\nMón sẽ bị loại khỏi hóa đơn và biến mất khỏi màn hình bếp.`);
             if (!confirmed) return;
         }
 
+        busy = true;
         button.disabled = true;
-        const result = await callApi(action, itemId);
+        await callApi(action, itemId);
+        busy = false;
         button.disabled = false;
 
-        if (!result) return;
+        await refreshList();
+    });
 
-        if (action === 'send' || action === 'cancel' || action === 'serve') {
-            location.reload();
-            return;
-        }
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-refresh-items]');
+        if (!button) return;
 
-        showTicket(result.ticket);
+        const ok = await refreshList();
+        showMessage(ok ? 'Đã cập nhật danh sách món' : 'Không cập nhật được, vui lòng thử lại.');
     });
 
     document.addEventListener('click', async (event) => {
@@ -118,9 +135,8 @@
         if (event.target.closest('[data-receipt-close]')) provisionalDialog.close();
     });
 
-    dialog.addEventListener('click', (event) => {
-        if (event.target.closest('[data-ticket-print]')) window.print();
-        if (event.target.closest('[data-ticket-close]')) dialog.close();
-    });
-
+    setInterval(() => {
+        if (document.hidden || busy || document.querySelector('dialog[open]')) return;
+        refreshList();
+    }, POLL_INTERVAL_MS);
 })();

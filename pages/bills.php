@@ -1,7 +1,8 @@
 <?php
+
 /**
- * SmartDine - Lịch sử bill: xem lại và in lại bill món, hóa đơn đã thanh toán.
- * Vai trò bếp chỉ thấy tab Bill món; tab Hóa đơn (có tiền) dành cho nhân viên và admin.
+ * SmartDine - Lịch sử bill: xem lại và in lại phiếu món ăn, hóa đơn đã thanh toán.
+ * Vai trò bếp chỉ thấy tab Phiếu món ăn; tab Hóa đơn (có tiền) dành cho nhân viên và admin.
  */
 
 require_once __DIR__ . '/../includes/bills.php';
@@ -18,11 +19,11 @@ $rows  = [];
 $error = '';
 
 try {
-    $pdo  = getOrdersDb();
-    $rows = $tab === 'items' ? fetchItemBills($pdo, $tableCode, $date) : fetchInvoiceList($pdo, $tableCode, $date);
+  $pdo  = getOrdersDb();
+  $rows = $tab === 'items' ? fetchItemBills($pdo, $tableCode, $date) : fetchInvoiceList($pdo, $tableCode, $date);
 } catch (RuntimeException | PDOException $e) {
-    error_log('bills page: ' . $e->getMessage());
-    $error = 'Không tải được lịch sử bill, vui lòng thử lại.';
+  error_log('bills page: ' . $e->getMessage());
+  $error = 'Không tải được lịch sử bill, vui lòng thử lại.';
 }
 
 $statusLabels = ORDER_ITEM_STATUSES;
@@ -30,7 +31,7 @@ $statusLabels = ORDER_ITEM_STATUSES;
 <section class="page-heading">
   <span class="eyebrow">LỊCH SỬ BILL</span>
   <h1>Lịch sử bill</h1>
-  <p>Xem lại và in lại bill món gửi bếp<?= $canSeeInvoices ? ' và hóa đơn đã thanh toán' : '' ?></p>
+  <p>Xem lại và in lại phiếu món ăn<?= $canSeeInvoices ? ' và hóa đơn đã thanh toán' : '' ?></p>
 </section>
 
 <?php if ($error !== ''): ?>
@@ -38,7 +39,7 @@ $statusLabels = ORDER_ITEM_STATUSES;
 <?php endif; ?>
 
 <div class="bills-tabs">
-  <a class="<?= $tab === 'items' ? 'active' : '' ?>" href="index.php?page=bills&tab=items">Bill món</a>
+  <a class="<?= $tab === 'items' ? 'active' : '' ?>" href="index.php?page=bills&tab=items">Phiếu món ăn</a>
   <?php if ($canSeeInvoices): ?>
     <a class="<?= $tab === 'invoices' ? 'active' : '' ?>" href="index.php?page=bills&tab=invoices">Hóa đơn đã thanh toán</a>
   <?php endif; ?>
@@ -55,10 +56,20 @@ $statusLabels = ORDER_ITEM_STATUSES;
 
 <section class="panel bills-panel">
   <?php if ($rows === []): ?>
-    <p class="muted bills-empty">Chưa có bill nào khớp bộ lọc.</p>
+    <p class="muted bills-empty"><?= $tab === 'items' ? 'Chưa có phiếu món ăn nào khớp bộ lọc.' : 'Chưa có hóa đơn nào khớp bộ lọc.' ?></p>
   <?php elseif ($tab === 'items'): ?>
     <table class="bills-table">
-      <thead><tr><th>Giờ xuất</th><th>Bàn</th><th>Món</th><th>SL</th><th>Nhân viên</th><th>Trạng thái</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Giờ gọi món</th>
+          <th>Bàn</th>
+          <th>Món</th>
+          <th>SL</th>
+          <th>Nhân viên</th>
+          <th>Trạng thái</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         <?php foreach ($rows as $row): ?>
           <tr>
@@ -79,7 +90,17 @@ $statusLabels = ORDER_ITEM_STATUSES;
     </table>
   <?php else: ?>
     <table class="bills-table">
-      <thead><tr><th>Giờ thanh toán</th><th>Số hóa đơn</th><th>Bàn</th><th>Thu ngân</th><th>Phương thức</th><th>Tổng tiền</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Giờ thanh toán</th>
+          <th>Số hóa đơn</th>
+          <th>Bàn</th>
+          <th>Thu ngân</th>
+          <th>Phương thức</th>
+          <th>Tổng tiền</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         <?php foreach ($rows as $row): ?>
           <tr>
@@ -95,5 +116,5 @@ $statusLabels = ORDER_ITEM_STATUSES;
       </tbody>
     </table>
   <?php endif; ?>
-  <p class="muted bills-limit">Hiển thị tối đa <?= BILLS_LIST_LIMIT ?> bill gần nhất.</p>
+  <p class="muted bills-limit">Hiển thị tối đa <?= BILLS_LIST_LIMIT ?> <?= $tab === 'items' ? 'phiếu' : 'hóa đơn' ?> gần nhất.</p>
 </section>

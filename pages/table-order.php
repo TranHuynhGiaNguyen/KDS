@@ -1,4 +1,11 @@
 <?php
+
+/**
+ * SmartDine - Chi tiết bàn và danh sách món cho nhân viên phục vụ.
+ * Nhân viên chỉ hủy món khi bếp chưa in phiếu; món bếp đã nấu xong hiện nhãn "Hoàn thành" thay cho nút hủy.
+ * Xem hoặc in lại phiếu món ăn ở mục Lịch sử bill.
+ */
+
 require_once __DIR__ . '/../includes/orders.php';
 
 $currentTable = htmlspecialchars($_GET['table'] ?? 'B03');
@@ -58,30 +65,41 @@ try {
   $dbError = 'Không tải được danh sách món, vui lòng thử lại.';
 }
 
-$bill = calculateBill($orderItems);
+$bill         = calculateBill($orderItems);
+$visibleItems = array_values(array_filter(
+  $orderItems,
+  static fn(array $item): bool => $item['status'] !== 'cancelled'
+));
 $cur['has_guests'] = $bill['lines'] !== [];
+if ($cur['has_guests'] && $cur['guests'] === 0) {
+  $createdAt   = fetchOpenOrderCreatedAt(getOrdersDb(), $currentTable);
+  $cur['time'] = $createdAt ? date('H:i', strtotime($createdAt)) : '—';
+}
 ?>
 <div class="dash-header">
   <div>
     <div class="back-nav-row">
       <a class="back-link" href="index.php?page=staff">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
         <span>Quay lại Sơ đồ bàn</span>
       </a>
     </div>
     <div class="title-with-badge">
       <span class="eyebrow">CHI TIẾT BÀN ĂN & ĐƠN HÀNG</span>
       <div class="heading-badge-wrap">
-        <h1>Bàn <?=$currentTable?></h1>
+        <h1>Bàn <?= $currentTable ?></h1>
         <?php if ($cur['has_guests']): ?>
-          <span class="status status-cooking">Đang phục vụ (<?=$cur['guests']?> khách)</span>
+          <span class="status status-cooking">Đang phục vụ<?= $cur['guests'] > 0 ? ' (' . $cur['guests'] . ' khách)' : '' ?></span>
         <?php else: ?>
           <span class="status status-ready">Bàn trống (Chưa có khách)</span>
         <?php endif; ?>
       </div>
       <p class="muted">
         <?php if ($cur['has_guests']): ?>
-          Thời gian vào bàn: <?=$cur['time']?> · <?=$cur['guests']?> khách · Nhân viên: <?=$cur['staff']?>
+          Thời gian vào bàn: <?= $cur['time'] ?><?= $cur['guests'] > 0 ? ' · ' . $cur['guests'] . ' khách' : '' ?> · Nhân viên: <?= $cur['staff'] ?>
         <?php else: ?>
           Bàn đang trống sẵn sàng đón khách. Quý khách hoặc nhân viên có thể mở bàn để chọn món.
         <?php endif; ?>
@@ -90,11 +108,19 @@ $cur['has_guests'] = $bill['lines'] !== [];
   </div>
   <div class="header-action-group">
     <a class="btn btn-outline" href="index.php?page=kitchen">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path>
+        <path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path>
+        <path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path>
+      </svg>
       <span>Xem trên KDS Bếp</span>
     </a>
-    <button class="btn btn-primary-tool" data-toast="Đã đồng bộ đơn hàng bàn <?=$currentTable?>">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+    <button class="btn btn-primary-tool" type="button" data-refresh-items>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
       <span>Cập nhật</span>
     </button>
   </div>
@@ -114,13 +140,19 @@ $cur['has_guests'] = $bill['lines'] !== [];
       <div class="flash-alert flash-error"><span><?= escapeHtml($dbError) ?></span></div>
     <?php endif; ?>
 
-    <?php if ($cur['has_guests'] && !empty($orderItems)): ?>
+    <?php if ($cur['has_guests'] && $visibleItems !== []): ?>
       <div class="order-food-list">
-        <?php foreach ($orderItems as $item): ?>
+        <?php foreach ($visibleItems as $item): ?>
           <?php $statusInfo = ORDER_ITEM_STATUSES[$item['status']]; ?>
           <div class="order-food order-food-<?= escapeHtml($item['status']) ?>" data-item-id="<?= (int) $item['id'] ?>" data-item-name="<?= escapeHtml($item['name']) ?>">
             <div class="food-icon-box">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                <line x1="6" y1="1" x2="6" y2="4"></line>
+                <line x1="10" y1="1" x2="10" y2="4"></line>
+                <line x1="14" y1="1" x2="14" y2="4"></line>
+              </svg>
             </div>
             <div class="food-info-text grow">
               <b><?= escapeHtml($item['name']) ?></b>
@@ -132,10 +164,18 @@ $cur['has_guests'] = $bill['lines'] !== [];
               <?php foreach (ORDER_ITEM_ACTIONS[$item['status']] as $action): ?>
                 <button class="btn btn-small <?= ORDER_ACTION_BUTTONS[$action]['class'] ?>" type="button" data-item-action="<?= $action ?>"><?= ORDER_ACTION_BUTTONS[$action]['label'] ?></button>
               <?php endforeach; ?>
+              <?php foreach (ORDER_ITEM_LOCKED_ACTIONS[$item['status']] ?? [] as $action): ?>
+                <button class="btn btn-small <?= ORDER_ACTION_BUTTONS[$action]['class'] ?> is-locked" type="button" disabled aria-disabled="true" title="<?= escapeHtml(ORDER_CANCEL_LOCKED_MESSAGE) ?>"><?= ORDER_ACTION_BUTTONS[$action]['label'] ?></button>
+              <?php endforeach; ?>
+              <?php if (isset(ORDER_ITEM_MARKERS[$item['status']])): ?>
+                <span class="btn btn-small <?= ORDER_ITEM_MARKERS[$item['status']]['class'] ?> is-static"><?= ORDER_ITEM_MARKERS[$item['status']]['label'] ?></span>
+              <?php endif; ?>
             </div>
           </div>
         <?php endforeach; ?>
       </div>
+
+      <p class="muted order-food-hint">Cần xem hoặc in lại phiếu món ăn? Vào <a href="index.php?page=bills&tab=items&table=<?= escapeHtml($currentTable) ?>">Lịch sử bill</a>.</p>
 
       <div class="bill-summary-box">
         <div class="summary-row"><span>Tạm tính (<?= count($bill['lines']) ?> món)</span><b><?= formatMoney($bill['subtotal']) ?></b></div>
@@ -147,14 +187,17 @@ $cur['has_guests'] = $bill['lines'] !== [];
       <div class="button-row">
         <button class="btn btn-outline" type="button" data-print-provisional data-table="<?= escapeHtml($currentTable) ?>">In tạm tính</button>
         <a class="btn btn-primary" href="index.php?page=payment&table=<?= $currentTable ?>">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+            <line x1="1" y1="10" x2="23" y2="10"></line>
+          </svg>
           <span>Tiến hành thanh toán</span>
         </a>
       </div>
     <?php else: ?>
       <div class="empty-table-state" style="text-align: center; padding: 40px 20px;">
         <div style="font-size: 48px; margin-bottom: 12px;">🍽️</div>
-        <h3>Bàn <?=$currentTable?> hiện chưa có khách</h3>
+        <h3>Bàn <?= $currentTable ?> hiện chưa có khách</h3>
         <p class="muted" style="max-width: 400px; margin: 0 auto 20px;">Bạn có thể mở bàn mới để phục vụ khách, chọn số lượng khách và thêm món từ thực đơn.</p>
         <div style="display: flex; gap: 12px; justify-content: center;">
           <a class="btn btn-primary" href="index.php?page=menu">+ Mở bàn & Chọn món ngay</a>
@@ -166,22 +209,25 @@ $cur['has_guests'] = $bill['lines'] !== [];
 
   <aside class="panel table-info-aside">
     <h2>Thông tin bàn ăn</h2>
-    <div class="info-row"><span>Mã bàn</span><b><?=$currentTable?></b></div>
-    <div class="info-row"><span>Khu vực</span><b><?=$cur['zone']?></b></div>
-    <div class="info-row"><span>Trạng thái</span><b><?=$cur['has_guests'] ? 'Đang phục vụ' : 'Chưa có khách'?></b></div>
-    <div class="info-row"><span>Số lượng khách</span><b><?=$cur['has_guests'] ? ($cur['guests'].' khách') : '0 người'?></b></div>
-    <div class="info-row"><span>Thời gian</span><b><?=$cur['time']?></b></div>
-    <div class="info-row"><span>Nhân viên</span><b><?=$cur['staff']?></b></div>
+    <div class="info-row"><span>Mã bàn</span><b><?= $currentTable ?></b></div>
+    <div class="info-row"><span>Khu vực</span><b><?= $cur['zone'] ?></b></div>
+    <div class="info-row"><span>Trạng thái</span><b><?= $cur['has_guests'] ? 'Đang phục vụ' : 'Chưa có khách' ?></b></div>
+    <div class="info-row"><span>Số lượng khách</span><b><?= $cur['has_guests'] ? ($cur['guests'] . ' khách') : '0 người' ?></b></div>
+    <div class="info-row"><span>Thời gian</span><b><?= $cur['time'] ?></b></div>
+    <div class="info-row"><span>Nhân viên</span><b><?= $cur['staff'] ?></b></div>
 
     <hr>
     <div class="note-box">
       <h3>Ghi chú bàn</h3>
-      <p class="muted"><?=$cur['note']?></p>
+      <p class="muted"><?= $cur['note'] ?></p>
     </div>
 
     <?php if ($cur['has_guests']): ?>
       <button class="btn btn-outline btn-block" data-toast="Đã gửi tín hiệu hỗ trợ tới ca trưởng">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
         <span>Yêu cầu hỗ trợ từ ca trưởng</span>
       </button>
     <?php endif; ?>
