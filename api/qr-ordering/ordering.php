@@ -119,7 +119,7 @@ $back = 'ordering.php?view=menu&ctx=' . rawurlencode($ctx);
         ) ?>
     </title>
 
-    <link rel="stylesheet" href="ordering.css?v=2">
+    <link rel="stylesheet" href="ordering.css?v=5">
 
     <script id="qo-boot" type="application/json"><?=
         json_encode(
@@ -177,9 +177,10 @@ $back = 'ordering.php?view=menu&ctx=' . rawurlencode($ctx);
                 SmartDine
             </a>
 
-            <span>
-                Bàn <?= qoEscape($context['table_code']) ?>
-            </span>
+            <span class="table-badge">
+    <span class="table-badge-dot" aria-hidden="true"></span>
+    Bàn <?= qoEscape($context['table_code']) ?>
+</span>
 
             <span class="language-label">VI</span>
 
