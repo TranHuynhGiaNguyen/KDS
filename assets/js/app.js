@@ -395,18 +395,58 @@ document.addEventListener('click', e => {
     });
   }
 
-  // Bật / Tắt tạm ngừng món
-  const toggle = e.target.closest('[data-toggle-food]');
-  if (toggle) {
-    const isStopping = toggle.textContent.includes('ngừng');
-    toggle.textContent = isStopping ? 'Mở bán lại' : 'Tạm ngừng bán';
-    toggle.className = 'btn btn-small ' + (isStopping ? 'btn-success' : 'btn-outline-danger');
-    const statusLabel = toggle.closest('.unavailable-row')?.querySelector('.status');
-    if (statusLabel) {
-      statusLabel.className = 'status ' + (isStopping ? 'status-pending' : 'status-ready');
-      statusLabel.textContent = isStopping ? 'Đã tạm hết nguyên liệu' : 'Đang phục vụ bình thường';
-    }
-    notify(isStopping ? 'Đã tạm dừng phục vụ món trên Menu QR' : 'Đã mở bán lại món trên hệ thống');
+  // Bật / Tắt tạm ngừng món (Đồng bộ Menu QR)
+  const toggleDishAjax = e.target.closest('[data-toggle-dish-ajax]');
+  if (toggleDishAjax) {
+    e.preventDefault();
+    const id = toggleDishAjax.dataset.toggleDishAjax;
+    const btn = toggleDishAjax;
+    const row = btn.closest('.unavailable-row');
+    const statusSpan = row ? row.querySelector('.status') : null;
+
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+
+    fetch('api/toggle-dish-status.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'id=' + encodeURIComponent(id)
+    })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      if (data.success) {
+        if (data.new_status === 'active') {
+          btn.className = 'btn btn-small btn-outline-danger';
+          btn.textContent = 'Tạm ngừng bán';
+          btn.style.border = '1px solid #fca5a5';
+          btn.style.color = '#dc2626';
+          if (statusSpan) {
+            statusSpan.className = 'status status-ready';
+            statusSpan.textContent = 'Đang phục vụ bình thường';
+          }
+          notify('Đã mở bán lại món thành công');
+        } else {
+          btn.className = 'btn btn-small btn-success';
+          btn.textContent = 'Mở bán lại';
+          btn.style.border = '';
+          btn.style.color = '';
+          if (statusSpan) {
+            statusSpan.className = 'status status-pending';
+            statusSpan.textContent = 'Đã tạm hết nguyên liệu';
+          }
+          notify('Đã tạm ngừng bán món (Đã đồng bộ Menu QR)');
+        }
+      } else {
+        alert(data.message || 'Lỗi cập nhật trạng thái');
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.closest('form')?.submit();
+    });
   }
 
   // Toast chung

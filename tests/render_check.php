@@ -121,4 +121,23 @@ assert(strpos($profileHtml, 'update_profile') !== false, "Update profile form no
 assert(strpos($profileHtml, 'change_password') !== false, "Change password form not found");
 echo "  [PASS] pages/profile.php rendered successfully with Profile update & Password change forms\n";
 
+// 11. Render pages/kitchen.php (Không còn phần unavailable mock)
+$_GET['page'] = 'kitchen';
+ob_start();
+include __DIR__ . '/../pages/kitchen.php';
+$kitchenHtml = ob_get_clean();
+assert(strpos($kitchenHtml, 'kds-grid') !== false, "KDS grid not found in kitchen.php");
+assert(strpos($kitchenHtml, 'unavailable-panel') === false, "Mock unavailable panel must be removed from kitchen.php");
+echo "  [PASS] pages/kitchen.php rendered successfully (Out-of-stock panel cleanly removed)\n";
+
+// 12. Render pages/admin.php (Đã tích hợp phần báo hết món)
+$_GET['page'] = 'admin';
+$_GET['mode'] = 'day';
+ob_start();
+include __DIR__ . '/../pages/admin.php';
+$adminStockHtml = ob_get_clean();
+assert(strpos($adminStockHtml, 'menu-stock-management') !== false, "menu-stock-management not found in admin.php");
+assert(strpos($adminStockHtml, 'data-toggle-dish-ajax') !== false, "toggle-dish-ajax button not found in admin.php");
+echo "  [PASS] pages/admin.php rendered successfully with dynamic Stock Management panel\n";
+
 echo "\n>>> TẤT CẢ CÁC TRANG RENDER HOÀN HẢO! <<<\n";
