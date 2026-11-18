@@ -336,7 +336,27 @@
     });
 
     layout.append(aside, section);
-    content.append(searchBox, layout);
+    // Banner chào mừng dưới ô tìm kiếm.
+const banner = el('section', '', 'qr-banner');
+
+const bannerDish = state.menu.find(
+  dish => dish.is_available && dish.image_url
+) || state.menu[0];
+
+const bannerText = el('div', '', 'qr-banner-text');
+
+bannerText.append(
+  el('h2', 'Welcome!'),
+  el('p', 'Chúc bạn ngon miệng cùng SmartDine')
+);
+
+banner.append(
+  photo(bannerDish, 'qr-banner-image'),
+  bannerText
+);
+
+// Thứ tự: tìm kiếm → banner → danh mục và menu.
+content.append(searchBox, banner, layout);
 
     renderCards();
   }

@@ -766,3 +766,641 @@ legend {
         font-size: 8px;
     }
 }
+/* ===== GIAO DIỆN QR MENU THEO MẪU FIGMA ===== */
+
+body,
+button,
+input,
+textarea,
+select,
+h1,
+h2,
+h3,
+p,
+strong,
+small,
+a {
+    font-family: Arial, "Segoe UI", sans-serif;
+}
+
+body {
+    background: #f2f4f7;
+    color: #252831;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Khung ứng dụng */
+body:not(.operations) .app-shell {
+    max-width: 420px;
+    box-shadow: 0 10px 40px #2330440b;
+}
+
+.app-header {
+    height: 56px;
+    border-color: #f0f1f4;
+    padding: 0 16px;
+    font-size: 11px;
+}
+
+.brand {
+    font-size: 15px;
+    font-weight: 750;
+    letter-spacing: -.4px;
+}
+
+.language-label {
+    font-size: 10px;
+    padding: 5px 10px;
+    border-color: #e9edf1;
+}
+
+body:not(.operations) #content {
+    padding: 14px 13px
+        calc(150px + env(safe-area-inset-bottom));
+}
+
+/* Thanh tìm kiếm */
+.search-box {
+    margin-bottom: 12px;
+    border-color: #e9ecf1;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 2px 8px #23304402;
+}
+
+.search-box input {
+    height: 35px;
+    font-size: 11px;
+}
+
+/* Banner chào mừng nhỏ */
+.qr-welcome {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 84px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    background: #442916;
+    color: #fff;
+}
+
+.qr-welcome-photo {
+    position: absolute;
+    inset: 0 0 0 35%;
+    display: grid;
+    place-items: center;
+    font-size: 50px;
+    background: #694325;
+    overflow: hidden;
+    z-index: -2;
+}
+
+.qr-welcome-photo img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 58%;
+}
+
+.qr-welcome::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+        90deg,
+        #25150ef5 0%,
+        #382015df 35%,
+        #38201530 75%,
+        #3820150a
+    );
+}
+
+.qr-welcome-copy {
+    position: relative;
+    padding: 20px 14px;
+    width: 66%;
+}
+
+.qr-welcome h2 {
+    font-size: 17px;
+    line-height: 1.3;
+    letter-spacing: -.4px;
+    color: #fff;
+}
+
+.qr-welcome p {
+    margin-top: 5px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #fff3e6;
+}
+
+/* Danh mục bên trái */
+.menu-layout {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 9px;
+    align-items: start;
+}
+
+.categories {
+    gap: 4px;
+    position: sticky;
+    top: 12px;
+}
+
+.category {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 43px;
+    padding: 9px 5px;
+    border-radius: 7px;
+    font-size: 10px;
+    line-height: 1.35;
+    font-weight: 500;
+    color: #535966;
+}
+
+.category::before {
+    content: "✦";
+    flex-shrink: 0;
+    width: 14px;
+    font-size: 13px;
+    text-align: center;
+    color: #5c6370;
+}
+
+.category:nth-child(2)::before {
+    content: "♨";
+}
+
+.category:nth-child(3)::before {
+    content: "♧";
+}
+
+.category:nth-child(4)::before {
+    content: "☕";
+}
+
+.category:nth-child(5)::before {
+    content: "◇";
+}
+
+.category.active {
+    color: #f47a08;
+    background: #fff4e9;
+    font-weight: 700;
+}
+
+.category.active::before {
+    color: #f47a08;
+}
+
+/* Danh sách món */
+.menu-products > h2 {
+    font-size: 13px;
+    margin-bottom: 10px;
+    letter-spacing: -.2px;
+}
+
+.food-grid {
+    gap: 11px 8px;
+}
+
+.food-card {
+    border: 1px solid #f0f1f3;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 3px 12px #17223004;
+    transition: box-shadow .15s;
+}
+
+.food-card .food-photo {
+    aspect-ratio: 1.35;
+    border-radius: 9px 9px 0 0;
+    background: #f5f4f1;
+}
+
+.food-open h3 {
+    font-family: Arial, "Segoe UI", sans-serif !important;
+    font-size: 10px;
+    line-height: 1.45;
+    font-weight: 600;
+    padding: 7px 7px 3px;
+    min-height: 35px;
+    color: #272c34;
+}
+
+.food-footer {
+    padding: 3px 7px 7px;
+    gap: 3px;
+    flex-wrap: nowrap;
+}
+
+.food-footer strong {
+    font-family: Arial, "Segoe UI", sans-serif !important;
+    font-size: 10px;
+    font-weight: 750;
+    white-space: nowrap;
+    color: #242831;
+}
+
+.add-food {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    width: 28px;
+    min-height: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 7px;
+    background: #ff7b08;
+    font-size: 21px;
+    line-height: 1;
+    color: white;
+    box-shadow: 0 3px 8px #ff7b0818;
+}
+
+.add-food:disabled {
+    font-size: 8px;
+    box-shadow: none;
+}
+
+/* Thanh điều hướng dưới */
+.bottom-nav {
+    width: min(420px, 100%);
+    padding-top: 8px;
+    padding-bottom:
+        calc(8px + env(safe-area-inset-bottom));
+    border-color: #edf0f4;
+    box-shadow: 0 -4px 18px #17223003;
+}
+
+.bottom-nav > a,
+.bottom-nav > button {
+    font-size: 9px;
+    gap: 5px;
+    color: #8a909b;
+    min-height: 43px;
+}
+
+.bottom-nav span {
+    font-size: 20px;
+}
+
+.bottom-nav .active {
+    color: #ff7b08;
+    font-weight: 650;
+}
+
+/* Thanh giỏ hàng nổi */
+.floating-cart {
+    width: min(394px, calc(100% - 26px));
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    min-height: 43px;
+    padding: 11px 13px;
+    border-radius: 8px;
+    background: linear-gradient(
+        100deg,
+        #ff8b0e,
+        #ff7300
+    );
+    box-shadow: 0 5px 16px #f57c0020;
+    font-size: 11px;
+}
+
+.floating-cart > span::before {
+    content: "🛒";
+    font-size: 14px;
+    margin-right: 7px;
+}
+
+.floating-cart strong {
+    font-size: 11px;
+}
+
+/* Hiển thị dạng điện thoại khi mở bằng máy tính */
+@media (min-width: 600px) {
+    body:not(.operations) .app-shell {
+        margin: 20px auto;
+        border-radius: 18px;
+        overflow: clip;
+        min-height: calc(100dvh - 40px);
+    }
+}
+
+/* Điện thoại màn hình nhỏ */
+@media (max-width: 350px) {
+    .menu-layout {
+        grid-template-columns: 73px minmax(0, 1fr);
+        gap: 7px;
+    }
+
+    .category {
+        font-size: 9px;
+        gap: 4px;
+        padding-left: 3px;
+    }
+
+    .category::before {
+        width: 12px;
+        font-size: 11px;
+    }
+
+    .food-open h3 {
+        font-size: 9px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .food-footer {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .food-footer strong {
+        font-size: 9px;
+    }
+
+    .add-food {
+        min-width: 25px;
+        width: 25px;
+        height: 26px;
+        min-height: 26px;
+    }
+
+    .qr-welcome {
+        min-height: 78px;
+    }
+
+    .qr-welcome-copy {
+        padding: 18px 12px;
+    }
+
+    .qr-welcome h2 {
+        font-size: 16px;
+    }
+}
+
+@media (hover: hover) {
+    .food-card:hover {
+        box-shadow: 0 6px 18px #1722300c;
+    }
+
+    .add-food:hover {
+        background: #ea6900;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .food-card {
+        transition: none;
+    }
+}
+/* Banner ảnh ngang trên menu QR */
+.qr-banner {
+    position: relative;
+    isolation: isolate;
+    width: 100%;
+    height: 88px;
+    margin: 12px 0 15px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #382014;
+    box-shadow: 0 4px 12px rgba(63, 35, 16, .12);
+}
+
+.qr-banner-image {
+    position: absolute;
+    inset: 0 0 0 32%;
+    z-index: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: #68452c;
+    font-size: 46px;
+}
+
+.qr-banner-image img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+.qr-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+        90deg,
+        rgba(30, 15, 8, .98) 0%,
+        rgba(48, 25, 13, .88) 35%,
+        rgba(48, 25, 13, .15) 75%,
+        transparent 100%
+    );
+}
+
+.qr-banner-text {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 68%;
+    height: 100%;
+    padding: 14px;
+    color: white;
+}
+
+.qr-banner-text h2 {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: white;
+}
+
+.qr-banner-text p {
+    margin: 5px 0 0;
+    font-family: Arial, sans-serif;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #fff0df;
+}
+
+@media (max-width: 350px) {
+    .qr-banner {
+        height: 78px;
+    }
+
+    .qr-banner-text h2 {
+        font-size: 16px;
+    }
+
+    .qr-banner-text p {
+        font-size: 9px;
+    }
+}
+/* ===== KHỐI DANH MỤC NỀN XÁM ===== */
+
+#content .menu-layout .categories {
+    background: #f4f5f7;
+    border: 1px solid #e9ebef;
+    border-radius: 10px;
+    padding: 5px;
+    gap: 4px;
+    box-shadow: inset 0 1px 0 #fff;
+}
+
+#content .menu-layout .categories .category {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    width: 100%;
+    min-height: 43px;
+    margin: 0;
+    padding: 9px 5px;
+
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+
+    font-family: Arial, "Segoe UI", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.45;
+    color: #464d59;
+    text-align: left;
+
+    transition:
+        background-color .15s,
+        color .15s;
+}
+
+/* Danh mục đang được chọn */
+#content .menu-layout .categories .category.active {
+    background: #fff0df;
+    border-color: #ffe0bd;
+    color: #f37305;
+    box-shadow: 0 2px 5px #d4771310;
+}
+
+#content .categories .category svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    stroke-width: 1.9;
+}
+
+@media (hover: hover) {
+    #content .categories .category:hover {
+        background: #fff;
+        color: #eb7109;
+    }
+}
+
+/* ===== CHỮ MENU RÕ VÀ ĐẬM HƠN ===== */
+
+#content .menu-products > h2 {
+    margin-bottom: 10px;
+    font-family: Arial, "Segoe UI", sans-serif;
+    font-size: 14px;
+    font-weight: 750;
+    line-height: 1.4;
+    color: #202631;
+}
+
+#content .food-card .food-open h3 {
+    font-family: Arial, "Segoe UI", sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.45;
+    color: #252b35;
+
+    min-height: 35px;
+    padding: 7px 6px 3px;
+}
+
+#content .food-card .food-footer strong {
+    font-family: Arial, "Segoe UI", sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 750 !important;
+    line-height: 1.4;
+    color: #202631;
+}
+
+.app-header .brand {
+    font-family: Arial, "Segoe UI", sans-serif;
+    font-weight: 750;
+    color: #202631;
+}
+
+/* ===== Ô SỐ BÀN ===== */
+
+.app-header .table-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    min-height: 29px;
+    padding: 6px 11px;
+
+    border: 1px solid #ffe0bf;
+    border-radius: 20px;
+    background: #fff5e9;
+
+    font-family: Arial, "Segoe UI", sans-serif;
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1;
+    color: #a64e08;
+    white-space: nowrap;
+
+    box-shadow: 0 2px 6px #ed89100a;
+}
+
+.app-header .table-badge-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #ff8616;
+}
+
+/* ===== ĐIỆN THOẠI NHỎ ===== */
+
+@media (max-width: 350px) {
+    #content .menu-layout .categories {
+        padding: 3px;
+    }
+
+    #content .menu-layout .categories .category {
+        font-size: 9px;
+        padding: 8px 3px;
+        gap: 4px;
+    }
+
+    #content .food-card .food-open h3,
+    #content .food-card .food-footer strong {
+        font-size: 10px !important;
+    }
+
+    .app-header .table-badge {
+        padding: 6px 9px;
+        font-size: 10px;
+    }
+}
