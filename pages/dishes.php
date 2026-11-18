@@ -1302,6 +1302,13 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
+
+  // Tự động mở modal thêm món nếu có query action=add
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('action') === 'add') {
+    const m = document.getElementById('modal-add-dish');
+    if (m) m.style.display = 'flex';
+  }
 });
 </script>
 

@@ -585,10 +585,10 @@ function updateUser($id, $data) {
                 `status` = :status";
     $params = [
         ':fullname' => trim($data['fullname']),
-        ':role'     => $data['role'],
+        ':role'     => $data['role'] ?? $user['role'],
         ':phone'    => trim($data['phone'] ?? ''),
         ':email'    => trim($data['email'] ?? ''),
-        ':status'   => $data['status'],
+        ':status'   => $data['status'] ?? $user['status'],
         ':id'       => (int) $id,
     ];
 

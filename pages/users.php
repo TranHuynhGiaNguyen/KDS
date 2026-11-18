@@ -771,5 +771,11 @@ document.addEventListener('DOMContentLoaded', function() {
       openModal('modal-delete-user');
     });
   });
+
+  // Tự động mở modal thêm nhân viên nếu có query action=add
+  const userUrlParams = new URLSearchParams(window.location.search);
+  if (userUrlParams.get('action') === 'add') {
+    openModal('modal-add-user');
+  }
 });
 </script>
