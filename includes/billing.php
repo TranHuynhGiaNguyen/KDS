@@ -54,6 +54,7 @@ function calculateBill(array $items, array $discount = [], ?array $config = null
         'discount_type'   => $discountType,
         'discount_value'  => $discountType === DISCOUNT_NONE ? 0 : $discountValue,
         'discount_amount' => $discountAmount,
+        'voucher_code'    => !empty($discount['voucher_code']) ? strtoupper(trim($discount['voucher_code'])) : null,
         'service_fee'     => $serviceFee,
         'vat'             => $vat,
         'total'           => $taxable + $vat,

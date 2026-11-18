@@ -39,9 +39,26 @@
 
   <aside class="panel order-summary">
     <h2>Tóm tắt chi phí</h2>
+
+    <!-- Khối nhập mã ưu đãi / Voucher cho thực khách -->
+    <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+      <label style="display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px;">
+        Mã ưu đãi / Voucher
+      </label>
+      <div style="display: flex; gap: 6px;">
+        <input type="text" id="cart-voucher-input" placeholder="Mã giảm (VD: GIAM50K)" style="flex: 1; padding: 7px 10px; font-size: 13px; text-transform: uppercase; border: 1px solid #cbd5e1; border-radius: 6px;">
+        <button type="button" class="btn btn-outline" id="btn-apply-cart-voucher" style="padding: 0 12px; font-size: 13px; white-space: nowrap;">Áp dụng</button>
+      </div>
+      <div id="cart-voucher-status" style="display: none; font-size: 12px; margin-top: 6px;"></div>
+    </div>
+
     <div class="summary-row">
       <span>Tạm tính tiền món</span>
       <b id="cart-subtotal">0đ</b>
+    </div>
+    <div class="summary-row" id="cart-voucher-row" style="display: none; color: #16a34a;">
+      <span>Giảm giá (<span id="cart-voucher-code-label"></span>)</span>
+      <b id="cart-voucher-discount">-0đ</b>
     </div>
     <div class="summary-row">
       <span>Phí phục vụ & bảo vệ môi trường (5%)</span>

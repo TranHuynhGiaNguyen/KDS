@@ -92,6 +92,11 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
         $invoiceId = insertInvoice($pdo, $orderId, $tableCode, $bill);
         insertPayment($pdo, $invoiceId, $bill['total'], $method, $cashReceived, $cashierId);
 
+        if (!empty($bill['voucher_code'])) {
+            require_once __DIR__ . '/vouchers.php';
+            recordVoucherUsage($pdo, $bill['voucher_code']);
+        }
+
         $pdo->commit();
 
         return $invoiceId;
@@ -116,11 +121,12 @@ function fetchOrderItemsById(PDO $pdo, int $orderId): array
 
 function insertInvoice(PDO $pdo, int $orderId, string $tableCode, array $bill): int
 {
+    $voucherCode = !empty($bill['voucher_code']) ? strtoupper(trim($bill['voucher_code'])) : null;
     $stmt = $pdo->prepare("
         INSERT INTO `invoices`
-            (`order_id`, `table_code`, `subtotal`, `discount_type`, `discount_value`, `discount_amount`,
+            (`order_id`, `table_code`, `subtotal`, `discount_type`, `discount_value`, `discount_amount`, `voucher_code`,
              `service_fee`, `vat`, `total`, `service_rate`, `vat_rate`, `created_at`)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $orderId,
@@ -129,6 +135,7 @@ function insertInvoice(PDO $pdo, int $orderId, string $tableCode, array $bill): 
         $bill['discount_type'],
         $bill['discount_value'],
         $bill['discount_amount'],
+        $voucherCode,
         $bill['service_fee'],
         $bill['vat'],
         $bill['total'],

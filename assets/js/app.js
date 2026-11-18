@@ -3,6 +3,7 @@ const money = n => new Intl.NumberFormat('vi-VN').format(n) + 'đ';
 
 // Khởi tạo giỏ hàng từ LocalStorage
 let cart = JSON.parse(localStorage.getItem('smartdine_cart') || '[]');
+let appliedVoucher = JSON.parse(localStorage.getItem('smartdine_voucher') || 'null');
 
 function saveCart() {
   localStorage.setItem('smartdine_cart', JSON.stringify(cart));
@@ -50,12 +51,29 @@ function renderCartPage() {
 
   const count = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const fee = Math.round(subtotal * 0.05);
+
+  // Tính giảm giá nếu có voucher áp dụng
+  let discountAmount = 0;
+  if (appliedVoucher && count > 0) {
+    if (appliedVoucher.discount_type === 'percent') {
+      discountAmount = Math.round(subtotal * (appliedVoucher.discount_value / 100));
+      if (appliedVoucher.max_discount_amount > 0 && discountAmount > appliedVoucher.max_discount_amount) {
+        discountAmount = appliedVoucher.max_discount_amount;
+      }
+    } else {
+      discountAmount = Math.min(subtotal, appliedVoucher.discount_value);
+    }
+  }
+
+  const afterDiscount = Math.max(0, subtotal - discountAmount);
+  const fee = Math.round(afterDiscount * 0.05);
 
   const countEl = document.querySelector('#cart-items-count');
   if (countEl) countEl.textContent = `(${count} món)`;
 
   if (cart.length === 0) {
+    appliedVoucher = null;
+    localStorage.removeItem('smartdine_voucher');
     holder.innerHTML = `
       <div class="empty-state">
         <div style="font-size: 40px; margin-bottom: 12px;">🛒</div>
@@ -92,7 +110,31 @@ function renderCartPage() {
   };
   set('#cart-subtotal', subtotal);
   set('#service-fee', fee);
-  set('#cart-grand-total', subtotal + fee);
+  set('#cart-grand-total', afterDiscount + fee);
+
+  // Hiển thị / ẩn dòng voucher trong tóm tắt
+  const voucherRow = document.querySelector('#cart-voucher-row');
+  const voucherCodeLabel = document.querySelector('#cart-voucher-code-label');
+  const voucherDiscount = document.querySelector('#cart-voucher-discount');
+  const voucherInput = document.querySelector('#cart-voucher-input');
+  const voucherStatus = document.querySelector('#cart-voucher-status');
+
+  if (voucherRow && appliedVoucher && discountAmount > 0) {
+    voucherRow.style.display = 'flex';
+    if (voucherCodeLabel) voucherCodeLabel.innerHTML = `${appliedVoucher.code} <button type="button" id="btn-remove-cart-voucher" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:11px; font-weight:700; margin-left:4px;">[Hủy]</button>`;
+    if (voucherDiscount) voucherDiscount.textContent = `-${money(discountAmount)}`;
+    if (voucherInput) voucherInput.value = appliedVoucher.code;
+    if (voucherStatus) {
+      voucherStatus.style.display = 'block';
+      voucherStatus.style.color = '#16a34a';
+      voucherStatus.textContent = `✓ Đã áp dụng mã "${appliedVoucher.code}": Giảm ${money(discountAmount)}`;
+    }
+  } else if (voucherRow) {
+    voucherRow.style.display = 'none';
+    if (voucherStatus && !appliedVoucher) {
+      voucherStatus.style.display = 'none';
+    }
+  }
 }
 
 // ==========================================================
@@ -273,6 +315,74 @@ document.addEventListener('click', e => {
     ];
     saveCart();
     notify('Đã thêm 3 món mẫu vào giỏ hàng');
+  }
+
+  // Áp dụng voucher trong giỏ hàng
+  const applyVoucherBtn = e.target.closest('#btn-apply-cart-voucher');
+  if (applyVoucherBtn) {
+    const input = document.querySelector('#cart-voucher-input');
+    const statusEl = document.querySelector('#cart-voucher-status');
+    const code = input ? input.value.trim().toUpperCase() : '';
+    const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+
+    if (!code) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = 'Vui lòng nhập mã giảm giá!';
+      }
+      return;
+    }
+
+    if (cart.length === 0) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = 'Giỏ hàng đang trống, vui lòng chọn món trước!';
+      }
+      return;
+    }
+
+    fetch(`api/validate-voucher.php?code=${encodeURIComponent(code)}&subtotal=${subtotal}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.valid) {
+          appliedVoucher = {
+            code: data.code,
+            name: data.name,
+            discount_type: data.discount_type,
+            discount_value: data.discount_value,
+            max_discount_amount: data.max_discount_amount || 0
+          };
+          localStorage.setItem('smartdine_voucher', JSON.stringify(appliedVoucher));
+          renderCartPage();
+          notify(`Áp dụng mã ${data.code} thành công: -${money(data.discount_amount)}`);
+        } else {
+          if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = data.message || 'Mã không hợp lệ!';
+          }
+        }
+      })
+      .catch(() => {
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = 'Lỗi kết nối kiểm tra mã!';
+        }
+      });
+  }
+
+  // Hủy voucher trong giỏ hàng
+  const removeVoucherBtn = e.target.closest('#btn-remove-cart-voucher');
+  if (removeVoucherBtn) {
+    appliedVoucher = null;
+    localStorage.removeItem('smartdine_voucher');
+    const input = document.querySelector('#cart-voucher-input');
+    if (input) input.value = '';
+    renderCartPage();
+    notify('Đã hủy áp dụng mã giảm giá');
   }
 
   // Lọc danh mục thực đơn

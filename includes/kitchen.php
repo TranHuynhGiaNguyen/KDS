@@ -141,12 +141,15 @@ function advanceKitchenItem(PDO $pdo, int $itemId, string $action, int $userId):
 
     if ($action === 'start') {
         $stmt = $pdo->prepare('
-            UPDATE `order_items` SET `status` = ?, `sent_by` = COALESCE(`sent_by`, ?)
+            UPDATE `order_items` SET `status` = ?, `sent_by` = COALESCE(`sent_by`, ?), `cooking_at` = COALESCE(`cooking_at`, NOW())
             WHERE `id` = ? AND `status` = ?
         ');
         $stmt->execute([$transition['to'], $userId, $itemId, $transition['from']]);
     } else {
-        $stmt = $pdo->prepare('UPDATE `order_items` SET `status` = ? WHERE `id` = ? AND `status` = ?');
+        $stmt = $pdo->prepare('
+            UPDATE `order_items` SET `status` = ?, `done_at` = COALESCE(`done_at`, NOW())
+            WHERE `id` = ? AND `status` = ?
+        ');
         $stmt->execute([$transition['to'], $itemId, $transition['from']]);
     }
 

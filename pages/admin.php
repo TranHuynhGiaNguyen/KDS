@@ -1,11 +1,14 @@
 <?php
 /**
  * SmartDine - Bảng điều khiển Quản trị & Dashboard Doanh thu
- * Thống kê doanh thu theo ngày, tháng, khu vực, phương thức thanh toán và top món ăn.
+ * Thống kê doanh thu theo ngày, tháng, khu vực, phương thức thanh toán, top món ăn
+ * và Báo cáo Hiệu suất Bếp (Kitchen Performance Metrics).
  */
 
 require_once __DIR__ . '/../includes/tables.php';
 require_once __DIR__ . '/../includes/revenue.php';
+require_once __DIR__ . '/../includes/kitchen-metrics.php';
+require_once __DIR__ . '/../includes/vouchers.php';
 
 // Xử lý xuất file CSV nếu có yêu cầu
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
@@ -32,10 +35,11 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
 $pdo = getRevenueDb();
 $adminTableStats = getTableStats();
+$todayKitchenStats = getKitchenPerformanceReport(date('Y-m-d'), date('Y-m-d'));
 
-// Xác định chế độ xem: theo ngày (day), theo tháng (month) hay theo khoảng ngày (range)
+// Xác định chế độ xem: theo ngày (day), theo tháng (month), theo khoảng ngày (range) hay hiệu suất bếp (kitchen)
 $viewMode = $_GET['mode'] ?? 'day';
-if (!in_array($viewMode, ['day', 'month', 'range'], true)) {
+if (!in_array($viewMode, ['day', 'month', 'range', 'kitchen'], true)) {
     $viewMode = 'day';
 }
 $selectedDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
@@ -49,7 +53,10 @@ if ($startDate > $endDate) {
 }
 
 // Lấy dữ liệu báo cáo tương ứng
-if ($viewMode === 'range') {
+if ($viewMode === 'kitchen') {
+    $kitchenReport = getKitchenPerformanceReport($startDate, $endDate);
+    $report = getRevenueByRange($pdo, $startDate, $endDate);
+} elseif ($viewMode === 'range') {
     $report = getRevenueByRange($pdo, $startDate, $endDate);
 } elseif ($viewMode === 'month') {
     $report = getRevenueByMonth($pdo, $selectedMonth);
@@ -70,9 +77,9 @@ $thisMonthStart = date('Y-m-01');
 
 <!-- Header in ấn A4 (Chỉ hiển thị khi in hoặc lưu PDF) -->
 <div class="print-header">
-  <h1 style="margin: 0 0 6px; font-size: 20pt;">SMARTDINE RESTAURANT — BÁO CÁO DOANH THU</h1>
+  <h1 style="margin: 0 0 6px; font-size: 20pt;">SMARTDINE RESTAURANT — <?= $viewMode === 'kitchen' ? 'BÁO CÁO HIỆU SUẤT BẾP (KDS)' : 'BÁO CÁO DOANH THU' ?></h1>
   <p style="margin: 0; color: #555;">
-    Thời gian thống kê: <b><?= $viewMode === 'month' ? 'Tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'Khoảng ' . $report['date_display'] : 'Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')') ?></b>
+    Thời gian thống kê: <b><?= $viewMode === 'kitchen' ? 'Từ ' . date('d/m/Y', strtotime($startDate)) . ' đến ' . date('d/m/Y', strtotime($endDate)) : ($viewMode === 'month' ? 'Tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'Khoảng ' . $report['date_display'] : 'Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')')) ?></b>
     · Xuất lúc: <?= date('d/m/Y H:i:s') ?> · Người lập: Quản trị viên
   </p>
 </div>
@@ -80,9 +87,9 @@ $thisMonthStart = date('Y-m-01');
 <!-- HEADER CHÍNH CỦA DASHBOARD -->
 <div class="dash-header">
   <div>
-    <span class="eyebrow">SMARTDINE MANAGEMENT & REVENUE DASHBOARD</span>
-    <h1>Tổng quan & Báo cáo Doanh thu</h1>
-    <p>Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng / khoảng ngày và phân bổ vận hành nhà hàng.</p>
+    <span class="eyebrow"><?= $viewMode === 'kitchen' ? 'KITCHEN PERFORMANCE & EFFICIENCY DASHBOARD' : 'SMARTDINE MANAGEMENT & REVENUE DASHBOARD' ?></span>
+    <h1><?= $viewMode === 'kitchen' ? 'Báo cáo Hiệu suất Bếp (Kitchen Metrics)' : 'Tổng quan & Báo cáo Doanh thu' ?></h1>
+    <p><?= $viewMode === 'kitchen' ? 'Thống kê thời gian chế biến trung bình, cảnh báo các món bị trễ giờ và phân tích tải theo từng quầy bếp.' : 'Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng / khoảng ngày và phân bổ vận hành nhà hàng.' ?></p>
   </div>
   <div class="filter-row">
     <a class="btn btn-outline" href="index.php?page=users">
@@ -97,6 +104,10 @@ $thisMonthStart = date('Y-m-01');
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>
       <span>Quản lý bàn & khu vực</span>
     </a>
+    <a class="btn btn-outline" href="index.php?page=vouchers">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+      <span>Mã khuyến mãi</span>
+    </a>
     <a class="btn btn-primary-tool" href="index.php?page=kitchen">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
       <span>Màn hình bếp KDS</span>
@@ -108,7 +119,7 @@ $thisMonthStart = date('Y-m-01');
      BỘ LỌC DOANH THU THEO NGÀY / THÁNG / KHOẢNG NGÀY & CÔNG CỤ
      ========================================================== -->
 <section class="revenue-filter-toolbar">
-  <!-- Tabs chuyển chế độ: Theo ngày vs Theo tháng vs Khoảng ngày -->
+  <!-- Tabs chuyển chế độ: Theo ngày vs Theo tháng vs Khoảng ngày vs Hiệu suất bếp -->
   <div class="revenue-view-tabs">
     <a class="revenue-tab-btn <?= $viewMode === 'day' ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= htmlspecialchars($selectedDate) ?>">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -121,6 +132,10 @@ $thisMonthStart = date('Y-m-01');
     <a class="revenue-tab-btn <?= $viewMode === 'range' ? 'active' : '' ?>" href="index.php?page=admin&mode=range&start_date=<?= htmlspecialchars($startDate) ?>&end_date=<?= htmlspecialchars($endDate) ?>">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
       <span>Theo khoảng ngày</span>
+    </a>
+    <a class="revenue-tab-btn <?= $viewMode === 'kitchen' ? 'active' : '' ?>" href="index.php?page=admin&mode=kitchen&start_date=<?= htmlspecialchars($startDate) ?>&end_date=<?= htmlspecialchars($endDate) ?>">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
+      <span>Hiệu suất bếp</span>
     </a>
   </div>
 
@@ -141,6 +156,18 @@ $thisMonthStart = date('Y-m-01');
       <div class="quick-filter-chips">
         <a class="quick-chip <?= $selectedMonth === $thisMonthStr ? 'active' : '' ?>" href="index.php?page=admin&mode=month&month=<?= $thisMonthStr ?>">Tháng này (<?= date('m/Y') ?>)</a>
         <a class="quick-chip <?= $selectedMonth === $prevMonthStr ? 'active' : '' ?>" href="index.php?page=admin&mode=month&month=<?= $prevMonthStr ?>">Tháng trước (<?= date('m/Y', strtotime('-1 month')) ?>)</a>
+      </div>
+    <?php elseif ($viewMode === 'kitchen'): ?>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="date" name="start_date" value="<?= htmlspecialchars($startDate) ?>" aria-label="Từ ngày">
+        <span style="color: #64748b; font-size: 13px;">đến</span>
+        <input type="date" name="end_date" value="<?= htmlspecialchars($endDate) ?>" aria-label="Đến ngày">
+      </div>
+      <div class="quick-filter-chips">
+        <a class="quick-chip <?= ($startDate === $todayStr && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=kitchen&start_date=<?= $todayStr ?>&end_date=<?= $todayStr ?>">Hôm nay</a>
+        <a class="quick-chip <?= ($startDate === $range7Start && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=kitchen&start_date=<?= $range7Start ?>&end_date=<?= $todayStr ?>">7 ngày qua</a>
+        <a class="quick-chip <?= ($startDate === $range30Start && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=kitchen&start_date=<?= $range30Start ?>&end_date=<?= $todayStr ?>">30 ngày qua</a>
+        <a class="quick-chip <?= ($startDate === $thisMonthStart && $endDate === $todayStr) ? 'active' : '' ?>" href="index.php?page=admin&mode=kitchen&start_date=<?= $thisMonthStart ?>&end_date=<?= $todayStr ?>">Tháng này</a>
       </div>
     <?php else: ?>
       <div style="display: flex; align-items: center; gap: 6px;">
@@ -181,6 +208,256 @@ $thisMonthStart = date('Y-m-01');
   </div>
 </section>
 
+<?php if ($viewMode === 'kitchen'): ?>
+  <!-- ==========================================================
+       BÁO CÁO HIỆU SUẤT BẾP (KITCHEN PERFORMANCE METRICS)
+       ========================================================== -->
+  <div class="revenue-stats-grid">
+    <!-- Thẻ 1: Thời gian chế biến trung bình -->
+    <div class="revenue-stat-card" style="border-top: 4px solid var(--brand-orange);">
+      <div class="revenue-stat-head">
+        <span>Thời gian chế biến TB</span>
+        <span class="stat-trend-badge <?= $kitchenReport['avg_cook_minutes'] <= 12 ? 'positive' : 'urgent' ?>">
+          <?= $kitchenReport['avg_cook_minutes'] <= 12 ? '✓ Nhanh' : '⚠ Chậm' ?>
+        </span>
+      </div>
+      <div class="revenue-stat-value"><?= $kitchenReport['avg_cook_minutes'] ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">phút / món</span></div>
+      <div class="revenue-stat-sub">
+        Từ lúc Bếp nhận phiếu/bấm nấu đến khi bấm Hoàn thành
+      </div>
+      <small style="color: #64748b; font-size: 11px;">
+        Đo lường tốc độ đứng bếp thực tế của các quầy
+      </small>
+    </div>
+
+    <!-- Thẻ 2: Thời gian chờ trung bình của thực khách -->
+    <div class="revenue-stat-card" style="border-top: 4px solid #0284c7;">
+      <div class="revenue-stat-head">
+        <span>Thời gian chờ phục vụ TB</span>
+        <span class="stat-trend-badge <?= $kitchenReport['avg_wait_minutes'] <= 15 ? 'positive' : 'warning' ?>">
+          TB <?= $kitchenReport['avg_wait_minutes'] ?> phút
+        </span>
+      </div>
+      <div class="revenue-stat-value" style="color: #0284c7;"><?= $kitchenReport['avg_wait_minutes'] ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">phút</span></div>
+      <div class="revenue-stat-sub">
+        Từ lúc khách/phục vụ gửi đơn đến khi Bếp hoàn tất
+      </div>
+      <small style="color: #64748b; font-size: 11px;">
+        Bao gồm thời gian chờ xếp hàng phiếu order
+      </small>
+    </div>
+
+    <!-- Thẻ 3: Tỷ lệ hoàn thành đúng giờ (< 15 phút) -->
+    <div class="revenue-stat-card" style="border-top: 4px solid #16a34a;">
+      <div class="revenue-stat-head">
+        <span>Tỷ lệ ra món đúng giờ</span>
+        <span class="stat-trend-badge positive">Chuẩn &lt; 15p</span>
+      </div>
+      <div class="revenue-stat-value" style="color: #16a34a;"><?= $kitchenReport['on_time_rate'] ?>%</div>
+      <div class="revenue-stat-sub">
+        Đạt chuẩn: <b><?= number_format($kitchenReport['on_time_count']) ?></b> / <?= number_format($kitchenReport['total_completed']) ?> phần món
+      </div>
+      <small style="color: #16a34a; font-size: 11px; font-weight: 600;">
+        ✓ Khách hàng hài lòng về tốc độ phục vụ
+      </small>
+    </div>
+
+    <!-- Thẻ 4: Món trễ giờ (>= 15 phút) -->
+    <div class="revenue-stat-card" style="border-top: 4px solid #ef4444;">
+      <div class="revenue-stat-head">
+        <span>Món bị trễ giờ (&ge; 15p)</span>
+        <span class="stat-trend-badge <?= $kitchenReport['delayed_count'] > 0 ? 'urgent' : 'positive' ?>">
+          <?= $kitchenReport['delayed_rate'] ?>% tổng món
+        </span>
+      </div>
+      <div class="revenue-stat-value" style="color: #ef4444;"><?= number_format($kitchenReport['delayed_count']) ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">phần món</span></div>
+      <div class="revenue-stat-sub">
+        Các món vượt ngưỡng chuẩn phục vụ của nhà hàng
+      </div>
+      <small style="color: #ef4444; font-size: 11px;">
+        <?= $kitchenReport['delayed_count'] > 0 ? '⚠ Cần kiểm tra quầy bếp quá tải bên dưới' : '✓ Không có món trễ' ?>
+      </small>
+    </div>
+  </div>
+
+  <!-- CẢNH BÁO MÓN THƯỜNG XUYÊN BỊ TRỄ GIỜ PHỤC VỤ -->
+  <section class="panel" style="margin-bottom: 24px; border-left: 5px solid <?= !empty($kitchenReport['delayed_alerts']) ? '#ef4444' : '#16a34a' ?>;">
+    <div class="panel-title">
+      <div>
+        <h2 style="display: flex; align-items: center; gap: 8px;">
+          <span><?= !empty($kitchenReport['delayed_alerts']) ? '🚨' : '✅' ?></span>
+          <span>Cảnh báo món thường xuyên bị trễ giờ phục vụ (&ge; 15 phút)</span>
+        </h2>
+        <p class="muted">Hệ thống tự động phát hiện các món chế biến lâu hoặc thường xuyên quá tải để tối ưu quy trình bếp</p>
+      </div>
+    </div>
+
+    <?php if (empty($kitchenReport['delayed_alerts'])): ?>
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 16px 20px; border-radius: 8px; font-size: 14px;">
+        <b>✓ Xuất sắc!</b> Trong khoảng thời gian này không có món nào bị trễ giờ chế biến quá 15 phút. Toàn bộ các quầy bếp đều hoạt động hiệu quả và đúng tiến độ.
+      </div>
+    <?php else: ?>
+      <div style="overflow-x: auto;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px;">
+          <thead>
+            <tr style="background: #fff1f2; border-bottom: 1px solid #fecdd3; color: #9f1239;">
+              <th style="padding: 12px 16px;">Tên món ăn</th>
+              <th style="padding: 12px 16px;">Quầy phụ trách</th>
+              <th style="padding: 12px 16px; text-align: center;">Số lần trễ / Tổng làm</th>
+              <th style="padding: 12px 16px; text-align: center;">Tỷ lệ trễ</th>
+              <th style="padding: 12px 16px; text-align: right;">Khách chờ TB</th>
+              <th style="padding: 12px 16px; text-align: right;">Bếp nấu TB</th>
+              <th style="padding: 12px 16px; text-align: right;">Chậm nhất</th>
+              <th style="padding: 12px 16px; text-align: center;">Mức độ cảnh báo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($kitchenReport['delayed_alerts'] as $alert): ?>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 12px 16px;">
+                  <b><?= htmlspecialchars($alert['item_name']) ?></b>
+                </td>
+                <td style="padding: 12px 16px;">
+                  <span class="role-badge role-kitchen" style="font-size: 11px;"><?= htmlspecialchars($alert['station_name']) ?></span>
+                </td>
+                <td style="padding: 12px 16px; text-align: center;">
+                  <b style="color: #ef4444;"><?= $alert['delayed_count'] ?></b> / <?= $alert['total_cooked'] ?> lần
+                </td>
+                <td style="padding: 12px 16px; text-align: center;">
+                  <span style="font-weight: 700; color: <?= $alert['delayed_rate'] >= 30 ? '#ef4444' : '#f59e0b' ?>;">
+                    <?= $alert['delayed_rate'] ?>%
+                  </span>
+                </td>
+                <td style="padding: 12px 16px; text-align: right; font-weight: 600; color: #b91c1c;">
+                  <?= $alert['avg_wait_minutes'] ?> phút
+                </td>
+                <td style="padding: 12px 16px; text-align: right; color: #475569;">
+                  <?= $alert['avg_cook_minutes'] ?> phút
+                </td>
+                <td style="padding: 12px 16px; text-align: right; color: #ef4444; font-weight: 700;">
+                  <?= $alert['max_wait_minutes'] ?> phút
+                </td>
+                <td style="padding: 12px 16px; text-align: center;">
+                  <?php if ($alert['severity'] === 'urgent'): ?>
+                    <span class="stat-trend-badge urgent" style="padding: 3px 8px; font-size: 11px;">🚨 Nguy cơ cao (&ge; 20p)</span>
+                  <?php else: ?>
+                    <span class="stat-trend-badge warning" style="padding: 3px 8px; font-size: 11px;">⚠️ Cần lưu ý (&ge; 15p)</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top: 12px; font-size: 12px; color: #64748b; background: #f8fafc; padding: 10px 14px; border-radius: 6px;">
+        💡 <b>Khuyến nghị quản trị:</b> Với các món có tỷ lệ trễ &ge; 30%, Bếp trưởng nên bố trí thêm bếp phụ hoặc chuẩn bị sẵn nguyên liệu sơ chế trước giờ cao điểm.
+      </div>
+    <?php endif; ?>
+  </section>
+
+  <!-- PHÂN BỔ HIỆU SUẤT THEO QUẦY BẾP (STATION PERFORMANCE) -->
+  <section class="panel" style="margin-bottom: 24px;">
+    <div class="panel-title">
+      <div>
+        <h2>Hiệu suất theo Quầy chế biến</h2>
+        <p class="muted">Đo lường thời gian ra món và tải công việc của từng khu vực bếp</p>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+      <?php foreach ($kitchenReport['station_breakdown'] as $st): ?>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <b style="font-size: 14px; color: var(--ink);"><?= htmlspecialchars($st['name']) ?></b>
+            <span class="stat-trend-badge <?= $st['on_time_rate'] >= 85 ? 'positive' : 'warning' ?>" style="font-size: 11px;">
+              <?= $st['on_time_rate'] ?>% đúng giờ
+            </span>
+          </div>
+          <div style="font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 4px;">
+            <?= number_format($st['total_cooked']) ?> <span style="font-size: 13px; font-weight: normal; color: #64748b;">phần hoàn thành</span>
+          </div>
+          <div style="font-size: 12.5px; color: #475569;">
+            Thời gian nấu TB: <b><?= $st['avg_cook_minutes'] ?> phút</b>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </section>
+
+  <!-- BẢNG CHI TIẾT TẤT CẢ MÓN ĂN -->
+  <section class="panel" style="margin-bottom: 24px;">
+    <div class="panel-title">
+      <div>
+        <h2>Chi tiết thời gian chế biến từng món ăn</h2>
+        <p class="muted">Xếp hạng tốc độ chế biến, thời gian chờ và tỷ lệ hoàn thành đúng chuẩn của toàn bộ thực đơn</p>
+      </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px;">
+        <thead>
+          <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600;">
+            <th style="padding: 12px 16px;">Tên món ăn</th>
+            <th style="padding: 12px 16px;">Quầy bếp</th>
+            <th style="padding: 12px 16px; text-align: center;">Số lượng ra món</th>
+            <th style="padding: 12px 16px; text-align: right;">Nhanh nhất</th>
+            <th style="padding: 12px 16px; text-align: right;">Chế biến TB</th>
+            <th style="padding: 12px 16px; text-align: right;">Lâu nhất</th>
+            <th style="padding: 12px 16px; text-align: right;">Khách chờ TB</th>
+            <th style="padding: 12px 16px; text-align: center;">Đúng giờ (&lt; 15p)</th>
+            <th style="padding: 12px 16px; text-align: center;">Đánh giá</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (empty($kitchenReport['dish_breakdown'])): ?>
+            <tr>
+              <td colspan="9" style="padding: 30px; text-align: center; color: #94a3b8;">
+                Chưa có dữ liệu chế biến món ăn nào hoàn thành trong khoảng thời gian này.
+              </td>
+            </tr>
+          <?php else: ?>
+            <?php foreach ($kitchenReport['dish_breakdown'] as $dish): ?>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 12px 16px;">
+                  <b><?= htmlspecialchars($dish['item_name']) ?></b>
+                </td>
+                <td style="padding: 12px 16px;">
+                  <span class="role-badge role-kitchen" style="font-size: 11px;"><?= htmlspecialchars($dish['station_name']) ?></span>
+                </td>
+                <td style="padding: 12px 16px; text-align: center;">
+                  <b><?= number_format($dish['total_cooked']) ?></b> phần (<?= $dish['total_qty'] ?> đĩa/bát)
+                </td>
+                <td style="padding: 12px 16px; text-align: right; color: #16a34a; font-weight: 600;">
+                  <?= $dish['min_cook_minutes'] ?>p
+                </td>
+                <td style="padding: 12px 16px; text-align: right; font-weight: 700; color: #0284c7;">
+                  <?= $dish['avg_cook_minutes'] ?> phút
+                </td>
+                <td style="padding: 12px 16px; text-align: right; color: #ef4444;">
+                  <?= $dish['max_cook_minutes'] ?>p
+                </td>
+                <td style="padding: 12px 16px; text-align: right; font-weight: 600; color: #475569;">
+                  <?= $dish['avg_wait_minutes'] ?> phút
+                </td>
+                <td style="padding: 12px 16px; text-align: center;">
+                  <span style="font-weight: 700; color: <?= $dish['on_time_rate'] >= 85 ? '#16a34a' : ($dish['on_time_rate'] >= 60 ? '#f59e0b' : '#ef4444') ?>;">
+                    <?= $dish['on_time_rate'] ?>%
+                  </span>
+                </td>
+                <td style="padding: 12px 16px; text-align: center;">
+                  <span class="stat-trend-badge <?= $dish['badge']['class'] ?>" style="font-size: 11px; padding: 2px 8px;">
+                    <?= $dish['badge']['text'] ?>
+                  </span>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+<?php else: ?>
 <!-- ==========================================================
      4 THẺ CHỈ SỐ KPI DOANH THU CỐT LÕI
      ========================================================== -->
@@ -260,6 +537,25 @@ $thisMonthStart = date('Y-m-01');
       <?= $adminTableStats['empty_tables'] ?> bàn trống sẵn sàng đón khách
     </small>
   </div>
+</div>
+
+<!-- BANNER LIÊN KẾT NHANH HIỆU SUẤT BẾP -->
+<div style="background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%); border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 18px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <span style="font-size: 20px;">🍳</span>
+    <div>
+      <b style="font-size: 13.5px; color: #9a3412;">Hiệu suất Nhà bếp hôm nay:</b>
+      <span style="font-size: 13px; color: #7c2d12; margin-left: 6px;">
+        Chế biến TB <b><?= $todayKitchenStats['avg_cook_minutes'] ?> phút/món</b> · <b><?= $todayKitchenStats['on_time_rate'] ?>% đúng giờ</b>
+        <?php if ($todayKitchenStats['delayed_count'] > 0): ?>
+          · <span style="color: #b91c1c; font-weight: 700;">(<?= $todayKitchenStats['delayed_count'] ?> món trễ &ge; 15p)</span>
+        <?php endif; ?>
+      </span>
+    </div>
+  </div>
+  <a href="index.php?page=admin&mode=kitchen&start_date=<?= $todayStr ?>&end_date=<?= $todayStr ?>" class="btn btn-small btn-primary" style="background: #ea580c; border-color: #ea580c; font-size: 12px;">
+    Xem báo cáo Bếp (KDS) →
+  </a>
 </div>
 
 <!-- ==========================================================
@@ -639,3 +935,4 @@ $thisMonthStart = date('Y-m-01');
     </div>
   </section>
 </div>
+<?php endif; ?>

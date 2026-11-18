@@ -14,7 +14,18 @@
     const changeLabel = form.querySelector('[data-cash-change-label]');
     const changeValue = form.querySelector('[data-cash-change-value]');
     const applyButton = form.querySelector('[data-apply-discount]');
-    const discountInputs = form.querySelectorAll('[name="discount_type"], [name="discount_value"]');
+    const discountInputs = form.querySelectorAll('[name="discount_type"], [name="discount_value"], [name="voucher_code"]');
+    const voucherSelect = form.querySelector('#select-active-voucher');
+    const voucherInput = form.querySelector('#input-payment-voucher');
+
+    if (voucherSelect && voucherInput) {
+        voucherSelect.addEventListener('change', () => {
+            if (voucherSelect.value) {
+                voucherInput.value = voucherSelect.value;
+                applyDiscount();
+            }
+        });
+    }
 
     const showError = (message) => {
         alerts.replaceChildren();

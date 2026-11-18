@@ -22,6 +22,8 @@ function initOrderTables(PDO $pdo): void {
             `status` ENUM('unsent', 'pending', 'cooking', 'done', 'served', 'cancelled') NOT NULL DEFAULT 'unsent',
             `sent_by` INT DEFAULT NULL,
             `sent_at` DATETIME DEFAULT NULL,
+            `cooking_at` DATETIME DEFAULT NULL,
+            `done_at` DATETIME DEFAULT NULL,
             `cancelled_at` DATETIME DEFAULT NULL,
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_items_order (`order_id`),
@@ -38,6 +40,7 @@ function initOrderTables(PDO $pdo): void {
             `discount_type` VARCHAR(10) NOT NULL DEFAULT 'none',
             `discount_value` INT NOT NULL DEFAULT 0,
             `discount_amount` INT NOT NULL DEFAULT 0,
+            `voucher_code` VARCHAR(50) DEFAULT NULL,
             `service_fee` INT NOT NULL,
             `vat` INT NOT NULL,
             `total` INT NOT NULL,
@@ -72,6 +75,26 @@ function initOrderTables(PDO $pdo): void {
             `cashier_id` INT DEFAULT NULL,
             `paid_at` DATETIME NOT NULL,
             CONSTRAINT fk_payments_invoice FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `vouchers` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `code` VARCHAR(50) NOT NULL UNIQUE,
+            `name` VARCHAR(150) NOT NULL,
+            `discount_type` ENUM('percent', 'amount') NOT NULL DEFAULT 'percent',
+            `discount_value` INT NOT NULL,
+            `min_order_value` INT NOT NULL DEFAULT 0,
+            `max_discount_amount` INT NOT NULL DEFAULT 0,
+            `usage_limit` INT NOT NULL DEFAULT 0,
+            `used_count` INT NOT NULL DEFAULT 0,
+            `start_date` DATE DEFAULT NULL,
+            `end_date` DATE DEFAULT NULL,
+            `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_voucher_code (`code`),
+            INDEX idx_voucher_status (`status`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 

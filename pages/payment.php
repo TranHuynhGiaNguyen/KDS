@@ -3,15 +3,17 @@ require_once __DIR__ . '/../includes/bill-summary.php';
 require_once __DIR__ . '/../includes/checkout.php';
 require_once __DIR__ . '/../includes/receipt.php';
 require_once __DIR__ . '/../includes/vietqr.php';
+require_once __DIR__ . '/../includes/vouchers.php';
 
 $tableCode  = normalizeTableCode($_GET['table'] ?? null);
 $paymentUrl = 'index.php?page=payment&table=' . $tableCode;
 $invoiceId  = (int) ($_GET['invoice'] ?? 0);
 
-$isPost        = $_SERVER['REQUEST_METHOD'] === 'POST';
+$isPost        = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 $action        = $isPost ? ($_POST['action'] ?? '') : '';
 $discountType  = $isPost ? ($_POST['discount_type'] ?? DISCOUNT_NONE) : DISCOUNT_NONE;
 $discountValue = $isPost ? (int) ($_POST['discount_value'] ?? 0) : 0;
+$voucherCode   = $isPost ? strtoupper(trim($_POST['voucher_code'] ?? '')) : '';
 $method        = $isPost && isset(PAYMENT_METHODS[$_POST['pay'] ?? '']) ? $_POST['pay'] : 'cash';
 $cashReceived  = $isPost ? (int) ($_POST['cash_received'] ?? 0) : 0;
 
@@ -29,7 +31,7 @@ try {
             $newInvoiceId = checkoutTable(
                 $pdo,
                 $tableCode,
-                ['type' => $discountType, 'value' => $discountValue],
+                ['type' => $discountType, 'value' => $discountValue, 'voucher_code' => $voucherCode],
                 $method,
                 $cashReceived,
                 (int) $_SESSION['user_id']
@@ -68,7 +70,7 @@ if ($isPaid) {
     $change       = $invoice['change'];
 } else {
     try {
-        $bill = calculateBill($items, ['type' => $discountType, 'value' => $discountValue]);
+        $bill = calculateBill($items, ['type' => $discountType, 'value' => $discountValue, 'voucher_code' => $voucherCode]);
     } catch (InvalidArgumentException $e) {
         $error         = $e->getMessage();
         $discountType  = DISCOUNT_NONE;
@@ -150,10 +152,30 @@ if ($blockers !== [] && $error === '') {
       <a class="btn btn-block no-print" href="index.php?page=staff">Về sơ đồ bàn</a>
     </section>
   <?php else: ?>
+    <?php $availableVouchers = getAllVouchers('', 'active'); ?>
     <form class="panel payment-methods-panel" method="post" action="<?= escapeHtml($paymentUrl) ?>"
           data-payment-form data-total="<?= (int) $bill['total'] ?>" data-table="<?= escapeHtml($tableCode) ?>" data-calculate-url="api/payment-calculate.php"
           data-qr-payload="<?= escapeHtml($qrPayload) ?>">
-      <h2>Giảm giá</h2>
+      <h2>Khuyến mãi & Giảm giá</h2>
+      
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--ink);">Áp dụng mã Voucher</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" name="voucher_code" id="input-payment-voucher" placeholder="Mã voucher (VD: GIAM50K)"
+                 value="<?= escapeHtml($voucherCode) ?>" style="flex: 1; text-transform: uppercase;">
+          <select id="select-active-voucher" style="flex: 1.2; font-size: 13px;" aria-label="Chọn voucher nhanh">
+            <option value="">-- Chọn voucher sẵn có --</option>
+            <?php foreach ($availableVouchers as $v): ?>
+              <option value="<?= escapeHtml($v['code']) ?>">
+                <?= escapeHtml($v['code']) ?> (<?= $v['discount_type'] === 'percent' ? $v['discount_value'] . '%' : number_format($v['discount_value']) . 'đ' ?><?= $v['min_order_value'] > 0 ? ' - Đơn từ ' . number_format($v['min_order_value']) . 'đ' : '' ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-outline" type="button" data-apply-discount>Áp dụng</button>
+        </div>
+      </div>
+
+      <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Hoặc giảm giá thủ công:</div>
       <div class="discount-row">
         <select name="discount_type" aria-label="Loại giảm giá">
           <option value="<?= DISCOUNT_NONE ?>" <?= $discountType === DISCOUNT_NONE ? 'selected' : '' ?>>Không giảm giá</option>
@@ -161,7 +183,6 @@ if ($blockers !== [] && $error === '') {
           <option value="<?= DISCOUNT_AMOUNT ?>" <?= $discountType === DISCOUNT_AMOUNT ? 'selected' : '' ?>>Giảm theo số tiền (đ)</option>
         </select>
         <input type="number" name="discount_value" min="0" step="1" value="<?= $discountValue > 0 ? escapeHtml($discountValue) : '' ?>" aria-label="Giá trị giảm">
-        <button class="btn btn-outline" type="button" data-apply-discount>Áp dụng</button>
       </div>
 
       <h2>Phương thức thanh toán</h2>
