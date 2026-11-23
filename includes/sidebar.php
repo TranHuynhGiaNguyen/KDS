@@ -32,6 +32,13 @@ $userInitial = mb_substr($user['fullname'] ?? $user['username'] ?? 'U', 0, 1, 'U
     </a>
   <?php endif; ?>
 
+  <?php if (canRoleAccessPage($currentRole, 'reservations')): ?>
+    <a class="<?= active('reservations', $page) ?>" href="index.php?page=reservations">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="16" y1="3" x2="16" y2="7"></line><line x1="8" y1="3" x2="8" y2="7"></line><line x1="3" y1="11" x2="21" y2="11"></line><path d="m9 16 2 2 4-4"></path></svg>
+      <span>Lịch đặt bàn</span>
+    </a>
+  <?php endif; ?>
+
   <?php if (canRoleAccessPage($currentRole, 'kitchen')): ?>
     <?php
     require_once __DIR__ . '/kitchen.php';

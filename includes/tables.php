@@ -598,6 +598,27 @@ function deleteDiningTable(int $id): array {
     }
 
     try {
+        $reservationCheck = $pdo->prepare("
+            SELECT COUNT(*) FROM `reservations`
+            WHERE `table_id` = :id AND `status` IN ('pending', 'confirmed', 'seated')
+              AND DATE_ADD(TIMESTAMP(`reservation_date`, `reservation_time`), INTERVAL `duration_minutes` MINUTE) > :now
+        ");
+        $reservationCheck->execute([
+            ':id' => $id,
+            ':now' => (new DateTime('now', new DateTimeZone('Asia/Ho_Chi_Minh')))->format('Y-m-d H:i:s'),
+        ]);
+        if ((int) $reservationCheck->fetchColumn() > 0) {
+            return [
+                'success' => false,
+                'message' => 'Không thể xóa bàn ' . htmlspecialchars($table['code']) . ' vì đang có lịch đặt sắp tới.'
+            ];
+        }
+    } catch (PDOException $e) {
+        error_log('deleteDiningTable reservation check error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Không thể kiểm tra lịch đặt bàn. Vui lòng thử lại.'];
+    }
+
+    try {
         $stmt = $pdo->prepare("DELETE FROM `dining_tables` WHERE `id` = :id");
         $stmt->execute([':id' => $id]);
         return ['success' => true, 'message' => 'Đã xóa bàn "' . htmlspecialchars($table['code']) . '" thành công!'];

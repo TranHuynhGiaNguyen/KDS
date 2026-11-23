@@ -50,6 +50,12 @@ Dành riêng cho Quản trị viên (Admin):
   - Không cho phép tự hạ quyền Admin của chính mình.
   - Bảo vệ không thể xóa tài khoản Admin duy nhất trong hệ thống.
 
+### 2. Homepage & đặt bàn công khai
+- Trang chủ tại `http://localhost/KDS/` hiển thị giới thiệu nhà hàng, món nổi bật và thông tin liên hệ; khách xem menu và đặt bàn không cần đăng nhập.
+- Form đặt bàn kiểm tra bàn theo ngày, giờ, khu vực và sức chứa; mỗi lượt giữ bàn trong 2 giờ. Giao dịch khóa bàn để tránh hai lượt đặt trùng khung giờ.
+- Mã xác nhận cùng số điện thoại dùng để tra cứu lịch sử và hủy lịch tương lai. Dữ liệu đặt bàn được lưu cùng bảng `reservations` của hệ thống.
+- Admin và nhân viên xem, tìm kiếm, lọc lịch đặt bàn tại `index.php?page=reservations`; chỉ Admin được đổi trạng thái theo luồng xác nhận → khách đến → hoàn tất, hủy trước khi hết lịch hoặc đánh dấu vắng sau khi khung giờ đã kết thúc. Trang quản lý vẫn yêu cầu đăng nhập, còn giao diện khách không hiển thị liên kết đăng nhập.
+
 ---
 
 ## Cấu trúc thư mục dự án

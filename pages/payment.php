@@ -5,8 +5,14 @@ require_once __DIR__ . '/../includes/receipt.php';
 require_once __DIR__ . '/../includes/vietqr.php';
 require_once __DIR__ . '/../includes/vouchers.php';
 
-$tableCode  = normalizeTableCode($_GET['table'] ?? null);
-$paymentUrl = 'index.php?page=payment&table=' . $tableCode;
+$error = '';
+try {
+    $tableCode = normalizeTableCode($_GET['table'] ?? null);
+} catch (InvalidArgumentException $e) {
+    $tableCode = '';
+    $error = 'Mã bàn không hợp lệ. Vui lòng mở thanh toán từ sơ đồ bàn.';
+}
+$paymentUrl = $tableCode !== '' ? 'index.php?page=payment&table=' . $tableCode : 'index.php?page=staff';
 $invoiceId  = (int) ($_GET['invoice'] ?? 0);
 
 $isPost        = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
@@ -17,13 +23,13 @@ $voucherCode   = $isPost ? strtoupper(trim($_POST['voucher_code'] ?? '')) : '';
 $method        = $isPost && isset(PAYMENT_METHODS[$_POST['pay'] ?? '']) ? $_POST['pay'] : 'cash';
 $cashReceived  = $isPost ? (int) ($_POST['cash_received'] ?? 0) : 0;
 
-$error    = '';
 $items    = [];
 $invoice  = null;
 $blockers = [];
 $orderId  = null;
 
-try {
+if ($tableCode !== '') {
+  try {
     $pdo = getOrdersDb();
 
     if ($action === 'pay') {
@@ -55,9 +61,10 @@ try {
         $blockers = findCheckoutBlockers($items);
         $orderId  = fetchOpenOrderId($pdo, $tableCode);
     }
-} catch (RuntimeException | PDOException $e) {
+  } catch (RuntimeException | PDOException $e) {
     error_log('payment page: ' . $e->getMessage());
     $error = 'Không xử lý được thanh toán, vui lòng thử lại.';
+  }
 }
 
 $isPaid = $invoice !== null;
@@ -80,7 +87,7 @@ if ($isPaid) {
     $change = 0;
 }
 
-$qrPayload = $isPaid ? '' : buildInvoiceQrPayload($orderId, $tableCode, $bill['total']);
+$qrPayload = ($isPaid || $tableCode === '') ? '' : buildInvoiceQrPayload($orderId, $tableCode, $bill['total']);
 
 if ($blockers !== [] && $error === '') {
     $error = checkoutBlockersMessage($blockers);
@@ -88,7 +95,7 @@ if ($blockers !== [] && $error === '') {
 ?>
 <section class="page-heading">
   <div class="back-nav-row">
-    <a class="back-link no-print" href="index.php?page=table-order&table=<?= escapeHtml($tableCode) ?>">
+    <a class="back-link no-print" href="<?= $tableCode !== '' ? 'index.php?page=table-order&table=' . escapeHtml($tableCode) : 'index.php?page=staff' ?>">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
       <span>Quay lại chi tiết đơn bàn</span>
     </a>

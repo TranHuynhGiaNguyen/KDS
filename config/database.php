@@ -469,6 +469,38 @@ function initDatabaseTables(PDO $pdo) {
             ]);
         }
     }
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `reservations` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `code` VARCHAR(20) DEFAULT NULL UNIQUE,
+            `customer_name` VARCHAR(100) DEFAULT NULL,
+            `phone` VARCHAR(20) DEFAULT NULL,
+            `email` VARCHAR(100) DEFAULT NULL,
+            `reservation_date` DATE NOT NULL,
+            `reservation_time` TIME NOT NULL,
+            `guests` INT DEFAULT NULL,
+            `area_id` INT DEFAULT NULL,
+            `table_id` INT DEFAULT NULL,
+            `note` TEXT DEFAULT NULL,
+            `status` ENUM('pending', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show') NOT NULL DEFAULT 'pending',
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `reservation_code` VARCHAR(24) DEFAULT NULL UNIQUE,
+            `owner_token_hash` CHAR(64) DEFAULT NULL,
+            `guest_name` VARCHAR(100) DEFAULT NULL,
+            `guest_phone` VARCHAR(24) DEFAULT NULL,
+            `guest_email` VARCHAR(150) DEFAULT NULL,
+            `duration_minutes` SMALLINT UNSIGNED NOT NULL DEFAULT 120,
+            `party_size` TINYINT UNSIGNED NOT NULL DEFAULT 1,
+            `area_name` VARCHAR(100) NOT NULL DEFAULT '',
+            `table_code` VARCHAR(20) DEFAULT NULL,
+            `notes` VARCHAR(500) DEFAULT NULL,
+            INDEX `idx_reservation_date_status` (`reservation_date`, `status`),
+            INDEX `idx_reservation_table_slot` (`table_id`, `reservation_date`, `status`, `reservation_time`),
+            INDEX `idx_reservation_phone` (`guest_phone`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
 }
 
 /**

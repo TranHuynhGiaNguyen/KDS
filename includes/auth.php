@@ -183,10 +183,10 @@ function canRoleAccessPage($role, $page) {
     $permissions = [
         'admin' => [
             'admin', 'users', 'dishes', 'tables', 'staff', 'table-order', 'kitchen', 'bills',
-            'menu', 'cart', 'tracking', 'reservation', 'payment', 'profile', 'vouchers'
+            'menu', 'cart', 'tracking', 'reservation', 'reservations', 'payment', 'profile', 'vouchers'
         ],
         'staff' => [
-            'staff', 'table-order', 'bills',
+            'staff', 'table-order', 'bills', 'reservations',
             'menu', 'cart', 'tracking', 'reservation', 'payment', 'profile'
         ],
         'kitchen' => [
@@ -212,6 +212,7 @@ const PAGE_LABELS = [
     'users'       => 'Quản lý nhân viên',
     'dishes'      => 'Quản lý thực đơn',
     'tables'      => 'Quản lý bàn & khu vực',
+    'reservations' => 'Lịch đặt bàn',
     'menu'        => 'Thực đơn',
     'profile'     => 'Hồ sơ cá nhân',
     'vouchers'    => 'Quản lý mã giảm giá',
@@ -223,21 +224,32 @@ const PAGE_LABELS = [
 function enforceAuthorization(&$page) {
     $isAuthed = isLoggedIn();
     $role = currentRole();
+    $publicPages = ['home', 'menu', 'cart', 'tracking', 'reservation'];
 
     // Các trang thuộc khu vực quản trị/vận hành (yêu cầu đăng nhập)
-    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment', 'dishes', 'tables', 'bills', 'profile', 'vouchers'];
+    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment', 'dishes', 'tables', 'bills', 'reservations', 'profile', 'vouchers'];
 
     if (!$isAuthed) {
         // Chưa đăng nhập mà truy cập trang bảo vệ -> Chuyển về login
-        if (in_array($page, $protectedPages, true) || empty($page)) {
+        if (in_array($page, $protectedPages, true)) {
             $page = 'login';
+        } elseif (empty($page)) {
+            $page = 'home';
         }
         return;
     }
 
-    // Đã đăng nhập:
-    // Nếu vào trang login hoặc trang chủ trống -> đưa về trang mặc định theo vai trò
-    if (empty($page) || $page === 'login') {
+    if (in_array($page, $publicPages, true)) {
+        return;
+    }
+
+    if (empty($page)) {
+        $page = 'home';
+        return;
+    }
+
+    // Chỉ chuyển trang đăng nhập sang khu vực quản lý nếu phiên đăng nhập còn hiệu lực.
+    if ($page === 'login') {
         $page = getDefaultPageForRole($role);
         return;
     }

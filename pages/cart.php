@@ -9,7 +9,7 @@
     <div class="panel-title">
       <div>
         <h2>Món đã chọn <span class="muted font-normal" id="cart-items-count">(0)</span></h2>
-        <span class="table-chip-inline">Đang gọi tại: <b>Bàn B05</b></span>
+        <span class="table-chip-inline">Đặt món trực tuyến · SmartDine</span>
       </div>
       <a class="btn btn-small btn-outline" href="index.php?page=menu">+ Thêm món khác</a>
     </div>
@@ -79,7 +79,7 @@
           <span class="flow-num">3</span>
           <div class="flow-info">
             <b>Phục vụ tại bàn</b>
-            <small>Nhân viên bưng món tới Bàn B05</small>
+            <small>Nhân viên sẽ phục vụ tại bàn của bạn sau khi xác nhận.</small>
           </div>
         </div>
       </div>

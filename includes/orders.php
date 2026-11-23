@@ -81,7 +81,11 @@ function migrateLegacyItemStatuses(PDO $pdo): void
 
 function normalizeTableCode(?string $tableCode): string
 {
-    return preg_match('/^[A-Z]\d{2}$/', (string) $tableCode) ? $tableCode : 'B05';
+    if (!preg_match('/^[A-Z]\d{2}$/', (string) $tableCode)) {
+        throw new InvalidArgumentException('Mã bàn không hợp lệ.');
+    }
+
+    return $tableCode;
 }
 
 function currentTimeForDb(): string

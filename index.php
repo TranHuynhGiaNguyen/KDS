@@ -10,7 +10,7 @@ require_once __DIR__ . '/includes/auth.php';
 // Xử lý đăng xuất
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     logoutUser();
-    header('Location: index.php?page=login&logged_out=1');
+    header('Location: index.php');
     exit;
 }
 
@@ -36,7 +36,7 @@ $page = $_GET['page'] ?? '';
 // Kiểm tra quyền hạn và điều hướng phân quyền (RBAC)
 enforceAuthorization($page);
 
-$allowed = ['bills', 'staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'tables', 'login', 'menu', 'cart', 'tracking', 'reservation', 'payment', 'profile', 'vouchers'];
+$allowed = ['bills', 'staff', 'table-order', 'kitchen', 'admin', 'users', 'dishes', 'tables', 'login', 'home', 'menu', 'cart', 'tracking', 'reservation', 'reservations', 'payment', 'profile', 'vouchers'];
 if (!in_array($page, $allowed, true)) {
     $page = isLoggedIn() ? getDefaultPageForRole(currentRole()) : 'login';
 }
@@ -55,6 +55,7 @@ function active($name, $page) {
 
 $pageTitles = [
     'login'       => 'Đăng nhập hệ thống — SmartDine',
+    'home'        => 'Nhà hàng SmartDine — Ẩm thực & đặt bàn',
     'admin'       => 'Tổng quan Quản trị — SmartDine',
     'users'       => 'Quản lý tài khoản nhân viên — SmartDine',
     'dishes'      => 'Quản lý Thực đơn & Món ăn — SmartDine',
@@ -65,14 +66,15 @@ $pageTitles = [
     'bills'       => 'Lịch sử bill — SmartDine',
     'menu'        => 'Thực đơn món ăn — SmartDine',
     'cart'        => 'Giỏ hàng & Đặt món — SmartDine',
-    'tracking'    => 'Theo dõi món ăn — SmartDine',
+    'tracking'    => 'Theo dõi đơn hàng — SmartDine',
     'reservation' => 'Đặt bàn trước — SmartDine',
+    'reservations' => 'Lịch đặt bàn — SmartDine',
     'payment'     => 'Thanh toán đơn hàng — SmartDine',
     'profile'     => 'Hồ sơ cá nhân — SmartDine',
     'vouchers'    => 'Quản lý Mã giảm giá — SmartDine',
 ];
 $currentTitle = $pageTitles[$page] ?? 'SmartDine Restaurant System';
-$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'admin', 'users', 'payment', 'dishes', 'tables', 'profile', 'vouchers'], true);
+$isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'admin', 'users', 'payment', 'dishes', 'tables', 'reservations', 'profile', 'vouchers'], true);
 ?>
 <!doctype html>
 <html lang="vi">
@@ -83,6 +85,15 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
   <link rel="stylesheet" href="<?= assetUrl('assets/css/style.css') ?>">
   <?php if ($page === 'admin'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/revenue.css') ?>">
+  <?php endif; ?>
+  <?php if ($page === 'reservations'): ?>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/reservations-admin.css') ?>">
+  <?php endif; ?>
+  <?php if (in_array($page, ['home', 'reservation', 'tracking'], true)): ?>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/customer-pages.css') ?>">
+  <?php endif; ?>
+  <?php if (in_array($page, ['reservation', 'tracking'], true)): ?>
+    <script defer src="<?= assetUrl('assets/js/reservation.js') ?>"></script>
   <?php endif; ?>
   <?php if (in_array($page, ['staff', 'tables'], true)): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/visual-floor.css') ?>">
@@ -147,6 +158,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
     <?php if ($page === 'payment') include __DIR__ . '/pages/payment.php'; ?>
     <?php if ($page === 'dishes') include __DIR__ . '/pages/dishes.php'; ?>
     <?php if ($page === 'tables') include __DIR__ . '/pages/tables.php'; ?>
+    <?php if ($page === 'reservations') include __DIR__ . '/pages/reservations.php'; ?>
     <?php if ($page === 'vouchers') include __DIR__ . '/pages/vouchers.php'; ?>
     <?php if ($page === 'profile') include __DIR__ . '/pages/profile.php'; ?>
   </main>
@@ -154,6 +166,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
 <?php else: ?>
   <?php include __DIR__ . '/includes/customer-nav.php'; ?>
   <main class="customer-main">
+    <?php if ($page === 'home') include __DIR__ . '/pages/home.php'; ?>
     <?php if ($page === 'menu') include __DIR__ . '/pages/menu.php'; ?>
     <?php if ($page === 'cart') include __DIR__ . '/pages/cart.php'; ?>
     <?php if ($page === 'tracking') include __DIR__ . '/pages/tracking.php'; ?>

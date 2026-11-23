@@ -16,7 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     respondJson(405, ['error' => 'Phương thức không hợp lệ.']);
 }
 
-$tableCode = normalizeTableCode($_GET['table'] ?? null);
+try {
+    $tableCode = normalizeTableCode($_GET['table'] ?? null);
+} catch (InvalidArgumentException $e) {
+    respondJson(422, ['error' => $e->getMessage()]);
+}
 
 try {
     $pdo    = getOrdersDb();
