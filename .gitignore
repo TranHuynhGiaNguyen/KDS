@@ -15,3 +15,6 @@ tmp/
 
 # Word reports
 *.docx
+
+# Local AI credentials
+config/ai.local.php

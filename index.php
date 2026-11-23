@@ -108,6 +108,9 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
     <link rel="stylesheet" href="<?= assetUrl('assets/css/orders.css') ?>">
     <script defer src="<?= assetUrl('assets/js/order-items.js') ?>"></script>
   <?php endif; ?>
+  <?php if (!$isDashboard && $page !== 'login'): ?>
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/ai-ordering.css') ?>">
+  <?php endif; ?>
   <script defer src="assets/js/app.js"></script>
 </head>
 <body class="<?= $page === 'login' ? 'login-page-body' : ($isDashboard ? 'dashboard-body' : 'customer-body') ?>">
@@ -156,6 +159,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
     <?php if ($page === 'tracking') include __DIR__ . '/pages/tracking.php'; ?>
     <?php if ($page === 'reservation') include __DIR__ . '/pages/reservation.php'; ?>
   </main>
+  <?php include __DIR__ . '/includes/customer-ai-widget.php'; ?>
 <?php endif; ?>
 
 </body>

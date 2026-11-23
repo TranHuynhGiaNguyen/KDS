@@ -1,26 +1,4 @@
-<section class="hero">
-  <div class="hero-copy">
-    <span class="eyebrow">HƯƠNG VỊ ĐƯỢC YÊU THÍCH</span>
-    <h1>Món ngon hôm nay,<br><em>trọn vị niềm vui.</em></h1>
-    <p>Khám phá thực đơn phong phú từ các nguyên liệu tươi sạch, chế biến công phu bởi các đầu bếp hàng đầu tại SmartDine.</p>
-    <div class="hero-actions">
-      <a class="btn btn-hero" href="#menu">
-        <span>Khám phá thực đơn</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-      </a>
-      <a class="btn btn-hero-outline" href="index.php?page=reservation">
-        <span>Đặt bàn trước</span>
-      </a>
-    </div>
-  </div>
-  <div class="hero-art">
-    <img src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85" alt="Món ăn nổi bật tại SmartDine">
-  </div>
-  <div class="hero-badge">
-    <span class="badge-star">★ 4.9</span>
-    <small>Hơn 1.200 đánh giá 5 sao từ thực khách</small>
-  </div>
-</section>
+<link rel="stylesheet" href="<?= assetUrl('assets/css/ai-ordering.css') ?>">
 
 <section class="section-head" id="menu">
   <div>
@@ -37,21 +15,22 @@
 $menuCategories = getAllCategories(true);
 $menuDishes = getAllDishes('', 'visible', '');
 ?>
-<div class="menu-layout">
-  <aside class="category-list">
-    <button class="category active" data-category="all">
-      <span class="cat-icon">✦</span>
-      <span>Tất cả món</span>
-    </button>
-    <?php foreach ($menuCategories as $cat): ?>
-      <button class="category" data-category="<?= htmlspecialchars($cat['slug']) ?>">
-        <span class="cat-icon"><?= htmlspecialchars($cat['icon']) ?></span>
-        <span><?= htmlspecialchars($cat['name']) ?></span>
-      </button>
-    <?php endforeach; ?>
-  </aside>
 
-  <div class="food-grid">
+<!-- THANH DANH MỤC TRÊN ĐẦU (NẰM NGANG, SCROLL MƯỢT TRÊN MOBILE) -->
+<nav class="category-list-top" id="category-bar" aria-label="Danh mục thực đơn">
+  <button class="category active" data-category="all">
+    <span class="cat-icon">✦</span>
+    <span>Tất cả món</span>
+  </button>
+  <?php foreach ($menuCategories as $cat): ?>
+    <button class="category" data-category="<?= htmlspecialchars($cat['slug']) ?>">
+      <span class="cat-icon"><?= htmlspecialchars($cat['icon']) ?></span>
+      <span><?= htmlspecialchars($cat['name']) ?></span>
+    </button>
+  <?php endforeach; ?>
+</nav>
+
+<div class="food-grid">
     <?php if (empty($menuDishes)): ?>
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--muted);">
         <p>Hiện chưa có món ăn nào đang mở bán. Vui lòng quay lại sau!</p>
@@ -96,7 +75,6 @@ $menuDishes = getAllDishes('', 'visible', '');
       <?php endforeach; ?>
     <?php endif; ?>
   </div>
-</div>
 
 <!-- Thanh giỏ hàng nổi thông minh (Tự ẩn khi rỗng, xuất hiện mượt mà khi có món) -->
 <div class="floating-cart" id="floating-cart-bar">
@@ -115,3 +93,4 @@ $menuDishes = getAllDishes('', 'visible', '');
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
   </a>
 </div>
+

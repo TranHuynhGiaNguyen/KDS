@@ -15,8 +15,6 @@
 
   <nav class="top-links">
     <a class="<?=active('menu',$page)?>" href="index.php?page=menu">Thực đơn</a>
-    <a class="<?=active('reservation',$page)?>" href="index.php?page=reservation">Đặt bàn</a>
-    <a class="<?=active('tracking',$page)?>" href="index.php?page=tracking">Theo dõi đơn</a>
   </nav>
 
   <div class="top-actions">

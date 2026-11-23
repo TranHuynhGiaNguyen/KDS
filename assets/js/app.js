@@ -112,6 +112,20 @@ function renderCartPage() {
   set('#service-fee', fee);
   set('#cart-grand-total', afterDiscount + fee);
 
+  // Cập nhật ước tính thời gian ra món của Bếp KDS
+  const waitTimeEl = document.querySelector('#cart-estimated-time');
+  if (waitTimeEl) {
+    if (count === 0) {
+      waitTimeEl.textContent = '0 phút (Giỏ đang trống)';
+    } else if (count <= 2) {
+      waitTimeEl.textContent = '8 - 12 phút';
+    } else if (count <= 4) {
+      waitTimeEl.textContent = '12 - 15 phút';
+    } else {
+      waitTimeEl.textContent = '15 - 20 phút';
+    }
+  }
+
   // Hiển thị / ẩn dòng voucher trong tóm tắt
   const voucherRow = document.querySelector('#cart-voucher-row');
   const voucherCodeLabel = document.querySelector('#cart-voucher-code-label');
@@ -286,6 +300,11 @@ document.addEventListener('click', e => {
     add.textContent = '✓ Đã thêm';
     setTimeout(() => { add.textContent = originalText; }, 900);
     notify(`Đã thêm "${name}" vào giỏ hàng`);
+
+    // Kích hoạt AI Upsell gợi ý món dùng kèm
+    if (typeof triggerAiUpsell === 'function') {
+      triggerAiUpsell(name);
+    }
   }
 
   // Tăng giảm số lượng giỏ
@@ -486,6 +505,564 @@ function notify(msg) {
   window.toastTimer = setTimeout(() => n.classList.remove('show'), 2800);
 }
 
+// ==========================================================
+// AI SMART ORDERING: COMBOS & UPSELL ENGINE
+// ==========================================================
+const SMART_COMBOS = [
+  {
+    id: 'combo-2p',
+    type: '2p',
+    name: 'Combo Cặp Đôi (2 Người)',
+    sub: 'Cơm gà + Mì bò + 2 Trà đào cam sả',
+    avatar: '👥',
+    tag: 'Tiết kiệm 10%',
+    tagClass: 'best',
+    originalPrice: 230000,
+    comboPrice: 210000,
+    items: [
+      { name: 'Cơm gà Hải Nam', price: 75000, qty: 1, thumb: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Mì xào bò', price: 85000, qty: 1, thumb: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Trà đào cam sả', price: 35000, qty: 2, thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80' }
+    ]
+  },
+  {
+    id: 'combo-4p',
+    type: '4p',
+    name: 'Combo Gia Đình (4 Người)',
+    sub: 'Bò lúc lắc + 2 Cơm gà + Salad + 2 Trà đào',
+    avatar: '👨‍👩‍👧‍👦',
+    tag: 'Phổ biến nhất 🔥',
+    tagClass: 'popular',
+    originalPrice: 395000,
+    comboPrice: 355000,
+    items: [
+      { name: 'Bò lúc lắc hạt tiêu', price: 120000, qty: 1, thumb: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Cơm gà Hải Nam', price: 75000, qty: 2, thumb: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Salad trộn đặc biệt', price: 55000, qty: 1, thumb: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Trà đào cam sả', price: 35000, qty: 2, thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80' }
+    ]
+  },
+  {
+    id: 'combo-500k',
+    type: 'budget',
+    name: 'Mâm Tiệc Thịnh Soạn ~500k',
+    sub: '2 Bò lúc lắc + Mì bò + Salad + 2 Sữa chua + 2 Trà đào',
+    avatar: '💎',
+    tag: 'Trọn vị 500k 🌟',
+    tagClass: 'best',
+    originalPrice: 530000,
+    comboPrice: 485000,
+    items: [
+      { name: 'Bò lúc lắc hạt tiêu', price: 120000, qty: 2, thumb: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Mì xào bò', price: 85000, qty: 1, thumb: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Salad trộn đặc biệt', price: 55000, qty: 1, thumb: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Sữa chua trái cây', price: 40000, qty: 2, thumb: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=200&q=80' },
+      { name: 'Trà đào cam sả', price: 35000, qty: 2, thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80' }
+    ]
+  }
+];
+
+const AI_UPSELL_RULES = {
+  'Cơm gà Hải Nam': {
+    name: 'Trà đào cam sả',
+    price: 35000,
+    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
+    hint: 'Trà thảo mộc thanh mát giúp giải ngấy cho cơm gà'
+  },
+  'Mì xào bò': {
+    name: 'Salad trộn đặc biệt',
+    price: 55000,
+    thumb: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80',
+    hint: 'Rau xanh tươi mát sốt mè rang ăn kèm mì xào cực cuốn'
+  },
+  'Bò lúc lắc hạt tiêu': {
+    name: 'Trà đào cam sả',
+    price: 35000,
+    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
+    hint: 'Sốt tiêu đen cay nồng rất hợp cùng nước mát lạnh'
+  },
+  'Lẩu thái hải sản': {
+    name: 'Trà đào cam sả',
+    price: 35000,
+    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
+    hint: 'Giải nhiệt tức thì sau khi thưởng thức lẩu Thái chua cay'
+  },
+  'Salad trộn đặc biệt': {
+    name: 'Mì xào bò',
+    price: 85000,
+    thumb: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=200&q=80',
+    hint: 'Kết hợp salad khai vị cùng món mì xào thăn bò thơm ngon'
+  },
+  'Trà đào cam sả': {
+    name: 'Sữa chua trái cây',
+    price: 40000,
+    thumb: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=200&q=80',
+    hint: 'Tráng miệng ngọt dịu thanh mát sau đồ uống'
+  }
+};
+
+let upsellTimer = null;
+let currentUpsellDish = null;
+
+function triggerAiUpsell(addedDishName) {
+  const drawer = document.querySelector('#ai-upsell-drawer');
+  if (!drawer) return;
+
+  const rec = AI_UPSELL_RULES[addedDishName] || {
+    name: 'Trà đào cam sả',
+    price: 35000,
+    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
+    hint: 'Khách thường gọi kèm đồ uống mát lạnh cho bữa ăn'
+  };
+
+  if (rec.name === addedDishName) return;
+
+  currentUpsellDish = rec;
+
+  const thumbEl = document.querySelector('#ai-upsell-thumb');
+  const nameEl = document.querySelector('#ai-upsell-name');
+  const descEl = document.querySelector('#ai-upsell-desc');
+  const hintEl = document.querySelector('#ai-upsell-hint');
+  const addBtn = document.querySelector('#btn-upsell-add');
+
+  if (thumbEl) thumbEl.src = rec.thumb;
+  if (nameEl) nameEl.textContent = `${rec.name} (${money(rec.price)})`;
+  if (descEl) descEl.textContent = rec.hint;
+  if (hintEl) hintEl.innerHTML = `✨ AI GỢI Ý KÈM: ${addedDishName}`;
+  if (addBtn) {
+    addBtn.textContent = `+ Thêm ngay (${money(rec.price)})`;
+    addBtn.style.background = '';
+  }
+
+  drawer.classList.add('active');
+
+  clearTimeout(upsellTimer);
+  upsellTimer = setTimeout(() => {
+    drawer.classList.remove('active');
+  }, 9000);
+}
+
+function hideAiUpsell() {
+  const drawer = document.querySelector('#ai-upsell-drawer');
+  if (drawer) drawer.classList.remove('active');
+  clearTimeout(upsellTimer);
+}
+
+function addComboToCart(comboId) {
+  const combo = SMART_COMBOS.find(c => c.id === comboId);
+  if (!combo) return;
+
+  combo.items.forEach(item => {
+    const found = cart.find(x => x.name === item.name);
+    if (found) {
+      found.qty += item.qty;
+    } else {
+      cart.push({ name: item.name, price: item.price, qty: item.qty });
+    }
+  });
+
+  saveCart();
+  notify(`✓ Đã thêm toàn bộ ${combo.name} vào giỏ hàng!`);
+}
+
+function openComboModal(comboId) {
+  const combo = SMART_COMBOS.find(c => c.id === comboId);
+  if (!combo) return;
+
+  const modal = document.querySelector('#ai-combo-modal');
+  const title = document.querySelector('#ai-modal-combo-title');
+  const body = document.querySelector('#ai-modal-combo-body');
+  const price = document.querySelector('#ai-modal-combo-price');
+  const addAllBtn = document.querySelector('#btn-modal-add-all-combo');
+
+  if (title) title.textContent = `${combo.name}`;
+  if (price) price.textContent = `${money(combo.comboPrice)} (Tiết kiệm ${money(combo.originalPrice - combo.comboPrice)})`;
+
+  if (body) {
+    body.innerHTML = `
+      <p style="font-size:13px; color:#64748b; margin-bottom:14px;">${combo.sub}</p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${combo.items.map(it => `
+          <div class="ai-modal-dish-row">
+            <div class="ai-modal-dish-info">
+              <img src="${it.thumb}" alt="${it.name}" class="ai-modal-dish-thumb">
+              <div>
+                <b style="font-size:14px; color:#1e293b; display:block;">${it.name}</b>
+                <small style="color:#64748b;">${money(it.price)} / phần</small>
+              </div>
+            </div>
+            <span class="ai-modal-dish-qty">x${it.qty} phần</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  if (addAllBtn) {
+    addAllBtn.onclick = () => {
+      addComboToCart(comboId);
+      modal.classList.remove('active');
+    };
+  }
+
+  if (modal) modal.classList.add('active');
+}
+
+let lastAiToggleTime = 0;
+window.toggleAiChat = function(force) {
+  const now = Date.now();
+  if (now - lastAiToggleTime < 250 && force === undefined) return;
+  lastAiToggleTime = now;
+
+  const chatWin = document.querySelector('#ai-chat-window');
+  if (!chatWin) return;
+  const isCurrentlyActive = chatWin.classList.contains('active');
+  const shouldOpen = typeof force === 'boolean' ? force : !isCurrentlyActive;
+  if (shouldOpen) {
+    chatWin.classList.add('active');
+    chatWin.setAttribute('aria-hidden', 'false');
+    const input = document.querySelector('#ai-chat-input');
+    if (input) setTimeout(() => input.focus(), 150);
+  } else {
+    chatWin.classList.remove('active');
+    chatWin.setAttribute('aria-hidden', 'true');
+  }
+};
+
+let aiSmartOrderingInitialized = false;
+function initAiSmartOrdering() {
+  if (aiSmartOrderingInitialized) return;
+  aiSmartOrderingInitialized = true;
+  const filterGroup = document.querySelector('#ai-combo-filter-group');
+  if (filterGroup) {
+    filterGroup.addEventListener('click', e => {
+      const btn = e.target.closest('[data-combo-filter]');
+      if (!btn) return;
+
+      filterGroup.querySelectorAll('.ai-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const filter = btn.dataset.comboFilter;
+      document.querySelectorAll('#ai-combo-container .ai-combo-card').forEach(card => {
+        if (filter === 'all' || card.dataset.comboCard === filter) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  document.addEventListener('click', e => {
+    const addComboBtn = e.target.closest('[data-add-combo]');
+    if (addComboBtn) {
+      const comboId = addComboBtn.dataset.addCombo;
+      addComboToCart(comboId);
+
+      const oldText = addComboBtn.textContent;
+      addComboBtn.textContent = '✓ Đã chọn';
+      setTimeout(() => { addComboBtn.textContent = oldText; }, 1000);
+    }
+
+    const prevComboBtn = e.target.closest('[data-preview-combo]');
+    if (prevComboBtn) {
+      openComboModal(prevComboBtn.dataset.previewCombo);
+    }
+
+    if (e.target.closest('#btn-close-combo-modal') || e.target.id === 'ai-combo-modal') {
+      const modal = document.querySelector('#ai-combo-modal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    if (e.target.closest('#btn-upsell-add') && currentUpsellDish) {
+      const found = cart.find(x => x.name === currentUpsellDish.name);
+      if (found) found.qty++;
+      else cart.push({ name: currentUpsellDish.name, price: currentUpsellDish.price, qty: 1 });
+      saveCart();
+
+      const btn = document.querySelector('#btn-upsell-add');
+      if (btn) {
+        btn.textContent = '✓ Đã thêm';
+        btn.style.background = '#10b981';
+      }
+      notify(`Đã thêm "${currentUpsellDish.name}" vào giỏ hàng`);
+
+      setTimeout(() => {
+        hideAiUpsell();
+      }, 1000);
+    }
+
+    if (e.target.closest('#btn-upsell-close')) {
+      hideAiUpsell();
+    }
+
+    // Mở / Đóng cửa sổ Chatbot AI từ nút bong bóng
+    if (e.target.closest('#ai-assistant-bubble')) {
+      window.toggleAiChat();
+    }
+
+    if (e.target.closest('#btn-close-chat')) {
+      window.toggleAiChat(false);
+    }
+
+    // Xóa lịch sử cuộc trò chuyện
+    if (e.target.closest('#btn-clear-chat')) {
+      const chatBody = document.querySelector('#ai-chat-body');
+      if (chatBody) {
+        chatBody.innerHTML = `
+          <div class="ai-msg bot">
+            <div class="ai-msg-avatar">🤖</div>
+            <div class="ai-msg-content">
+              <p>Xin chào! Tôi là Trợ lý AI của nhà hàng SmartDine. Bạn có thể gõ hoặc bấm <b>Micro 🎤</b> để hỏi tôi món ăn theo sở thích, số lượng người hoặc khẩu vị nhé!</p>
+              <div class="ai-quick-tags">
+                <button type="button" class="ai-quick-tag" data-quick-text="Tìm món cho trẻ nhỏ ăn được">👶 Món cho trẻ nhỏ</button>
+                <button type="button" class="ai-quick-tag" data-quick-text="Tìm món thanh đạm không cay">🥗 Thanh đạm, không cay</button>
+                <button type="button" class="ai-quick-tag" data-quick-text="Bàn 2 người nên gọi gì?">👥 Bàn 2 người</button>
+                <button type="button" class="ai-quick-tag" data-quick-text="Gợi ý mâm tiệc khoảng 500k">💎 Mâm tiệc 500k</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Bấm câu hỏi gợi ý nhanh trong khung chat
+    const quickTag = e.target.closest('.ai-quick-tag');
+    if (quickTag) {
+      const qText = quickTag.dataset.quickText;
+      if (qText) sendAiChatMessage(qText);
+    }
+
+    // Thêm món vào giỏ hàng ngay từ thẻ món trong chat
+    const chatAdd = e.target.closest('[data-chat-add]');
+    if (chatAdd) {
+      const name = chatAdd.dataset.chatAdd;
+      const price = Number(chatAdd.dataset.chatPrice);
+      const found = cart.find(x => x.name === name);
+      if (found) found.qty++;
+      else cart.push({ name, price, qty: 1 });
+      saveCart();
+
+      chatAdd.textContent = '✓ Đã thêm';
+      chatAdd.style.background = '#10b981';
+      setTimeout(() => {
+        chatAdd.textContent = '+ Thêm vào giỏ';
+        chatAdd.style.background = '';
+      }, 1500);
+
+      notify(`Đã thêm "${name}" vào giỏ hàng`);
+      if (typeof triggerAiUpsell === 'function') {
+        triggerAiUpsell(name);
+      }
+    }
+  });
+
+  // Khởi tạo xử lý Form chat và Nhận diện giọng nói
+  initAiChatForm();
+}
+
+// ==========================================================
+// CHATBOT AI VÀ NHẬN DIỆN GIỌNG NÓI (VOICE RECOGNITION)
+// ==========================================================
+let speechRecognition = null;
+let isVoiceRecording = false;
+
+function initAiChatForm() {
+  const form = document.querySelector('#ai-chat-form');
+  const input = document.querySelector('#ai-chat-input');
+  const micBtn = document.querySelector('#btn-chat-mic');
+  const voiceBar = document.querySelector('#ai-voice-bar');
+  const voiceCancelBtn = document.querySelector('#btn-cancel-voice');
+
+  if (form && input) {
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      sendAiChatMessage(text);
+    });
+  }
+
+  // Khởi tạo Web Speech API (nhận diện giọng nói tiếng Việt)
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRec && micBtn) {
+    try {
+      speechRecognition = new SpeechRec();
+      speechRecognition.lang = 'vi-VN';
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = false;
+
+      speechRecognition.onstart = () => {
+        isVoiceRecording = true;
+        micBtn.classList.add('recording');
+        if (voiceBar) voiceBar.style.display = 'flex';
+      };
+
+      speechRecognition.onresult = event => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          if (input) input.value = transcript;
+          sendAiChatMessage(transcript);
+        }
+      };
+
+      speechRecognition.onerror = event => {
+        notify('Không nhận được giọng nói hoặc micro bị từ chối');
+        stopVoiceRecognition();
+      };
+
+      speechRecognition.onend = () => {
+        stopVoiceRecognition();
+      };
+
+      micBtn.addEventListener('click', () => {
+        if (!isVoiceRecording) {
+          try {
+            speechRecognition.start();
+          } catch (err) {
+            speechRecognition.stop();
+          }
+        } else {
+          stopVoiceRecognition();
+        }
+      });
+
+      if (voiceCancelBtn) {
+        voiceCancelBtn.addEventListener('click', stopVoiceRecognition);
+      }
+    } catch (e) {
+      console.warn('Speech recognition init error:', e);
+    }
+  } else if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      notify('Trình duyệt chưa hỗ trợ Micro, bạn hãy gõ câu hỏi vào ô chat nhé!');
+    });
+  }
+}
+
+function stopVoiceRecognition() {
+  if (speechRecognition && isVoiceRecording) {
+    try { speechRecognition.stop(); } catch (e) {}
+  }
+  isVoiceRecording = false;
+  const micBtn = document.querySelector('#btn-chat-mic');
+  const voiceBar = document.querySelector('#ai-voice-bar');
+  if (micBtn) micBtn.classList.remove('recording');
+  if (voiceBar) voiceBar.style.display = 'none';
+}
+
+async function sendAiChatMessage(text) {
+  const chatBody = document.querySelector('#ai-chat-body');
+  if (!chatBody) return;
+
+  // 1. Thêm tin nhắn của khách vào khung chat
+  const userMsgEl = document.createElement('div');
+  userMsgEl.className = 'ai-msg user';
+  userMsgEl.innerHTML = `
+    <div class="ai-msg-content">
+      <p>${escapeHtml(text)}</p>
+    </div>
+  `;
+  chatBody.appendChild(userMsgEl);
+
+  // 2. Thêm bong bóng đang suy nghĩ của Bot
+  const typingId = 'ai-typing-' + Date.now();
+  const typingEl = document.createElement('div');
+  typingEl.className = 'ai-msg bot';
+  typingEl.id = typingId;
+  typingEl.innerHTML = `
+    <div class="ai-msg-avatar">🤖</div>
+    <div class="ai-msg-content">
+      <p style="color: #64748b; font-style: italic;">
+        <span style="display:inline-block; animation: ai-pulse 1s infinite;">●</span> AI đang phân tích thực đơn...
+      </p>
+    </div>
+  `;
+  chatBody.appendChild(typingEl);
+  chatBody.scrollTop = chatBody.scrollHeight;
+
+  try {
+    const res = await fetch('api/ai-chat.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, cart: cart })
+    });
+
+    const data = await res.json();
+    const currentTyping = document.getElementById(typingId);
+    if (currentTyping) currentTyping.remove();
+
+    if (data.success) {
+      const botMsgEl = document.createElement('div');
+      botMsgEl.className = 'ai-msg bot';
+
+      let dishesHtml = '';
+      if (Array.isArray(data.dishes) && data.dishes.length > 0) {
+        dishesHtml = `
+          <div class="ai-chat-dishes-wrap">
+            ${data.dishes.map(dish => `
+              <div class="ai-chat-dish-card">
+                <div class="ai-chat-dish-left">
+                  <img src="${dish.image || 'assets/images/dish-placeholder.svg'}" alt="${dish.name}" class="ai-chat-dish-img" onerror="this.src='assets/images/dish-placeholder.svg'">
+                  <div class="ai-chat-dish-text">
+                    <span class="ai-chat-dish-name">${escapeHtml(dish.name)}</span>
+                    <span class="ai-chat-dish-price">${money(dish.price)}</span>
+                  </div>
+                </div>
+                <button type="button" class="btn-chat-add-dish" data-chat-add="${escapeHtml(dish.name)}" data-chat-price="${dish.price}">
+                  + Thêm vào giỏ
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      botMsgEl.innerHTML = `
+        <div class="ai-msg-avatar">🤖</div>
+        <div class="ai-msg-content">
+          <p>${escapeHtml(data.reply)}</p>
+          ${dishesHtml}
+        </div>
+      `;
+      chatBody.appendChild(botMsgEl);
+    } else {
+      showBotError(chatBody, typingId, data.message || 'Chưa nhận diện được món ăn phù hợp.');
+    }
+  } catch (err) {
+    showBotError(chatBody, typingId, 'Không thể kết nối đến máy chủ AI, bạn thử lại sau nhé!');
+  }
+
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function showBotError(chatBody, typingId, errText) {
+  const currentTyping = document.getElementById(typingId);
+  if (currentTyping) currentTyping.remove();
+
+  const errEl = document.createElement('div');
+  errEl.className = 'ai-msg bot';
+  errEl.innerHTML = `
+    <div class="ai-msg-avatar">🤖</div>
+    <div class="ai-msg-content">
+      <p style="color: #ef4444;">${escapeHtml(errText)}</p>
+    </div>
+  `;
+  chatBody.appendChild(errEl);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Khởi chạy khi tài liệu sẵn sàng
 document.addEventListener('DOMContentLoaded', () => {
   renderCartSummary();
@@ -493,6 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initKDS();
   initFloorFilters();
   initTrackingSimulator();
+  initAiSmartOrdering();
 });
 
 // Fallback nếu DOMContentLoaded đã bắn trước khi script chạy

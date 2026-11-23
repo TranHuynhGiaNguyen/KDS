@@ -35,6 +35,55 @@
         <textarea id="cart-order-note" placeholder="Ví dụ: Bàn có trẻ nhỏ, xin chế biến ít cay, mang nước trước..."></textarea>
       </label>
     </div>
+
+    <!-- MỤC THEO DÕI TIẾN ĐỘ & THỜI GIAN RA MÓN (BẾP KDS) -->
+    <div class="cart-kds-tracker-box">
+      <div class="tracker-header">
+        <div class="tracker-title-group">
+          <span class="tracker-badge">⏱ Bếp KDS Thông Minh</span>
+          <h3>Dự báo thời gian ra món</h3>
+        </div>
+        <div class="tracker-kitchen-load">
+          <span class="kitchen-status-dot"></span>
+          <span class="kitchen-status-text">Bếp sẵn sàng · Tải nhẹ</span>
+        </div>
+      </div>
+
+      <div class="tracker-estimate-card">
+        <div class="estimate-time-val">
+          <span class="estimate-clock-icon">🕒</span>
+          <div>
+            <span class="estimate-label">Thời gian dự kiến ra bàn</span>
+            <b class="estimate-mins" id="cart-estimated-time">10 - 15 phút</b>
+          </div>
+        </div>
+        <p class="estimate-sub">Được tính toán theo thời gian thực dựa trên số món trong giỏ và tốc độ chế biến hiện tại của bếp KDS.</p>
+      </div>
+
+      <div class="tracker-flow-steps">
+        <div class="flow-step done">
+          <span class="flow-num">1</span>
+          <div class="flow-info">
+            <b>Chọn món & Gửi bếp</b>
+            <small>Đơn tự động chuyển đến màn hình KDS</small>
+          </div>
+        </div>
+        <div class="flow-step active">
+          <span class="flow-num">2</span>
+          <div class="flow-info">
+            <b>Bếp chế biến</b>
+            <small>Chia line theo trạm: Chảo, Nướng, Bar</small>
+          </div>
+        </div>
+        <div class="flow-step">
+          <span class="flow-num">3</span>
+          <div class="flow-info">
+            <b>Phục vụ tại bàn</b>
+            <small>Nhân viên bưng món tới Bàn B05</small>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <aside class="panel order-summary">
