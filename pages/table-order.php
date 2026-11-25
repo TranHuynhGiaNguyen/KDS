@@ -30,6 +30,21 @@ try {
   $dbError = 'Không tải được danh sách món, vui lòng thử lại.';
 }
 
+// Khởi tạo trạng thái bàn và thông tin chi tiết cho $cur để tránh lỗi Undefined variable/key
+$isMaintenance = ($tableRow['status'] ?? '') === 'maintenance';
+$cur = [
+  'has_guests'     => $assignment !== null,
+  'guests'         => (int) ($assignment['guests'] ?? 0),
+  'time'           => isset($assignment['created_at']) ? date('H:i', strtotime($assignment['created_at'])) : '—',
+  'staff'          => $assignment['staff_name'] ?? 'Chưa gán',
+  'staff_id'       => (int) ($assignment['staff_id'] ?? 0),
+  'customer_name'  => $assignment['customer_name'] ?? '',
+  'customer_phone' => $assignment['customer_phone'] ?? '',
+  'zone'           => $tableRow['zone'] ?? 'Chính',
+  'capacity'       => (int) ($tableRow['capacity'] ?? 4),
+  'note'           => $assignment['note'] ?? '',
+];
+
 $role      = currentRole();
 $canAdd    = canRoleDoOrderAction($role, 'add');
 $canCancel = canRoleDoOrderAction($role, 'cancel');
@@ -50,8 +65,12 @@ $visibleItems = array_values(array_filter(
   $orderItems,
   static fn(array $item): bool => $item['status'] !== 'cancelled'
 ));
-$cur['has_guests'] = $visibleItems !== [];
-if ($cur['has_guests'] && $cur['guests'] === 0) {
+$hasOrderItems = $visibleItems !== [];
+
+if ($hasOrderItems) {
+  $cur['has_guests'] = true;
+}
+if ($cur['has_guests'] && $cur['time'] === '—') {
   $createdAt   = fetchOpenOrderCreatedAt(getOrdersDb(), $currentTable);
   $cur['time'] = $createdAt ? date('H:i', strtotime($createdAt)) : '—';
 }
@@ -154,9 +173,9 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
 
     <?php if ($canAdd && $dishesByCategory !== []): ?>
       <dialog class="add-item-dialog" data-add-item-dialog>
-        <form class="add-item-form" data-add-item-form data-table="<?= $currentTable ?>" novalidate>
+        <form class="add-item-form" data-add-item-form data-table="<?= htmlspecialchars($currentTable) ?>" novalidate>
           <div class="add-item-head">
-            <h3>Thêm món · Bàn <?= $currentTable ?></h3>
+            <h3>Thêm món · Bàn <?= htmlspecialchars($currentTable) ?></h3>
             <button class="add-item-close" type="button" data-add-close aria-label="Đóng">✕</button>
           </div>
 
@@ -219,7 +238,7 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
       <div class="flash-alert flash-error"><span><?= escapeHtml($dbError) ?></span></div>
     <?php endif; ?>
 
-    <?php if ($hasOrderItems && $visibleItems !== []): ?>
+    <?php if ($hasOrderItems): ?>
       <div class="order-food-list">
         <?php foreach ($visibleItems as $item): ?>
           <?php $statusInfo = ORDER_ITEM_STATUSES[$item['status']]; ?>
@@ -252,7 +271,7 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
       <?php endif; ?>
 
       <div class="button-row">
-        <a class="btn btn-primary" href="index.php?page=payment&table=<?= $currentTable ?>">
+        <a class="btn btn-primary" href="index.php?page=payment&table=<?= htmlspecialchars($currentTable) ?>">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
             <line x1="1" y1="10" x2="23" y2="10"></line>
@@ -266,7 +285,9 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
         <h3>Bàn <?= htmlspecialchars($currentTable) ?> đã gán cho <?= $cur['guests'] ?> khách</h3>
         <p class="muted" style="max-width: 420px; margin: 0 auto 20px;">Khách đã nhận bàn (<?= htmlspecialchars($cur['time']) ?>) nhưng chưa có món ăn nào được gọi.</p>
         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-          <a class="btn btn-primary" href="index.php?page=menu">+ Thêm món ngay</a>
+          <?php if ($canAdd): ?>
+            <button type="button" class="btn btn-primary" data-open-add-item>+ Thêm món ngay</button>
+          <?php endif; ?>
           <button type="button" class="btn btn-outline" data-open-transfer-table="<?= htmlspecialchars($currentTable) ?>">Chuyển bàn</button>
           <button type="button" class="btn btn-outline" style="color: #dc2626; border-color: #fca5a5;" data-release-table="<?= htmlspecialchars($currentTable) ?>">Trả bàn trống</button>
         </div>
@@ -274,7 +295,7 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
     <?php else: ?>
       <div class="empty-table-state" style="text-align: center; padding: 40px 20px;">
         <div style="font-size: 48px; margin-bottom: 12px;">🍽️</div>
-        <h3>Bàn <?= $currentTable ?> hiện chưa có khách</h3>
+        <h3>Bàn <?= htmlspecialchars($currentTable) ?> hiện chưa có khách</h3>
         <p class="muted" style="max-width: 400px; margin: 0 auto 20px;">Bấm "Mở bàn & Chọn món ngay" để chọn món, bàn sẽ được mở và món gửi xuống bếp.</p>
         <div style="display: flex; gap: 12px; justify-content: center;">
           <?php if ($canAdd): ?>
@@ -302,7 +323,7 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
     <hr>
     <div class="note-box">
       <h3>Ghi chú bàn</h3>
-      <p class="muted"><?= htmlspecialchars($cur['note']) ?></p>
+      <p class="muted"><?= $cur['note'] !== '' ? htmlspecialchars($cur['note']) : 'Không có ghi chú' ?></p>
     </div>
 
     <?php if ($cur['has_guests']): ?>
