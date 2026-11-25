@@ -100,6 +100,8 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
             recordVoucherUsage($pdo, $bill['voucher_code']);
         }
 
+        closeTableAssignmentInTx($pdo, $tableCode);
+
         $pdo->commit();
 
         // Giải phóng luôn phiên QR ordering đang mở của bàn (nếu module QR đã cài đặt bảng)

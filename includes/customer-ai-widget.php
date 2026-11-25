@@ -3,6 +3,7 @@
  * SmartDine - Trợ lý AI Khách hàng (Floating Chatbot & AI Upsell Drawer)
  * Luôn hiển thị tại mọi màn hình gọi món của khách hàng
  */
+$aiQuickCategories = function_exists('getAllCategories') ? getAllCategories(true) : [];
 ?>
 <!-- DẢI GỢI Ý MÓN KÈM TỰ ĐỘNG (AI SMART UPSELL) -->
 <div id="ai-upsell-drawer" class="ai-upsell-drawer" role="status" aria-live="polite">
@@ -11,10 +12,10 @@
     <div class="ai-upsell-info">
       <span class="ai-upsell-hint" id="ai-upsell-hint">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-        AI Gợi ý dùng kèm
+        Gợi ý dùng kèm
       </span>
-      <span class="ai-upsell-dish-name" id="ai-upsell-name">Tên món</span>
-      <span class="ai-upsell-price" id="ai-upsell-desc">0đ</span>
+      <span class="ai-upsell-dish-name" id="ai-upsell-name"></span>
+      <span class="ai-upsell-price" id="ai-upsell-desc"></span>
     </div>
   </div>
   <div class="ai-upsell-actions">
@@ -47,7 +48,7 @@
       <div class="ai-chat-avatar">🤖</div>
       <div>
         <h4 class="ai-chat-title">Trợ lý AI SmartDine</h4>
-        <span class="ai-chat-status"><span class="status-dot"></span> Trực tuyến sẵn sàng hỗ trợ</span>
+        <span class="ai-chat-status"><span class="status-dot"></span> Tư vấn theo thực đơn trực tiếp</span>
       </div>
     </div>
     <div class="ai-chat-header-actions">
@@ -61,12 +62,14 @@
     <div class="ai-msg bot">
       <div class="ai-msg-avatar">🤖</div>
       <div class="ai-msg-content">
-        <p>Xin chào! Tôi là Trợ lý AI của nhà hàng SmartDine. Bạn có thể gõ hoặc bấm <b>Micro 🎤</b> để hỏi tôi món ăn theo sở thích, số lượng người hoặc khẩu vị nhé!</p>
+        <p>Xin chào! Bạn có thể gõ hoặc bấm <b>Micro 🎤</b> để hỏi tôi về các món ăn đang mở bán trên thực đơn nhé.</p>
         <div class="ai-quick-tags">
-          <button type="button" class="ai-quick-tag" data-quick-text="Tìm món cho trẻ nhỏ ăn được">👶 Món cho trẻ nhỏ</button>
-          <button type="button" class="ai-quick-tag" data-quick-text="Tìm món thanh đạm không cay">🥗 Thanh đạm, không cay</button>
-          <button type="button" class="ai-quick-tag" data-quick-text="Bàn 2 người nên gọi gì?">👥 Bàn 2 người</button>
-          <button type="button" class="ai-quick-tag" data-quick-text="Gợi ý mâm tiệc khoảng 500k">💎 Mâm tiệc 500k</button>
+          <button type="button" class="ai-quick-tag" data-quick-text="Hôm nay thực đơn đang có những món gì?">📋 Thực đơn hôm nay</button>
+          <?php foreach (array_slice($aiQuickCategories, 0, 3) as $qCat): ?>
+            <button type="button" class="ai-quick-tag" data-quick-text="Gợi ý món thuộc nhóm <?= htmlspecialchars($qCat['name']) ?>">
+              <?= htmlspecialchars($qCat['icon']) ?> <?= htmlspecialchars($qCat['name']) ?>
+            </button>
+          <?php endforeach; ?>
         </div>
       </div>
     </div>

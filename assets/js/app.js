@@ -506,118 +506,45 @@ function notify(msg) {
 }
 
 // ==========================================================
-// AI SMART ORDERING: COMBOS & UPSELL ENGINE
+// AI SMART ORDERING & DYNAMIC MENU UPSELL ENGINE
 // ==========================================================
-const SMART_COMBOS = [
-  {
-    id: 'combo-2p',
-    type: '2p',
-    name: 'Combo Cặp Đôi (2 Người)',
-    sub: 'Cơm gà + Mì bò + 2 Trà đào cam sả',
-    avatar: '👥',
-    tag: 'Tiết kiệm 10%',
-    tagClass: 'best',
-    originalPrice: 230000,
-    comboPrice: 210000,
-    items: [
-      { name: 'Cơm gà Hải Nam', price: 75000, qty: 1, thumb: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Mì xào bò', price: 85000, qty: 1, thumb: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Trà đào cam sả', price: 35000, qty: 2, thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80' }
-    ]
-  },
-  {
-    id: 'combo-4p',
-    type: '4p',
-    name: 'Combo Gia Đình (4 Người)',
-    sub: 'Bò lúc lắc + 2 Cơm gà + Salad + 2 Trà đào',
-    avatar: '👨‍👩‍👧‍👦',
-    tag: 'Phổ biến nhất 🔥',
-    tagClass: 'popular',
-    originalPrice: 395000,
-    comboPrice: 355000,
-    items: [
-      { name: 'Bò lúc lắc hạt tiêu', price: 120000, qty: 1, thumb: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Cơm gà Hải Nam', price: 75000, qty: 2, thumb: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Salad trộn đặc biệt', price: 55000, qty: 1, thumb: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Trà đào cam sả', price: 35000, qty: 2, thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80' }
-    ]
-  },
-  {
-    id: 'combo-500k',
-    type: 'budget',
-    name: 'Mâm Tiệc Thịnh Soạn ~500k',
-    sub: '2 Bò lúc lắc + Mì bò + Salad + 2 Sữa chua + 2 Trà đào',
-    avatar: '💎',
-    tag: 'Trọn vị 500k 🌟',
-    tagClass: 'best',
-    originalPrice: 530000,
-    comboPrice: 485000,
-    items: [
-      { name: 'Bò lúc lắc hạt tiêu', price: 120000, qty: 2, thumb: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Mì xào bò', price: 85000, qty: 1, thumb: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Salad trộn đặc biệt', price: 55000, qty: 1, thumb: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Sữa chua trái cây', price: 40000, qty: 2, thumb: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=200&q=80' },
-      { name: 'Trà đào cam sả', price: 35000, qty: 2, thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80' }
-    ]
-  }
-];
-
-const AI_UPSELL_RULES = {
-  'Cơm gà Hải Nam': {
-    name: 'Trà đào cam sả',
-    price: 35000,
-    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
-    hint: 'Trà thảo mộc thanh mát giúp giải ngấy cho cơm gà'
-  },
-  'Mì xào bò': {
-    name: 'Salad trộn đặc biệt',
-    price: 55000,
-    thumb: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80',
-    hint: 'Rau xanh tươi mát sốt mè rang ăn kèm mì xào cực cuốn'
-  },
-  'Bò lúc lắc hạt tiêu': {
-    name: 'Trà đào cam sả',
-    price: 35000,
-    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
-    hint: 'Sốt tiêu đen cay nồng rất hợp cùng nước mát lạnh'
-  },
-  'Lẩu thái hải sản': {
-    name: 'Trà đào cam sả',
-    price: 35000,
-    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
-    hint: 'Giải nhiệt tức thì sau khi thưởng thức lẩu Thái chua cay'
-  },
-  'Salad trộn đặc biệt': {
-    name: 'Mì xào bò',
-    price: 85000,
-    thumb: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=200&q=80',
-    hint: 'Kết hợp salad khai vị cùng món mì xào thăn bò thơm ngon'
-  },
-  'Trà đào cam sả': {
-    name: 'Sữa chua trái cây',
-    price: 40000,
-    thumb: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=200&q=80',
-    hint: 'Tráng miệng ngọt dịu thanh mát sau đồ uống'
-  }
-};
-
 let upsellTimer = null;
 let currentUpsellDish = null;
+
+function getAvailableMenuDishesFromDom() {
+  const list = [];
+  document.querySelectorAll('.food-card[data-food]:not(.dish-out-of-stock)').forEach(card => {
+    const addBtn = card.querySelector('[data-add]');
+    const imgEl = card.querySelector('.food-image img');
+    if (!addBtn) return;
+    const name = addBtn.dataset.add || '';
+    const price = Number(addBtn.dataset.price || 0);
+    const type = card.dataset.type || '';
+    if (name) {
+      list.push({
+        name,
+        price,
+        type,
+        thumb: imgEl ? imgEl.getAttribute('src') : 'assets/images/dish-placeholder.svg'
+      });
+    }
+  });
+  return list;
+}
 
 function triggerAiUpsell(addedDishName) {
   const drawer = document.querySelector('#ai-upsell-drawer');
   if (!drawer) return;
 
-  const rec = AI_UPSELL_RULES[addedDishName] || {
-    name: 'Trà đào cam sả',
-    price: 35000,
-    thumb: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=200&q=80',
-    hint: 'Khách thường gọi kèm đồ uống mát lạnh cho bữa ăn'
-  };
+  const available = getAvailableMenuDishesFromDom().filter(d => d.name !== addedDishName);
+  if (available.length === 0) return;
 
-  if (rec.name === addedDishName) return;
+  const notInCart = available.filter(d => !cart.some(c => c.name === d.name));
+  const pool = notInCart.length > 0 ? notInCart : available;
+  const preferred = pool.find(d => /(drink|do-uong|beverage|nuoc|dessert|trang-mieng)/i.test(d.type)) || pool[0];
+  if (!preferred) return;
 
-  currentUpsellDish = rec;
+  currentUpsellDish = preferred;
 
   const thumbEl = document.querySelector('#ai-upsell-thumb');
   const nameEl = document.querySelector('#ai-upsell-name');
@@ -625,12 +552,12 @@ function triggerAiUpsell(addedDishName) {
   const hintEl = document.querySelector('#ai-upsell-hint');
   const addBtn = document.querySelector('#btn-upsell-add');
 
-  if (thumbEl) thumbEl.src = rec.thumb;
-  if (nameEl) nameEl.textContent = `${rec.name} (${money(rec.price)})`;
-  if (descEl) descEl.textContent = rec.hint;
-  if (hintEl) hintEl.innerHTML = `✨ AI GỢI Ý KÈM: ${addedDishName}`;
+  if (thumbEl) thumbEl.src = preferred.thumb || 'assets/images/dish-placeholder.svg';
+  if (nameEl) nameEl.textContent = `${preferred.name} (${money(preferred.price)})`;
+  if (descEl) descEl.textContent = 'Món đang mở bán trên thực đơn';
+  if (hintEl) hintEl.textContent = `✨ Gợi ý dùng kèm ${addedDishName}`;
   if (addBtn) {
-    addBtn.textContent = `+ Thêm ngay (${money(rec.price)})`;
+    addBtn.textContent = `+ Thêm ngay (${money(preferred.price)})`;
     addBtn.style.background = '';
   }
 
@@ -646,66 +573,6 @@ function hideAiUpsell() {
   const drawer = document.querySelector('#ai-upsell-drawer');
   if (drawer) drawer.classList.remove('active');
   clearTimeout(upsellTimer);
-}
-
-function addComboToCart(comboId) {
-  const combo = SMART_COMBOS.find(c => c.id === comboId);
-  if (!combo) return;
-
-  combo.items.forEach(item => {
-    const found = cart.find(x => x.name === item.name);
-    if (found) {
-      found.qty += item.qty;
-    } else {
-      cart.push({ name: item.name, price: item.price, qty: item.qty });
-    }
-  });
-
-  saveCart();
-  notify(`✓ Đã thêm toàn bộ ${combo.name} vào giỏ hàng!`);
-}
-
-function openComboModal(comboId) {
-  const combo = SMART_COMBOS.find(c => c.id === comboId);
-  if (!combo) return;
-
-  const modal = document.querySelector('#ai-combo-modal');
-  const title = document.querySelector('#ai-modal-combo-title');
-  const body = document.querySelector('#ai-modal-combo-body');
-  const price = document.querySelector('#ai-modal-combo-price');
-  const addAllBtn = document.querySelector('#btn-modal-add-all-combo');
-
-  if (title) title.textContent = `${combo.name}`;
-  if (price) price.textContent = `${money(combo.comboPrice)} (Tiết kiệm ${money(combo.originalPrice - combo.comboPrice)})`;
-
-  if (body) {
-    body.innerHTML = `
-      <p style="font-size:13px; color:#64748b; margin-bottom:14px;">${combo.sub}</p>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        ${combo.items.map(it => `
-          <div class="ai-modal-dish-row">
-            <div class="ai-modal-dish-info">
-              <img src="${it.thumb}" alt="${it.name}" class="ai-modal-dish-thumb">
-              <div>
-                <b style="font-size:14px; color:#1e293b; display:block;">${it.name}</b>
-                <small style="color:#64748b;">${money(it.price)} / phần</small>
-              </div>
-            </div>
-            <span class="ai-modal-dish-qty">x${it.qty} phần</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  if (addAllBtn) {
-    addAllBtn.onclick = () => {
-      addComboToCart(comboId);
-      modal.classList.remove('active');
-    };
-  }
-
-  if (modal) modal.classList.add('active');
 }
 
 let lastAiToggleTime = 0;
@@ -733,47 +600,11 @@ let aiSmartOrderingInitialized = false;
 function initAiSmartOrdering() {
   if (aiSmartOrderingInitialized) return;
   aiSmartOrderingInitialized = true;
-  const filterGroup = document.querySelector('#ai-combo-filter-group');
-  if (filterGroup) {
-    filterGroup.addEventListener('click', e => {
-      const btn = e.target.closest('[data-combo-filter]');
-      if (!btn) return;
 
-      filterGroup.querySelectorAll('.ai-filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const filter = btn.dataset.comboFilter;
-      document.querySelectorAll('#ai-combo-container .ai-combo-card').forEach(card => {
-        if (filter === 'all' || card.dataset.comboCard === filter) {
-          card.style.display = 'flex';
-        } else {
-          card.style.display = 'none';
-        }
-      });
-    });
-  }
+  const initialChatEl = document.querySelector('#ai-chat-body');
+  const initialChatBodyHtml = initialChatEl ? initialChatEl.innerHTML : '';
 
   document.addEventListener('click', e => {
-    const addComboBtn = e.target.closest('[data-add-combo]');
-    if (addComboBtn) {
-      const comboId = addComboBtn.dataset.addCombo;
-      addComboToCart(comboId);
-
-      const oldText = addComboBtn.textContent;
-      addComboBtn.textContent = '✓ Đã chọn';
-      setTimeout(() => { addComboBtn.textContent = oldText; }, 1000);
-    }
-
-    const prevComboBtn = e.target.closest('[data-preview-combo]');
-    if (prevComboBtn) {
-      openComboModal(prevComboBtn.dataset.previewCombo);
-    }
-
-    if (e.target.closest('#btn-close-combo-modal') || e.target.id === 'ai-combo-modal') {
-      const modal = document.querySelector('#ai-combo-modal');
-      if (modal) modal.classList.remove('active');
-    }
-
     if (e.target.closest('#btn-upsell-add') && currentUpsellDish) {
       const found = cart.find(x => x.name === currentUpsellDish.name);
       if (found) found.qty++;
@@ -805,24 +636,11 @@ function initAiSmartOrdering() {
       window.toggleAiChat(false);
     }
 
-    // Xóa lịch sử cuộc trò chuyện
+    // Xóa lịch sử cuộc trò chuyện về trạng thái ban đầu
     if (e.target.closest('#btn-clear-chat')) {
       const chatBody = document.querySelector('#ai-chat-body');
-      if (chatBody) {
-        chatBody.innerHTML = `
-          <div class="ai-msg bot">
-            <div class="ai-msg-avatar">🤖</div>
-            <div class="ai-msg-content">
-              <p>Xin chào! Tôi là Trợ lý AI của nhà hàng SmartDine. Bạn có thể gõ hoặc bấm <b>Micro 🎤</b> để hỏi tôi món ăn theo sở thích, số lượng người hoặc khẩu vị nhé!</p>
-              <div class="ai-quick-tags">
-                <button type="button" class="ai-quick-tag" data-quick-text="Tìm món cho trẻ nhỏ ăn được">👶 Món cho trẻ nhỏ</button>
-                <button type="button" class="ai-quick-tag" data-quick-text="Tìm món thanh đạm không cay">🥗 Thanh đạm, không cay</button>
-                <button type="button" class="ai-quick-tag" data-quick-text="Bàn 2 người nên gọi gì?">👥 Bàn 2 người</button>
-                <button type="button" class="ai-quick-tag" data-quick-text="Gợi ý mâm tiệc khoảng 500k">💎 Mâm tiệc 500k</button>
-              </div>
-            </div>
-          </div>
-        `;
+      if (chatBody && initialChatBodyHtml) {
+        chatBody.innerHTML = initialChatBodyHtml;
       }
     }
 
@@ -989,11 +807,11 @@ async function sendAiChatMessage(text) {
       body: JSON.stringify({ message: text, cart: cart })
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     const currentTyping = document.getElementById(typingId);
     if (currentTyping) currentTyping.remove();
 
-    if (data.success) {
+    if (res.ok && data && data.success && data.reply) {
       const botMsgEl = document.createElement('div');
       botMsgEl.className = 'ai-msg bot';
 
@@ -1004,7 +822,7 @@ async function sendAiChatMessage(text) {
             ${data.dishes.map(dish => `
               <div class="ai-chat-dish-card">
                 <div class="ai-chat-dish-left">
-                  <img src="${dish.image || 'assets/images/dish-placeholder.svg'}" alt="${dish.name}" class="ai-chat-dish-img" onerror="this.src='assets/images/dish-placeholder.svg'">
+                  <img src="${dish.image || 'assets/images/dish-placeholder.svg'}" alt="${escapeHtml(dish.name)}" class="ai-chat-dish-img" onerror="this.src='assets/images/dish-placeholder.svg'">
                   <div class="ai-chat-dish-text">
                     <span class="ai-chat-dish-name">${escapeHtml(dish.name)}</span>
                     <span class="ai-chat-dish-price">${money(dish.price)}</span>
@@ -1028,10 +846,11 @@ async function sendAiChatMessage(text) {
       `;
       chatBody.appendChild(botMsgEl);
     } else {
-      showBotError(chatBody, typingId, data.message || 'Chưa nhận diện được món ăn phù hợp.');
+      const errMsg = (data && data.message) ? data.message : `Lỗi kết nối Chatbot AI (HTTP ${res.status}). Vui lòng thử lại sau.`;
+      showBotError(chatBody, typingId, errMsg);
     }
   } catch (err) {
-    showBotError(chatBody, typingId, 'Không thể kết nối đến máy chủ AI, bạn thử lại sau nhé!');
+    showBotError(chatBody, typingId, 'Không thể kết nối đến máy chủ AI, vui lòng kiểm tra lại mạng hoặc thử lại sau!');
   }
 
   chatBody.scrollTop = chatBody.scrollHeight;

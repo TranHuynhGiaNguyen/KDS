@@ -62,8 +62,11 @@ include __DIR__ . '/../pages/admin.php';
 $adminDayHtml = ob_get_clean();
 assert(strpos($adminDayHtml, 'Tổng quan & Báo cáo Doanh thu') !== false, "Dashboard title not found");
 assert(strpos($adminDayHtml, 'revenue-svg-chart') !== false, "SVG chart not found in day mode");
-assert(strpos($adminDayHtml, 'Danh sách Hóa đơn thanh toán') !== false, "Invoice list table not found in day mode");
-echo "  [PASS] pages/admin.php (Dashboard mode=day) rendered successfully with SVG chart & invoice table\n";
+assert(strpos($adminDayHtml, 'Top 5 món bán chạy nhất') === false, "Top 5 dishes should be removed");
+assert(strpos($adminDayHtml, 'Doanh thu theo Khu vực Nhà hàng') === false, "Area breakdown should be removed");
+assert(strpos($adminDayHtml, 'Danh sách Hóa đơn thanh toán') === false, "Invoice list table should be removed");
+assert(strpos($adminDayHtml, 'menu-stock-management') === false, "Stock management panel should be removed");
+echo "  [PASS] pages/admin.php (Dashboard mode=day) rendered cleanly with SVG chart & KPI cards\n";
 
 // 6. Render pages/admin.php (mode=month)
 $_GET['page'] = 'admin';
@@ -72,11 +75,8 @@ $_GET['month'] = '2026-11';
 ob_start();
 include __DIR__ . '/../pages/admin.php';
 $adminMonthHtml = ob_get_clean();
-assert(strpos($adminMonthHtml, 'Bảng kê Doanh thu từng ngày') !== false, "Monthly breakdown table not found in month mode");
 assert(strpos($adminMonthHtml, 'revenue-svg-chart') !== false, "SVG chart not found in month mode");
-assert(strpos($adminMonthHtml, 'Top 5 món bán chạy nhất') !== false, "Top dishes not found");
-assert(strpos($adminMonthHtml, 'Doanh thu theo Khu vực Nhà hàng') !== false, "Area breakdown not found");
-echo "  [PASS] pages/admin.php (Dashboard mode=month) rendered successfully with 30-day breakdown\n";
+echo "  [PASS] pages/admin.php (Dashboard mode=month) rendered cleanly with SVG chart\n";
 
 // 7. Render pages/admin.php (mode=range)
 $_GET['page'] = 'admin';
@@ -86,9 +86,9 @@ $_GET['end_date'] = '2026-11-13';
 ob_start();
 include __DIR__ . '/../pages/admin.php';
 $adminRangeHtml = ob_get_clean();
-assert(strpos($adminRangeHtml, 'Bảng kê Doanh thu từng ngày') !== false, "Daily table not found in range mode");
+assert(strpos($adminRangeHtml, 'revenue-svg-chart') !== false, "SVG chart not found in range mode");
 assert(strpos($adminRangeHtml, 'Theo khoảng ngày') !== false, "Range tab not found");
-echo "  [PASS] pages/admin.php (Dashboard mode=range) rendered successfully with date range breakdown\n";
+echo "  [PASS] pages/admin.php (Dashboard mode=range) rendered cleanly with range chart\n";
 
 // 8. Render pages/dishes.php
 $_GET['page'] = 'dishes';
@@ -130,14 +130,13 @@ assert(strpos($kitchenHtml, 'kds-grid') !== false, "KDS grid not found in kitche
 assert(strpos($kitchenHtml, 'unavailable-panel') === false, "Mock unavailable panel must be removed from kitchen.php");
 echo "  [PASS] pages/kitchen.php rendered successfully (Out-of-stock panel cleanly removed)\n";
 
-// 12. Render pages/admin.php (Đã tích hợp phần báo hết món)
+// 12. Render pages/admin.php (Đã dọn các mục thừa khỏi tổng quan)
 $_GET['page'] = 'admin';
 $_GET['mode'] = 'day';
 ob_start();
 include __DIR__ . '/../pages/admin.php';
-$adminStockHtml = ob_get_clean();
-assert(strpos($adminStockHtml, 'menu-stock-management') !== false, "menu-stock-management not found in admin.php");
-assert(strpos($adminStockHtml, 'data-toggle-dish-ajax') !== false, "toggle-dish-ajax button not found in admin.php");
-echo "  [PASS] pages/admin.php rendered successfully with dynamic Stock Management panel\n";
+$adminCleanHtml = ob_get_clean();
+assert(strpos($adminCleanHtml, 'menu-stock-management') === false, "menu-stock-management should be removed from admin.php");
+echo "  [PASS] pages/admin.php overview sections cleaned successfully\n";
 
 echo "\n>>> TẤT CẢ CÁC TRANG RENDER HOÀN HẢO! <<<\n";

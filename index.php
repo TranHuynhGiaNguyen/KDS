@@ -109,10 +109,13 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
     <link rel="stylesheet" href="<?= assetUrl('assets/css/orders.css') ?>">
     <script defer src="<?= assetUrl('assets/js/order-items.js') ?>"></script>
   <?php endif; ?>
+  <?php if (in_array($page, ['staff', 'table-order'], true)): ?>
+    <script defer src="<?= assetUrl('assets/js/table-actions.js') ?>"></script>
+  <?php endif; ?>
   <?php if (!$isDashboard && $page !== 'login'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/ai-ordering.css') ?>">
   <?php endif; ?>
-  <script defer src="assets/js/app.js"></script>
+  <script defer src="<?= assetUrl('assets/js/app.js') ?>"></script>
 </head>
 <body class="<?= $page === 'login' ? 'login-page-body' : ($isDashboard ? 'dashboard-body' : 'customer-body') ?>">
 

@@ -5,196 +5,214 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 require_once __DIR__ . '/../config/database.php';
+
 $aiConfig = is_file(__DIR__ . '/../config/ai.php')
     ? require __DIR__ . '/../config/ai.php'
     : [];
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Chỉ chấp nhận phương thức POST.']);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Phương thức không hợp lệ (chỉ hỗ trợ POST).',
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 $rawInput = file_get_contents('php://input');
-$data = json_decode($rawInput, true) ?: [];
+$data = json_decode((string) $rawInput, true);
+if (!is_array($data)) {
+    $data = [];
+}
+
 $message = trim((string) ($data['message'] ?? ''));
 $cart = is_array($data['cart'] ?? null) ? $data['cart'] : [];
 
-if (empty($message)) {
+if ($message === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Nội dung câu hỏi không được để trống.']);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Nội dung câu hỏi không được để trống.',
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-// 1. Lấy toàn bộ thực đơn đang hoạt động từ cơ sở dữ liệu
-$dishes = getAllDishes('', 'active', '');
-if (empty($dishes)) {
-    $dishes = getAllDishes('', 'visible', '');
+// 1. Kiểm tra kết nối DB và lấy toàn bộ món ăn đang hiển thị trên Web
+$pdo = getDbConnection();
+if (!$pdo) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Lỗi hệ thống: Không thể kết nối cơ sở dữ liệu thực đơn.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
-// Chuẩn bị danh sách món gọn nhẹ gửi cho AI
+$dishes = getAllDishes('', 'visible', '');
+
 $menuList = [];
-$dishMap = [];
+$orderableDishMap = [];
+
 foreach ($dishes as $d) {
+    $isOutOfStock = (($d['status'] ?? '') === 'out_of_stock');
     $dishItem = [
         'id'          => (int) $d['id'],
-        'name'        => $d['name'],
+        'name'        => (string) $d['name'],
         'price'       => (float) $d['price'],
-        'category'    => $d['category_name'] ?? 'Món ăn',
-        'description' => $d['description'] ?? '',
-        'tag'         => $d['tag'] ?? '',
-        'image'       => getDishImageUrl($d['image']),
+        'category'    => (string) ($d['category_name'] ?? ''),
+        'description' => (string) ($d['description'] ?? ''),
+        'tag'         => (string) ($d['tag'] ?? ''),
+        'rating'      => isset($d['rating']) ? (float) $d['rating'] : null,
+        'status'      => $isOutOfStock ? 'Tạm hết' : 'Đang mở bán',
+        'image'       => htmlspecialchars_decode((string) getDishImageUrl($d['image'] ?? ''), ENT_QUOTES),
     ];
-    $menuList[] = $dishItem;
-    $dishMap[$d['id']] = $dishItem;
-    $dishMap[mb_strtolower($d['name'], 'UTF-8')] = $dishItem;
+
+    $menuList[] = [
+        'id'          => $dishItem['id'],
+        'name'        => $dishItem['name'],
+        'price'       => $dishItem['price'],
+        'category'    => $dishItem['category'],
+        'description' => $dishItem['description'],
+        'tag'         => $dishItem['tag'],
+        'status'      => $dishItem['status'],
+    ];
+
+    // Chỉ những món đang mở bán mới cho phép thêm vào giỏ từ thẻ gợi ý
+    if (!$isOutOfStock) {
+        $orderableDishMap[$dishItem['id']] = $dishItem;
+    }
 }
 
-$reply = '';
-$recommendedDishes = [];
-$source = 'smart_nlp';
+// 2. Đọc cấu hình Gemini API (tuyệt đối không fallback câu trả lời cứng)
+$geminiConfig = is_array($aiConfig['gemini'] ?? null) ? $aiConfig['gemini'] : [];
+$geminiKey = trim((string) ($geminiConfig['api_key'] ?? $aiConfig['gemini_api_key'] ?? ''));
+$geminiModel = trim((string) ($geminiConfig['model'] ?? $aiConfig['gemini_model'] ?? 'gemini-3.5-flash-lite'));
+$geminiEndpoint = rtrim((string) ($geminiConfig['endpoint'] ?? 'https://generativelanguage.googleapis.com/v1beta/models'), '/');
+$temperature = (float) ($geminiConfig['temperature'] ?? $aiConfig['temperature'] ?? 0.35);
 
-// 2. Gọi Google Gemini API nếu có cấu hình API Key
-$geminiKey = trim((string) ($aiConfig['gemini_api_key'] ?? ''));
+if ($geminiKey === '' || $geminiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+    http_response_code(503);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Chatbot AI chưa được cấu hình Gemini API Key hợp lệ.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-if (!empty($geminiKey) && function_exists('curl_init')) {
-    $modelsToTry = array_unique([
-        $aiConfig['gemini_model'] ?? 'gemini-3.5-flash-lite',
-        'gemini-3.5-flash-lite',
-        'gemini-3.8-flash'
-    ]);
+if (!function_exists('curl_init')) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Máy chủ chưa kích hoạt PHP cURL để kết nối tới AI.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-    $systemInstruction = "Bạn là Trợ lý Ẩm thực thông minh và thân thiện của nhà hàng SmartDine.\n"
-        . "Dưới đây là TOÀN BỘ thực đơn nhà hàng đang mở bán:\n"
-        . json_encode($menuList, JSON_UNESCAPED_UNICODE) . "\n\n"
-        . "QUY TẮC BẮT BUỘC:\n"
-        . "1. Trả lời bằng tiếng Việt cực kỳ ngắn gọn, ấm áp (tối đa 1-2 câu).\n"
-        . "2. CHỈ gợi ý các món CÓ THẬT trong danh sách thực đơn trên. Tuyệt đối không tự bịa món.\n"
-        . "3. Trả về đúng định dạng JSON: {\"reply\": \"câu trả lời\", \"recommended_dish_ids\": [id1, id2]}\n";
+$cartSummary = [];
+foreach ($cart as $cItem) {
+    if (is_array($cItem) && !empty($cItem['name'])) {
+        $cartSummary[] = [
+            'name' => (string) $cItem['name'],
+            'qty'  => (int) ($cItem['qty'] ?? 1),
+        ];
+    }
+}
 
-    $promptPayload = [
-        'contents' => [
-            [
-                'role' => 'user',
-                'parts' => [
-                    ['text' => $systemInstruction . "\nKhách hàng hỏi: " . $message]
-                ]
-            ]
+$systemInstruction = "Bạn là Trợ lý AI tư vấn thực đơn trực tuyến của nhà hàng trên website.\n"
+    . "Dưới đây là toàn bộ danh sách món ăn THỰC TẾ hiện có trên website (JSON):\n"
+    . json_encode($menuList, JSON_UNESCAPED_UNICODE) . "\n\n"
+    . "Giỏ hàng hiện tại của khách (JSON):\n"
+    . json_encode($cartSummary, JSON_UNESCAPED_UNICODE) . "\n\n"
+    . "QUY TẮC BẮT BUỘC:\n"
+    . "1. CHỈ sử dụng dữ liệu từ danh sách món ăn thực tế ở trên (tên món, giá tiền, danh mục, mô tả, trạng thái Đang mở bán/Tạm hết). Tuyệt đối KHÔNG tự bịa tên món, giá tiền, combo hay thông tin không có trên website.\n"
+    . "2. Trả lời bằng tiếng Việt ngắn gọn, tự nhiên, lịch sự (tối đa 1-3 câu).\n"
+    . "3. Nếu website hiện chưa có món nào (danh sách rỗng) hoặc không có món nào phù hợp yêu cầu khách, hãy trả lời trung thực dựa trên thực đơn hiện có và để recommended_dish_ids là [].\n"
+    . "4. Chỉ đưa vào recommended_dish_ids các id của món có status là \"Đang mở bán\". Không đưa id món \"Tạm hết\" vào recommended_dish_ids.\n"
+    . "5. Trả về ĐÚNG 1 JSON object hợp lệ (không kèm markdown): {\"reply\": \"câu trả lời\", \"recommended_dish_ids\": [id1, id2]}\n";
+
+$promptPayload = [
+    'contents' => [
+        [
+            'role' => 'user',
+            'parts' => [
+                ['text' => $systemInstruction . "\nCâu hỏi của khách hàng: " . $message],
+            ],
         ],
-        'generationConfig' => [
-            'temperature'      => (float) ($aiConfig['temperature'] ?? 0.35),
-            'responseMimeType' => 'application/json'
-        ]
-    ];
+    ],
+    'generationConfig' => [
+        'temperature'      => $temperature,
+        'responseMimeType' => 'application/json',
+    ],
+];
 
-    foreach ($modelsToTry as $model) {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}";
+$url = "{$geminiEndpoint}/{$geminiModel}:generateContent?key=" . urlencode($geminiKey);
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($promptPayload),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 8,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json']
-        ]);
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_POST           => true,
+    CURLOPT_POSTFIELDS     => json_encode($promptPayload, JSON_UNESCAPED_UNICODE),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT        => 15,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+]);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+$response = curl_exec($ch);
+$httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlErr = curl_error($ch);
+curl_close($ch);
 
-        if ($httpCode === 200 && $response) {
-            $resData = json_decode($response, true);
-            $aiText = $resData['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $parsedAi = json_decode($aiText, true);
-
-            if ($parsedAi && !empty($parsedAi['reply'])) {
-                $reply = trim((string) $parsedAi['reply']);
-                $ids = (array) ($parsedAi['recommended_dish_ids'] ?? []);
-                foreach ($ids as $id) {
-                    if (isset($dishMap[$id])) {
-                        $recommendedDishes[] = $dishMap[$id];
-                    }
-                }
-                $source = 'gemini_cloud (' . $model . ')';
-                break;
-            }
-        }
+if ($curlErr !== '' || $response === false || $httpCode !== 200) {
+    $apiErrMsg = '';
+    if (is_string($response) && $response !== '') {
+        $errJson = json_decode($response, true);
+        $apiErrMsg = (string) ($errJson['error']['message'] ?? '');
     }
+
+    error_log(sprintf('ai-chat error: HTTP=%d curlErr=%s apiErr=%s', $httpCode, $curlErr, $apiErrMsg));
+
+    http_response_code(502);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Chatbot AI hiện không hoạt động (' . ($curlErr !== '' ? 'lỗi kết nối mạng' : 'lỗi phản hồi từ Gemini HTTP ' . $httpCode) . '). Vui lòng thử lại sau.',
+        'error'   => $apiErrMsg !== '' ? $apiErrMsg : $curlErr,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
-// 3. Fallback sang Smart Semantic NLP Engine nếu Gemini timeout hoặc chưa có món
-if (empty($reply) || empty($recommendedDishes)) {
-    $q = mb_strtolower($message, 'UTF-8');
+$resData = json_decode($response, true);
+$aiText = trim((string) ($resData['candidates'][0]['content']['parts'][0]['text'] ?? ''));
 
-    if (preg_match('/(trẻ em|trẻ nhỏ|em bé|bé|cho con)/ui', $q)) {
-        $reply = 'Dạ với các bé, nhà hàng gợi ý món Cơm gà Hải Nam thịt mềm ngọt, dễ tiêu hoặc Sữa chua trái cây thanh mát, không cay rất phù hợp ạ!';
-        $targets = ['Cơm gà Hải Nam', 'Sữa chua trái cây', 'Mì xào bò'];
-    } elseif (preg_match('/(thanh đạm|không cay|ít dầu|healthy|giảm cân|rau|chay|thanh mát)/ui', $q)) {
-        $reply = 'Dạ nhà hàng có Salad trộn đặc biệt với rau xanh organic sốt mè rang béo nhẹ, ăn kèm Trà đào cam sả thanh nhiệt cực kỳ hợp ạ!';
-        $targets = ['Salad trộn đặc biệt', 'Trà đào cam sả'];
-    } elseif (preg_match('/(cay|đậm đà|nồng|nhậu|bia|đậm vị)/ui', $q)) {
-        $reply = 'Dạ Bò lúc lắc hạt tiêu thịt bò Úc áp chảo đậm đà và Mì xào bò thơm phức là hai lựa chọn đậm vị được yêu thích nhất ạ!';
-        $targets = ['Bò lúc lắc hạt tiêu', 'Mì xào bò'];
-    } elseif (preg_match('/(2 người|cặp đôi|hai người|hẹn hò)/ui', $q)) {
-        $reply = 'Dạ cho 2 người, bạn nên thử 1 phần Cơm gà Hải Nam kết hợp Mì xào bò và Trà đào cam sả là đủ no và tròn vị ạ!';
-        $targets = ['Cơm gà Hải Nam', 'Mì xào bò', 'Trà đào cam sả'];
-    } elseif (preg_match('/(4 người|bốn người|gia đình|nhóm bạn|đông)/ui', $q)) {
-        $reply = 'Dạ bàn 4 người nên dùng mâm tiệc gồm Bò lúc lắc, Cơm gà Hải Nam và Salad trộn đặc biệt để cả bàn cùng thưởng thức đa dạng món ạ!';
-        $targets = ['Bò lúc lắc hạt tiêu', 'Cơm gà Hải Nam', 'Salad trộn đặc biệt', 'Trà đào cam sả'];
-    } elseif (preg_match('/(500k|ngân sách|tiết kiệm|rẻ|vừa tiền)/ui', $q)) {
-        $reply = 'Dạ với ngân sách khoảng 500k, mâm tiệc kết hợp Bò lúc lắc, Mì xào bò, Salad và Trà đào sẽ đầy đặn mà rất tiết kiệm ạ!';
-        $targets = ['Bò lúc lắc hạt tiêu', 'Mì xào bò', 'Salad trộn đặc biệt', 'Trà đào cam sả'];
-    } elseif (preg_match('/(nước|uống|giải khát|trà|khát)/ui', $q)) {
-        $reply = 'Dạ Trà đào cam sả ướp lạnh thơm hương cam sả, đào miếng giòn ngọt là thức uống giải nhiệt bán chạy nhất quán ạ!';
-        $targets = ['Trà đào cam sả'];
-    } elseif (preg_match('/(tráng miệng|ngọt|kem|chè)/ui', $q)) {
-        $reply = 'Dạ Sữa chua trái cây Hy Lạp sánh mịn với dâu tây và sốt việt quất là món tráng miệng thanh ngọt rất được lòng thực khách ạ!';
-        $targets = ['Sữa chua trái cây'];
-    } else {
-        $matched = [];
-        foreach ($menuList as $item) {
-            $nameLower = mb_strtolower($item['name'], 'UTF-8');
-            $descLower = mb_strtolower($item['description'], 'UTF-8');
-            if (mb_strpos($nameLower, $q) !== false || mb_strpos($descLower, $q) !== false) {
-                $matched[] = $item;
-            }
-        }
+// Loại bỏ markdown code fence nếu Gemini trả về ```json ... ```
+$cleanJsonText = preg_replace('/^```(?:json)?\s*|\s*```$/iu', '', $aiText);
+$parsedAi = json_decode((string) $cleanJsonText, true);
 
-        if (!empty($matched)) {
-            $reply = 'Dạ nhà hàng có các món ngon phù hợp với yêu cầu của bạn đây ạ:';
-            $recommendedDishes = array_slice($matched, 0, 3);
-        } else {
-            $reply = 'Dạ xin gợi ý bạn 2 món đặc sản bán chạy nhất tại nhà hàng hôm nay:';
-            $targets = ['Cơm gà Hải Nam', 'Bò lúc lắc hạt tiêu', 'Trà đào cam sả'];
-        }
-    }
-
-    if (!empty($targets) && empty($recommendedDishes)) {
-        foreach ($targets as $tName) {
-            $tLower = mb_strtolower($tName, 'UTF-8');
-            if (isset($dishMap[$tLower])) {
-                $recommendedDishes[] = $dishMap[$tLower];
-            }
-        }
-    }
+if (!is_array($parsedAi) || empty(trim((string) ($parsedAi['reply'] ?? '')))) {
+    error_log('ai-chat invalid AI JSON response: ' . $aiText);
+    http_response_code(502);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Chatbot AI trả về dữ liệu không hợp lệ. Vui lòng thử lại sau.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
-// Loại bỏ món trùng lặp (nếu có)
-$finalDishes = [];
+$reply = trim((string) $parsedAi['reply']);
+$recommendedDishes = [];
 $seenIds = [];
-foreach ($recommendedDishes as $d) {
-    if (!isset($seenIds[$d['id']])) {
-        $seenIds[$d['id']] = true;
-        $finalDishes[] = $d;
+
+foreach ((array) ($parsedAi['recommended_dish_ids'] ?? []) as $rawId) {
+    $id = (int) $rawId;
+    if ($id > 0 && isset($orderableDishMap[$id]) && !isset($seenIds[$id])) {
+        $seenIds[$id] = true;
+        $recommendedDishes[] = $orderableDishMap[$id];
     }
 }
 
 echo json_encode([
     'success' => true,
     'reply'   => $reply,
-    'dishes'  => array_slice($finalDishes, 0, 3),
-    'source'  => $source,
+    'dishes'  => array_slice($recommendedDishes, 0, 5),
+    'source'  => 'gemini (' . $geminiModel . ')',
 ], JSON_UNESCAPED_UNICODE);
