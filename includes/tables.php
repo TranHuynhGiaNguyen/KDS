@@ -297,19 +297,28 @@ function getAllDiningTables(string $filterArea = '', string $filterStatus = '', 
     $stmt->execute($params);
     $tables = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Đồng bộ thông tin đơn hàng hiện tại (có khách hay trống)
+    // Đồng bộ thông tin đơn hàng hiện tại (có khách hay trống) & gán bàn
     $occupiedTables = [];
+    $assignments    = [];
     try {
         $occupiedTables = fetchOccupiedTables($pdo);
+        $assignments    = fetchActiveTableAssignments($pdo);
     } catch (Exception $e) {
         error_log('sync occupied tables error: ' . $e->getMessage());
     }
 
     foreach ($tables as &$t) {
-        $occ = $occupiedTables[$t['code']] ?? null;
-        $t['is_occupied']    = ($occ !== null);
+        $occ    = $occupiedTables[$t['code']] ?? null;
+        $assign = $assignments[$t['code']] ?? null;
+        $t['is_occupied']    = ($occ !== null || $assign !== null);
         $t['occupied_total'] = $occ['total'] ?? 0;
         $t['occupied_items'] = $occ['item_count'] ?? 0;
+        $t['guest_count']    = (int) ($assign['guest_count'] ?? 0);
+        $t['staff_id']       = (int) ($assign['staff_id'] ?? 0);
+        $t['staff_name']     = (string) ($assign['staff_name'] ?? '');
+        $t['customer_name']  = (string) ($assign['customer_name'] ?? '');
+        $t['assign_note']    = (string) ($assign['note'] ?? '');
+        $t['opened_at']      = (string) ($assign['opened_at'] ?? '');
     }
     unset($t);
 
@@ -701,4 +710,573 @@ function getTableStats(): array {
         'total_areas'         => count($allAreas),
         'occupancy_rate'      => $occupancyRate
     ];
+}
+
+// ==========================================================
+// NGHIỆP VỤ GÁN BÀN & CHUYỂN BÀN (ASSIGN & TRANSFER TABLE)
+// ==========================================================
+
+/**
+ * Đảm bảo bảng table_assignments tồn tại trong MySQL.
+ */
+function ensureTableAssignmentsSchema(PDO $pdo): void {
+    static $initialized = false;
+    if ($initialized) {
+        return;
+    }
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `table_assignments` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `table_code` VARCHAR(20) NOT NULL,
+            `guest_count` INT NOT NULL DEFAULT 2,
+            `customer_name` VARCHAR(100) NOT NULL DEFAULT '',
+            `customer_phone` VARCHAR(25) NOT NULL DEFAULT '',
+            `staff_id` INT DEFAULT NULL,
+            `staff_name` VARCHAR(100) NOT NULL DEFAULT '',
+            `note` VARCHAR(500) NOT NULL DEFAULT '',
+            `status` ENUM('active', 'closed') NOT NULL DEFAULT 'active',
+            `opened_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `closed_at` DATETIME DEFAULT NULL,
+            INDEX idx_assign_table_status (`table_code`, `status`),
+            INDEX idx_assign_staff (`staff_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    $initialized = true;
+}
+
+/**
+ * Lấy tất cả lượt gán bàn đang hoạt động, keyed theo table_code.
+ */
+function fetchActiveTableAssignments(PDO $pdo): array {
+    ensureTableAssignmentsSchema($pdo);
+
+    $stmt = $pdo->query("
+        SELECT * FROM `table_assignments`
+        WHERE `status` = 'active'
+        ORDER BY `id` DESC
+    ");
+    $map = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $code = strtoupper(trim((string) $row['table_code']));
+        if (!isset($map[$code])) {
+            $map[$code] = $row;
+        }
+    }
+    return $map;
+}
+
+/**
+ * Lấy thông tin gán bàn đang hoạt động của 1 bàn cụ thể.
+ */
+function getActiveTableAssignment(string $tableCode, ?PDO $pdo = null): ?array {
+    $pdo = $pdo ?? getDbConnection();
+    if (!$pdo) {
+        return null;
+    }
+    ensureTableAssignmentsSchema($pdo);
+
+    $code = strtoupper(trim($tableCode));
+    $stmt = $pdo->prepare("
+        SELECT * FROM `table_assignments`
+        WHERE `table_code` = :code AND `status` = 'active'
+        ORDER BY `id` DESC
+        LIMIT 1
+    ");
+    $stmt->execute([':code' => $code]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+/**
+ * Danh sách nhân viên có thể phân công phụ trách bàn.
+ */
+function getAssignableStaffList(): array {
+    $pdo = getDbConnection();
+    if (!$pdo) {
+        return [];
+    }
+
+    $stmt = $pdo->query("
+        SELECT `id`, `fullname`, `username`, `role`
+        FROM `users`
+        WHERE `status` = 'active' AND `role` IN ('staff', 'admin')
+        ORDER BY FIELD(`role`, 'staff', 'admin'), `fullname` ASC
+    ");
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Đóng lượt gán bàn khi thanh toán xong (dùng bên trong transaction checkout).
+ */
+function closeTableAssignmentInTx(PDO $pdo, string $tableCode): void {
+    ensureTableAssignmentsSchema($pdo);
+    $stmt = $pdo->prepare("
+        UPDATE `table_assignments`
+        SET `status` = 'closed', `closed_at` = NOW()
+        WHERE `table_code` = :code AND `status` = 'active'
+    ");
+    $stmt->execute([':code' => strtoupper(trim($tableCode))]);
+}
+
+/**
+ * Gán khách / nhân viên vào bàn hoặc cập nhật thông tin gán bàn đang phục vụ.
+ */
+function assignTable(PDO $pdo, array $data): array {
+    ensureTableAssignmentsSchema($pdo);
+
+    $tableCode     = strtoupper(trim((string) ($data['table_code'] ?? '')));
+    $guestCount    = (int) ($data['guest_count'] ?? 2);
+    $customerName  = trim((string) ($data['customer_name'] ?? ''));
+    $customerPhone = trim((string) ($data['customer_phone'] ?? ''));
+    $staffId       = (int) ($data['staff_id'] ?? 0);
+    $note          = trim((string) ($data['note'] ?? ''));
+    $allowUpdate   = !empty($data['allow_update']);
+
+    if ($tableCode === '') {
+        return ['success' => false, 'message' => 'Vui lòng chọn bàn cần gán!'];
+    }
+
+    $table = getDiningTableByCode($tableCode);
+    if (!$table) {
+        return ['success' => false, 'message' => 'Không tìm thấy bàn ' . htmlspecialchars($tableCode) . '!'];
+    }
+    if (($table['status'] ?? '') !== 'active') {
+        return ['success' => false, 'message' => 'Bàn ' . htmlspecialchars($tableCode) . ' đang bảo trì hoặc tạm ẩn, không thể gán khách!'];
+    }
+    if ($guestCount < 1 || $guestCount > 100) {
+        return ['success' => false, 'message' => 'Số lượng khách phải từ 1 đến 100 người!'];
+    }
+
+    $staffName = '';
+    if ($staffId > 0) {
+        $stmtStaff = $pdo->prepare("SELECT `id`, `fullname`, `username` FROM `users` WHERE `id` = :id AND `status` = 'active' LIMIT 1");
+        $stmtStaff->execute([':id' => $staffId]);
+        $staffRow = $stmtStaff->fetch(PDO::FETCH_ASSOC);
+        if (!$staffRow) {
+            return ['success' => false, 'message' => 'Nhân viên được chọn không hợp lệ hoặc đã ngừng hoạt động!'];
+        }
+        $staffName = trim((string) ($staffRow['fullname'] ?: $staffRow['username']));
+    } else {
+        $staffId = null;
+    }
+
+    $ownTx = !$pdo->inTransaction();
+    try {
+        if ($ownTx) {
+            $pdo->beginTransaction();
+        }
+
+        $existing = getActiveTableAssignment($tableCode, $pdo);
+
+        if ($existing) {
+            if (!$allowUpdate) {
+                if ($ownTx && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                return ['success' => false, 'message' => 'Bàn ' . $tableCode . ' đang phục vụ khách, không thể gán mới!'];
+            }
+
+            $stmtUpd = $pdo->prepare("
+                UPDATE `table_assignments`
+                SET `guest_count` = :guests,
+                    `customer_name` = :cname,
+                    `customer_phone` = :cphone,
+                    `staff_id` = :sid,
+                    `staff_name` = :sname,
+                    `note` = :note
+                WHERE `id` = :id
+            ");
+            $stmtUpd->execute([
+                ':guests' => $guestCount,
+                ':cname'  => mb_substr($customerName, 0, 100, 'UTF-8'),
+                ':cphone' => mb_substr($customerPhone, 0, 25, 'UTF-8'),
+                ':sid'    => $staffId,
+                ':sname'  => mb_substr($staffName, 0, 100, 'UTF-8'),
+                ':note'   => mb_substr($note, 0, 500, 'UTF-8'),
+                ':id'     => (int) $existing['id'],
+            ]);
+            $msg = 'Đã cập nhật thông tin gán bàn ' . $tableCode . ' (' . $guestCount . ' khách)!';
+        } else {
+            $stmtIns = $pdo->prepare("
+                INSERT INTO `table_assignments`
+                    (`table_code`, `guest_count`, `customer_name`, `customer_phone`, `staff_id`, `staff_name`, `note`, `status`, `opened_at`)
+                VALUES
+                    (:code, :guests, :cname, :cphone, :sid, :sname, :note, 'active', :opened_at)
+            ");
+            $stmtIns->execute([
+                ':code'      => $tableCode,
+                ':guests'    => $guestCount,
+                ':cname'     => mb_substr($customerName, 0, 100, 'UTF-8'),
+                ':cphone'    => mb_substr($customerPhone, 0, 25, 'UTF-8'),
+                ':sid'       => $staffId,
+                ':sname'     => mb_substr($staffName, 0, 100, 'UTF-8'),
+                ':note'      => mb_substr($note, 0, 500, 'UTF-8'),
+                ':opened_at' => currentTimeForDb(),
+            ]);
+            $msg = 'Đã gán bàn ' . $tableCode . ' cho ' . $guestCount . ' khách!';
+        }
+
+        if ($ownTx) {
+            $pdo->commit();
+        }
+
+        return [
+            'success'    => true,
+            'message'    => $msg,
+            'table_code' => $tableCode,
+        ];
+    } catch (Throwable $e) {
+        if ($ownTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('assignTable error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Lỗi hệ thống khi gán bàn: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Hủy gán bàn / trả bàn về trạng thái trống (chỉ khi bàn chưa có món gọi).
+ */
+function releaseEmptyTableAssignment(PDO $pdo, string $tableCode): array {
+    ensureTableAssignmentsSchema($pdo);
+    $code = strtoupper(trim($tableCode));
+    if ($code === '') {
+        return ['success' => false, 'message' => 'Mã bàn không hợp lệ!'];
+    }
+
+    $occupiedMap = fetchOccupiedTables($pdo);
+    if (isset($occupiedMap[$code])) {
+        return ['success' => false, 'message' => 'Bàn ' . $code . ' đang có món chưa thanh toán, không thể trả bàn trống!'];
+    }
+
+    closeTableAssignmentInTx($pdo, $code);
+    return [
+        'success'    => true,
+        'message'    => 'Đã trả bàn ' . $code . ' về trạng thái trống!',
+        'table_code' => $code,
+    ];
+}
+
+/**
+ * Chuyển toàn bộ đơn mở (orders), món đã gọi và thông tin gán bàn từ bàn nguồn sang bàn trống đích.
+ */
+function transferTable(PDO $pdo, string $fromCode, string $toCode, string $note = ''): array {
+    ensureTableAssignmentsSchema($pdo);
+
+    $fromCode = strtoupper(trim($fromCode));
+    $toCode   = strtoupper(trim($toCode));
+    $note     = trim($note);
+
+    if ($fromCode === '' || $toCode === '') {
+        return ['success' => false, 'message' => 'Vui lòng chọn đầy đủ bàn nguồn và bàn đích!'];
+    }
+    if ($fromCode === $toCode) {
+        return ['success' => false, 'message' => 'Bàn đích phải khác bàn hiện tại!'];
+    }
+
+    $fromTable = getDiningTableByCode($fromCode);
+    $toTable   = getDiningTableByCode($toCode);
+    if (!$fromTable || !$toTable) {
+        return ['success' => false, 'message' => 'Bàn nguồn hoặc bàn đích không tồn tại!'];
+    }
+    if (($toTable['status'] ?? '') !== 'active') {
+        return ['success' => false, 'message' => 'Bàn ' . $toCode . ' đang bảo trì hoặc tạm ẩn, không thể chuyển tới!'];
+    }
+
+    $ownTx = !$pdo->inTransaction();
+    try {
+        if ($ownTx) {
+            $pdo->beginTransaction();
+        }
+
+        // Khóa và kiểm tra trạng thái nguồn & đích trong transaction
+        $stmtOpenFrom = $pdo->prepare("SELECT `id` FROM `orders` WHERE `table_code` = :code AND `status` = 'open' FOR UPDATE");
+        $stmtOpenFrom->execute([':code' => $fromCode]);
+        $fromOrders = $stmtOpenFrom->fetchAll(PDO::FETCH_COLUMN);
+
+        $fromAssignment = getActiveTableAssignment($fromCode, $pdo);
+
+        if ($fromOrders === [] && $fromAssignment === null) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Bàn ' . $fromCode . ' hiện đang trống, không có đơn hoặc khách để chuyển!'];
+        }
+
+        $toAssignment = getActiveTableAssignment($toCode, $pdo);
+        $occupiedMap  = fetchOccupiedTables($pdo);
+        if ($toAssignment !== null || isset($occupiedMap[$toCode])) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Bàn ' . $toCode . ' đang có khách phục vụ, vui lòng chọn bàn trống khác!'];
+        }
+
+        // Xóa/đóng đơn mở rỗng (0 món) nếu tồn tại ở bàn đích để tránh trùng đơn mở
+        $stmtEmptyTo = $pdo->prepare("
+            SELECT o.`id`
+            FROM `orders` o
+            LEFT JOIN `order_items` i ON i.`order_id` = o.`id` AND i.`status` <> 'cancelled'
+            WHERE o.`table_code` = :code AND o.`status` = 'open'
+            GROUP BY o.`id`
+            HAVING COUNT(i.`id`) = 0
+        ");
+        $stmtEmptyTo->execute([':code' => $toCode]);
+        foreach ($stmtEmptyTo->fetchAll(PDO::FETCH_COLUMN) as $emptyOrderId) {
+            $pdo->prepare("DELETE FROM `orders` WHERE `id` = ?")->execute([(int) $emptyOrderId]);
+        }
+
+        // Chuyển toàn bộ đơn mở (orders) từ bàn nguồn -> bàn đích (KDS & bill tự động theo order_id)
+        if ($fromOrders !== []) {
+            $stmtMoveOrders = $pdo->prepare("
+                UPDATE `orders`
+                SET `table_code` = :to_code
+                WHERE `table_code` = :from_code AND `status` = 'open'
+            ");
+            $stmtMoveOrders->execute([':to_code' => $toCode, ':from_code' => $fromCode]);
+        }
+
+        // Chuyển thông tin gán bàn (nếu có), hoặc ghi chú lịch sử chuyển bàn
+        $transferTag = 'Chuyển từ bàn ' . $fromCode . ($note !== '' ? ' (' . $note . ')' : '');
+        if ($fromAssignment !== null) {
+            $oldNote = trim((string) ($fromAssignment['note'] ?? ''));
+            $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $transferTag) : $transferTag;
+            $stmtMoveAssign = $pdo->prepare("
+                UPDATE `table_assignments`
+                SET `table_code` = :to_code, `note` = :note
+                WHERE `id` = :id AND `status` = 'active'
+            ");
+            $stmtMoveAssign->execute([
+                ':to_code' => $toCode,
+                ':note'    => mb_substr($newNote, 0, 500, 'UTF-8'),
+                ':id'      => (int) $fromAssignment['id'],
+            ]);
+        } elseif ($note !== '') {
+            $stmtIns = $pdo->prepare("
+                INSERT INTO `table_assignments`
+                    (`table_code`, `guest_count`, `customer_name`, `customer_phone`, `staff_id`, `staff_name`, `note`, `status`, `opened_at`)
+                VALUES
+                    (:code, 2, '', '', NULL, '', :note, 'active', :opened_at)
+            ");
+            $stmtIns->execute([
+                ':code'      => $toCode,
+                ':note'      => mb_substr($transferTag, 0, 500, 'UTF-8'),
+                ':opened_at' => currentTimeForDb(),
+            ]);
+        }
+
+        // Đồng bộ phiên QR đang mở (nếu bảng qr_sessions đã được khởi tạo)
+        try {
+            $hasQrTable = $pdo->query("SHOW TABLES LIKE 'qr_sessions'")->fetchColumn();
+            if ($hasQrTable) {
+                $stmtToQr = $pdo->prepare("SELECT COUNT(*) FROM `qr_sessions` WHERE `table_code` = ? AND `status` = 'open'");
+                $stmtToQr->execute([$toCode]);
+                if ((int) $stmtToQr->fetchColumn() === 0) {
+                    $pdo->prepare("UPDATE `qr_sessions` SET `table_code` = ? WHERE `table_code` = ? AND `status` = 'open'")
+                        ->execute([$toCode, $fromCode]);
+                }
+            }
+        } catch (Throwable $qrEx) {
+            error_log('transferTable qr_sessions sync: ' . $qrEx->getMessage());
+        }
+
+        if ($ownTx) {
+            $pdo->commit();
+        }
+
+        return [
+            'success'    => true,
+            'message'    => 'Đã chuyển bàn ' . $fromCode . ' sang bàn ' . $toCode . ' thành công!',
+            'from_table' => $fromCode,
+            'to_table'   => $toCode,
+        ];
+    } catch (Throwable $e) {
+        if ($ownTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('transferTable error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Lỗi hệ thống khi chuyển bàn: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Gộp bàn: chuyển toàn bộ món ăn (order_items), đơn mở và số khách từ bàn nguồn sang bàn đích đang phục vụ.
+ * Bàn nguồn sau khi gộp sẽ trở về trạng thái trống.
+ */
+function mergeTables(PDO $pdo, string $fromCode, string $toCode, string $note = ''): array {
+    ensureTableAssignmentsSchema($pdo);
+
+    $fromCode = strtoupper(trim($fromCode));
+    $toCode   = strtoupper(trim($toCode));
+    $note     = trim($note);
+
+    if ($fromCode === '' || $toCode === '') {
+        return ['success' => false, 'message' => 'Vui lòng chọn đầy đủ bàn cần gộp và bàn nhận gộp!'];
+    }
+    if ($fromCode === $toCode) {
+        return ['success' => false, 'message' => 'Không thể gộp một bàn với chính nó!'];
+    }
+
+    $fromTable = getDiningTableByCode($fromCode);
+    $toTable   = getDiningTableByCode($toCode);
+    if (!$fromTable || !$toTable) {
+        return ['success' => false, 'message' => 'Bàn nguồn hoặc bàn đích không tồn tại!'];
+    }
+    if (($toTable['status'] ?? '') !== 'active') {
+        return ['success' => false, 'message' => 'Bàn đích ' . $toCode . ' đang bảo trì hoặc tạm ẩn, không thể gộp vào!'];
+    }
+
+    $ownTx = !$pdo->inTransaction();
+    try {
+        if ($ownTx) {
+            $pdo->beginTransaction();
+        }
+
+        // Khóa toàn bộ đơn mở ở cả 2 bàn
+        $stmtOpenFrom = $pdo->prepare("SELECT `id` FROM `orders` WHERE `table_code` = :code AND `status` = 'open' ORDER BY `id` ASC FOR UPDATE");
+        $stmtOpenFrom->execute([':code' => $fromCode]);
+        $fromOrderIds = array_map('intval', $stmtOpenFrom->fetchAll(PDO::FETCH_COLUMN));
+
+        $stmtOpenTo = $pdo->prepare("SELECT `id` FROM `orders` WHERE `table_code` = :code AND `status` = 'open' ORDER BY `id` ASC FOR UPDATE");
+        $stmtOpenTo->execute([':code' => $toCode]);
+        $toOrderIds = array_map('intval', $stmtOpenTo->fetchAll(PDO::FETCH_COLUMN));
+
+        $fromAssignment = getActiveTableAssignment($fromCode, $pdo);
+        $toAssignment   = getActiveTableAssignment($toCode, $pdo);
+
+        if ($fromOrderIds === [] && $fromAssignment === null) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Bàn nguồn ' . $fromCode . ' hiện đang trống, không có dữ liệu để gộp!'];
+        }
+
+        if ($toOrderIds === [] && $toAssignment === null) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Bàn đích ' . $toCode . ' hiện đang trống. Vui lòng dùng chức năng Chuyển bàn hoặc chọn một bàn khác đang phục vụ!'];
+        }
+
+        // Hợp nhất orders & order_items vào 1 đơn mở duy nhất tại bàn đích
+        if ($toOrderIds !== []) {
+            $targetOrderId = $toOrderIds[0];
+
+            // Gộp các đơn phụ của chính bàn đích (nếu có) về đơn chính
+            if (count($toOrderIds) > 1) {
+                $extraToIds = array_slice($toOrderIds, 1);
+                $phExtra = implode(', ', array_fill(0, count($extraToIds), '?'));
+                $pdo->prepare("UPDATE `order_items` SET `order_id` = ? WHERE `order_id` IN ($phExtra)")
+                    ->execute(array_merge([$targetOrderId], $extraToIds));
+                $pdo->prepare("DELETE FROM `orders` WHERE `id` IN ($phExtra)")
+                    ->execute($extraToIds);
+            }
+
+            // Chuyển toàn bộ order_items từ bàn nguồn sang đơn chính của bàn đích
+            if ($fromOrderIds !== []) {
+                $phFrom = implode(', ', array_fill(0, count($fromOrderIds), '?'));
+                $pdo->prepare("UPDATE `order_items` SET `order_id` = ? WHERE `order_id` IN ($phFrom)")
+                    ->execute(array_merge([$targetOrderId], $fromOrderIds));
+                $pdo->prepare("DELETE FROM `orders` WHERE `id` IN ($phFrom)")
+                    ->execute($fromOrderIds);
+            }
+        } elseif ($fromOrderIds !== []) {
+            // Bàn đích mới chỉ gán bàn (chưa có order row), bàn nguồn đã có order -> đổi table_code sang bàn đích
+            $targetOrderId = $fromOrderIds[0];
+            $pdo->prepare("UPDATE `orders` SET `table_code` = ? WHERE `id` = ?")
+                ->execute([$toCode, $targetOrderId]);
+
+            if (count($fromOrderIds) > 1) {
+                $extraFromIds = array_slice($fromOrderIds, 1);
+                $phExtra = implode(', ', array_fill(0, count($extraFromIds), '?'));
+                $pdo->prepare("UPDATE `order_items` SET `order_id` = ? WHERE `order_id` IN ($phExtra)")
+                    ->execute(array_merge([$targetOrderId], $extraFromIds));
+                $pdo->prepare("DELETE FROM `orders` WHERE `id` IN ($phExtra)")
+                    ->execute($extraFromIds);
+            }
+        }
+
+        // Hợp nhất thông tin gán bàn (cộng số khách, gộp ghi chú)
+        $mergeTag = 'Gộp từ bàn ' . $fromCode . ($note !== '' ? ' (' . $note . ')' : '');
+        if ($toAssignment !== null) {
+            $fromGuests = (int) ($fromAssignment['guest_count'] ?? 0);
+            $toGuests   = (int) ($toAssignment['guest_count'] ?? 0);
+            $totalGuests = max(1, $fromGuests + $toGuests);
+
+            $mergedNoteParts = array_filter([
+                trim((string) ($toAssignment['note'] ?? '')),
+                trim((string) ($fromAssignment['note'] ?? '')),
+                $mergeTag,
+            ], static fn(string $s): bool => $s !== '');
+            $mergedNote = mb_substr(implode(' | ', array_unique($mergedNoteParts)), 0, 500, 'UTF-8');
+
+            $staffId   = $toAssignment['staff_id'] ?: ($fromAssignment['staff_id'] ?? null);
+            $staffName = trim((string) ($toAssignment['staff_name'] ?? '')) ?: trim((string) ($fromAssignment['staff_name'] ?? ''));
+            $custName  = trim((string) ($toAssignment['customer_name'] ?? '')) ?: trim((string) ($fromAssignment['customer_name'] ?? ''));
+            $custPhone = trim((string) ($toAssignment['customer_phone'] ?? '')) ?: trim((string) ($fromAssignment['customer_phone'] ?? ''));
+
+            $stmtUpdTo = $pdo->prepare("
+                UPDATE `table_assignments`
+                SET `guest_count` = :guests,
+                    `customer_name` = :cname,
+                    `customer_phone` = :cphone,
+                    `staff_id` = :sid,
+                    `staff_name` = :sname,
+                    `note` = :note
+                WHERE `id` = :id
+            ");
+            $stmtUpdTo->execute([
+                ':guests' => $totalGuests,
+                ':cname'  => mb_substr($custName, 0, 100, 'UTF-8'),
+                ':cphone' => mb_substr($custPhone, 0, 25, 'UTF-8'),
+                ':sid'    => $staffId ? (int) $staffId : null,
+                ':sname'  => mb_substr($staffName, 0, 100, 'UTF-8'),
+                ':note'   => $mergedNote,
+                ':id'     => (int) $toAssignment['id'],
+            ]);
+
+            if ($fromAssignment !== null) {
+                $pdo->prepare("UPDATE `table_assignments` SET `status` = 'closed', `closed_at` = NOW() WHERE `id` = ?")
+                    ->execute([(int) $fromAssignment['id']]);
+            }
+        } elseif ($fromAssignment !== null) {
+            $oldNote = trim((string) ($fromAssignment['note'] ?? ''));
+            $newNote = mb_substr($oldNote !== '' ? ($oldNote . ' | ' . $mergeTag) : $mergeTag, 0, 500, 'UTF-8');
+            $pdo->prepare("UPDATE `table_assignments` SET `table_code` = :to_code, `note` = :note WHERE `id` = :id")
+                ->execute([
+                    ':to_code' => $toCode,
+                    ':note'    => $newNote,
+                    ':id'      => (int) $fromAssignment['id'],
+                ]);
+        }
+
+        // Đóng phiên QR mở của bàn nguồn (nếu có) để tránh xung đột 2 bàn
+        try {
+            $hasQrTable = $pdo->query("SHOW TABLES LIKE 'qr_sessions'")->fetchColumn();
+            if ($hasQrTable) {
+                $pdo->prepare("UPDATE `qr_sessions` SET `status` = 'closed', `active_slot` = NULL WHERE `table_code` = ? AND `status` = 'open'")
+                    ->execute([$fromCode]);
+            }
+        } catch (Throwable $qrEx) {
+            error_log('mergeTables qr_sessions sync: ' . $qrEx->getMessage());
+        }
+
+        if ($ownTx) {
+            $pdo->commit();
+        }
+
+        return [
+            'success'    => true,
+            'message'    => 'Đã gộp bàn ' . $fromCode . ' vào bàn ' . $toCode . ' thành công!',
+            'from_table' => $fromCode,
+            'to_table'   => $toCode,
+        ];
+    } catch (Throwable $e) {
+        if ($ownTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('mergeTables error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Lỗi hệ thống khi gộp bàn: ' . $e->getMessage()];
+    }
 }
