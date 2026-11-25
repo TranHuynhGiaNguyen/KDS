@@ -1,6 +1,6 @@
 /**
  * SmartDine - Màn hình bếp (KDS): tự làm mới danh sách, lọc theo trạm,
- * "In phiếu bếp" để nhận món và "Hoàn thành món" khi nấu xong.
+ * bấm "In phiếu bếp" để báo đã nấu xong (không in vật lý, biến khỏi danh sách chờ của Bếp).
  */
 (() => {
     const grid = document.querySelector('#kds-grid');
@@ -15,20 +15,6 @@
     let knownPendingIds = new Set(
         [...grid.querySelectorAll('[data-kds-item][data-status="pending"]')].map((row) => row.dataset.itemId)
     );
-
-    const ticketDialog = document.createElement('dialog');
-    ticketDialog.className = 'bill-ticket-dialog';
-    ticketDialog.innerHTML = `
-    <div class="bill-ticket">
-      <p data-ticket="staff"></p>
-      <p data-ticket="table"></p>
-      <p data-ticket="dish"></p>
-    </div>
-    <div class="bill-ticket-actions">
-      <button class="btn btn-primary" type="button" data-ticket-print>In lại</button>
-      <button class="btn btn-outline" type="button" data-ticket-close>Đóng</button>
-    </div>`;
-    document.body.append(ticketDialog);
 
     const showMessage = (message) => {
         if (typeof notify === 'function') notify(message);
@@ -95,16 +81,6 @@
         }
     };
 
-    const printTicket = (ticket) => {
-        ticketDialog.querySelector('[data-ticket="staff"]').textContent = `Nhân viên: ${ticket.staff}`;
-        ticketDialog.querySelector('[data-ticket="table"]').textContent = `Bàn ${ticket.table} - ${ticket.time}`;
-        ticketDialog.querySelector('[data-ticket="dish"]').textContent = `${ticket.name} - ${ticket.qty}`;
-        ticketDialog.showModal();
-
-        window.addEventListener('afterprint', () => ticketDialog.close(), { once: true });
-        window.print();
-    };
-
     const runItemAction = async (button) => {
         const row = button.closest('[data-kds-item]');
         const action = button.dataset.kdsAction;
@@ -114,7 +90,6 @@
         body.set('item_id', row.dataset.itemId);
 
         button.disabled = true;
-        let ticket = null;
 
         try {
             const response = await fetch(actionUrl, { method: 'POST', body });
@@ -122,28 +97,19 @@
 
             if (!response.ok) {
                 showMessage(result.error);
-            } else if (action === 'start') {
-                ticket = result.ticket || null;
             } else {
-                showMessage('Đã hoàn thành món, nhân viên phục vụ sẽ thấy trạng thái Đã nấu xong');
+                showMessage('Đã in phiếu bếp — món chuyển sang Đã nấu xong');
             }
         } catch (error) {
             showMessage('Không thể kết nối máy chủ. Vui lòng thử lại.');
         }
 
         await refresh();
-
-        if (ticket) printTicket(ticket);
     };
 
     grid.addEventListener('click', (event) => {
         const button = event.target.closest('[data-kds-action]');
         if (button && !button.disabled) runItemAction(button);
-    });
-
-    ticketDialog.addEventListener('click', (event) => {
-        if (event.target.closest('[data-ticket-print]')) window.print();
-        if (event.target.closest('[data-ticket-close]')) ticketDialog.close();
     });
 
     document.addEventListener('click', (event) => {

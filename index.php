@@ -83,6 +83,7 @@ $isDashboard = in_array($page, ['staff', 'table-order', 'kitchen', 'bills', 'adm
   <link rel="stylesheet" href="<?= assetUrl('assets/css/style.css') ?>">
   <?php if ($page === 'admin'): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/revenue.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('assets/css/orders.css') ?>">
   <?php endif; ?>
   <?php if (in_array($page, ['staff', 'tables'], true)): ?>
     <link rel="stylesheet" href="<?= assetUrl('assets/css/visual-floor.css') ?>">

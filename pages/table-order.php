@@ -1,9 +1,9 @@
 <?php
 
 /**
- * SmartDine - Chi tiết bàn và danh sách món cho nhân viên phục vụ.
- * Nhân viên chỉ hủy món khi bếp chưa in phiếu; món bếp đã nấu xong hiện nhãn "Hoàn thành" thay cho nút hủy.
- * Xem hoặc in lại phiếu món ăn ở mục Lịch sử bill.
+ * SmartDine - Chi tiết bàn và danh sách món cho nhân viên phục vụ & quản trị viên.
+ * Quản trị viên và Nhân viên phục vụ đều thêm món vào bàn; chỉ Quản trị viên được hủy món
+ * (dù món chưa nấu hay đã nấu xong). Lược bỏ thông tin tính tiền rườm rà tại trang này.
  */
 
 require_once __DIR__ . '/../includes/orders.php';
@@ -65,12 +65,27 @@ try {
   $dbError = 'Không tải được danh sách món, vui lòng thử lại.';
 }
 
-$bill         = calculateBill($orderItems);
+$role      = currentRole();
+$canAdd    = canRoleDoOrderAction($role, 'add');
+$canCancel = canRoleDoOrderAction($role, 'cancel');
+
+$dishesByCategory = [];
+if ($canAdd) {
+  try {
+    foreach (fetchOrderableDishes(getOrdersDb()) as $dish) {
+      $dishesByCategory[$dish['category']][] = $dish;
+    }
+  } catch (RuntimeException | PDOException $e) {
+    error_log('table-order dishes: ' . $e->getMessage());
+    $dbError = $dbError ?: 'Không tải được thực đơn để thêm món, vui lòng thử lại.';
+  }
+}
+
 $visibleItems = array_values(array_filter(
   $orderItems,
   static fn(array $item): bool => $item['status'] !== 'cancelled'
 ));
-$cur['has_guests'] = $bill['lines'] !== [];
+$cur['has_guests'] = $visibleItems !== [];
 if ($cur['has_guests'] && $cur['guests'] === 0) {
   $createdAt   = fetchOpenOrderCreatedAt(getOrdersDb(), $currentTable);
   $cur['time'] = $createdAt ? date('H:i', strtotime($createdAt)) : '—';
@@ -133,8 +148,73 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
         <h2>Danh sách món ăn</h2>
         <p class="muted"><?= $cur['has_guests'] ? 'Theo dõi món đã lên bàn hoặc còn trong bếp chế biến' : 'Bàn chưa có danh sách món' ?></p>
       </div>
-      <a class="btn btn-small btn-outline" href="index.php?page=menu">+ Thêm món vào bàn</a>
+      <?php if ($canAdd && $dishesByCategory !== []): ?>
+        <button class="btn btn-small btn-primary" type="button" data-open-add-item>+ Thêm món</button>
+      <?php endif; ?>
     </div>
+
+    <?php if ($canAdd && $dishesByCategory !== []): ?>
+      <dialog class="add-item-dialog" data-add-item-dialog>
+        <form class="add-item-form" data-add-item-form data-table="<?= $currentTable ?>" novalidate>
+          <div class="add-item-head">
+            <h3>Thêm món · Bàn <?= $currentTable ?></h3>
+            <button class="add-item-close" type="button" data-add-close aria-label="Đóng">✕</button>
+          </div>
+
+          <div class="add-item-body">
+            <div>
+              <label class="add-item-label" for="dish-search">Món</label>
+              <input id="dish-search" type="search" data-dish-search placeholder="Tìm món" autocomplete="off">
+              <div class="dish-picker" data-dish-picker>
+                <?php foreach ($dishesByCategory as $category => $dishes): ?>
+                  <div class="dish-group" data-dish-group>
+                    <h4><?= escapeHtml($category) ?></h4>
+                    <?php foreach ($dishes as $dish): ?>
+                      <?php $isOut = $dish['status'] !== 'active'; ?>
+                      <label class="dish-option<?= $isOut ? ' is-out' : '' ?>" data-dish-name="<?= escapeHtml(mb_strtolower($dish['name'], 'UTF-8')) ?>">
+                        <input type="radio" name="dish_id" value="<?= (int) $dish['id'] ?>" data-dish-label="<?= escapeHtml($dish['name']) ?>" data-dish-price="<?= (int) $dish['price'] ?>" <?= $isOut ? ' disabled' : '' ?>>
+                        <span class="dish-row">
+                          <span class="dish-name"><?= escapeHtml($dish['name']) ?><?= $isOut ? ' (tạm hết)' : '' ?></span>
+                          <span class="dish-price"><?= formatMoney((int) $dish['price']) ?></span>
+                        </span>
+                      </label>
+                    <?php endforeach; ?>
+                  </div>
+                <?php endforeach; ?>
+                <p class="dish-empty" data-dish-empty hidden>Không tìm thấy món phù hợp.</p>
+              </div>
+            </div>
+
+            <div>
+              <span class="add-item-label">Số lượng</span>
+              <div class="qty-stepper">
+                <button type="button" data-qty-step="-1" aria-label="Giảm">−</button>
+                <input type="number" name="qty" value="1" min="1" max="<?= ORDER_ADD_MAX_QTY ?>" aria-label="Số lượng">
+                <button type="button" data-qty-step="1" aria-label="Tăng">+</button>
+              </div>
+            </div>
+
+            <div>
+              <label class="add-item-label" for="add-item-note">Ghi chú</label>
+              <input id="add-item-note" type="text" name="note" maxlength="255" placeholder="Nhập ghi chú" autocomplete="off">
+              <div class="note-chips">
+                <?php foreach (['Ít cay', 'Không hành', 'Mang ra trước', 'Không đá'] as $chip): ?>
+                  <button class="note-chip" type="button" data-note-chip="<?= escapeHtml($chip) ?>"><?= escapeHtml($chip) ?></button>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          </div>
+
+          <div class="add-item-foot">
+            <span class="add-item-summary" data-add-summary>Chưa chọn món</span>
+            <div class="add-item-actions">
+              <button class="btn btn-outline" type="button" data-add-close>Hủy</button>
+              <button class="btn btn-primary" type="submit" data-add-submit disabled>Thêm món</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+    <?php endif; ?>
 
     <?php if ($dbError !== ''): ?>
       <div class="flash-alert flash-error"><span><?= escapeHtml($dbError) ?></span></div>
@@ -156,36 +236,23 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
             </div>
             <div class="food-info-text grow">
               <b><?= escapeHtml($item['name']) ?></b>
-              <small><?= (int) $item['qty'] ?> × <?= formatMoney((int) $item['price']) ?></small>
+              <small>Số lượng: <?= (int) $item['qty'] ?><?= !empty($item['note']) ? ' · Ghi chú: ' . escapeHtml($item['note']) : '' ?></small>
             </div>
             <span class="status status-<?= $statusInfo['class'] ?>"><?= $statusInfo['label'] ?></span>
-            <b class="food-amount"><?= formatMoney((int) $item['price'] * (int) $item['qty']) ?></b>
             <div class="order-food-actions">
-              <?php foreach (ORDER_ITEM_ACTIONS[$item['status']] as $action): ?>
+              <?php foreach (availableItemActions($item, $role) as $action): ?>
                 <button class="btn btn-small <?= ORDER_ACTION_BUTTONS[$action]['class'] ?>" type="button" data-item-action="<?= $action ?>"><?= ORDER_ACTION_BUTTONS[$action]['label'] ?></button>
               <?php endforeach; ?>
-              <?php foreach (ORDER_ITEM_LOCKED_ACTIONS[$item['status']] ?? [] as $action): ?>
-                <button class="btn btn-small <?= ORDER_ACTION_BUTTONS[$action]['class'] ?> is-locked" type="button" disabled aria-disabled="true" title="<?= escapeHtml(ORDER_CANCEL_LOCKED_MESSAGE) ?>"><?= ORDER_ACTION_BUTTONS[$action]['label'] ?></button>
-              <?php endforeach; ?>
-              <?php if (isset(ORDER_ITEM_MARKERS[$item['status']])): ?>
-                <span class="btn btn-small <?= ORDER_ITEM_MARKERS[$item['status']]['class'] ?> is-static"><?= ORDER_ITEM_MARKERS[$item['status']]['label'] ?></span>
-              <?php endif; ?>
             </div>
           </div>
         <?php endforeach; ?>
       </div>
 
-      <p class="muted order-food-hint">Cần xem hoặc in lại phiếu món ăn? Vào <a href="index.php?page=bills&tab=items&table=<?= escapeHtml($currentTable) ?>">Lịch sử bill</a>.</p>
-
-      <div class="bill-summary-box">
-        <div class="summary-row"><span>Tạm tính (<?= count($bill['lines']) ?> món)</span><b><?= formatMoney($bill['subtotal']) ?></b></div>
-        <div class="summary-row"><span>Phí phục vụ (<?= escapeHtml($bill['service_rate'] * 100) ?>%)</span><b><?= formatMoney($bill['service_fee']) ?></b></div>
-        <div class="summary-row"><span>Thuế VAT (<?= escapeHtml($bill['vat_rate'] * 100) ?>%)</span><b><?= formatMoney($bill['vat']) ?></b></div>
-        <div class="summary-row total"><span>Tổng cộng thanh toán</span><b><?= formatMoney($bill['total']) ?></b></div>
-      </div>
+      <?php if (!$canCancel): ?>
+        <p class="muted order-food-hint">Chỉ Quản trị viên mới được hủy món. Cần hủy món, vui lòng báo quản lý.</p>
+      <?php endif; ?>
 
       <div class="button-row">
-        <button class="btn btn-outline" type="button" data-print-provisional data-table="<?= escapeHtml($currentTable) ?>">In tạm tính</button>
         <a class="btn btn-primary" href="index.php?page=payment&table=<?= $currentTable ?>">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
@@ -198,9 +265,11 @@ if ($cur['has_guests'] && $cur['guests'] === 0) {
       <div class="empty-table-state" style="text-align: center; padding: 40px 20px;">
         <div style="font-size: 48px; margin-bottom: 12px;">🍽️</div>
         <h3>Bàn <?= $currentTable ?> hiện chưa có khách</h3>
-        <p class="muted" style="max-width: 400px; margin: 0 auto 20px;">Bạn có thể mở bàn mới để phục vụ khách, chọn số lượng khách và thêm món từ thực đơn.</p>
+        <p class="muted" style="max-width: 400px; margin: 0 auto 20px;">Bấm "Mở bàn & Chọn món ngay" để chọn món, bàn sẽ được mở và món gửi xuống bếp.</p>
         <div style="display: flex; gap: 12px; justify-content: center;">
-          <a class="btn btn-primary" href="index.php?page=menu">+ Mở bàn & Chọn món ngay</a>
+          <?php if ($canAdd): ?>
+            <button class="btn btn-primary" type="button" data-open-add-item>+ Mở bàn & Chọn món ngay</button>
+          <?php endif; ?>
           <a class="btn btn-outline" href="index.php?page=staff">Trở về sơ đồ bàn</a>
         </div>
       </div>

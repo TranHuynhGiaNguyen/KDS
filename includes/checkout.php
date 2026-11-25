@@ -8,6 +8,7 @@
  */
 
 require_once __DIR__ . '/orders.php';
+require_once __DIR__ . '/ratings.php';
 
 class CheckoutException extends DomainException {}
 
@@ -37,7 +38,7 @@ function findCheckoutBlockers(array $items): array
 
 function checkoutBlockersMessage(array $blockers): string
 {
-    return 'Chưa thể thanh toán, cần xử lý các món sau: ' . implode(', ', $blockers) . '.';
+    return 'Lưu ý: Bàn này vẫn còn món đang chờ bếp nấu (' . implode(', ', $blockers) . '). Thu ngân vẫn có thể xác nhận thanh toán nếu cần.';
 }
 
 function fetchOpenOrderId(PDO $pdo, string $tableCode): ?int
@@ -49,7 +50,7 @@ function fetchOpenOrderId(PDO $pdo, string $tableCode): ?int
     return $orderId === false ? null : (int) $orderId;
 }
 
-function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $method, int $cashReceived, int $cashierId): int
+function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $method, int $cashReceived, int $cashierId, ?int $waiterId = null, ?int $rating = null, string $ratingComment = ''): int
 {
     if (!isset(PAYMENT_METHODS[$method])) {
         throw new CheckoutException('Phương thức thanh toán không hợp lệ.');
@@ -69,11 +70,7 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
             throw new CheckoutException('Bàn này vừa được thanh toán ở thao tác khác.');
         }
 
-        $items    = fetchOrderItemsById($pdo, $orderId);
-        $blockers = findCheckoutBlockers($items);
-        if ($blockers !== []) {
-            throw new CheckoutException(checkoutBlockersMessage($blockers));
-        }
+        $items = fetchOrderItemsById($pdo, $orderId);
 
         try {
             $bill = calculateBill($items, $discount);
@@ -92,12 +89,26 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
         $invoiceId = insertInvoice($pdo, $orderId, $tableCode, $bill);
         insertPayment($pdo, $invoiceId, $bill['total'], $method, $cashReceived, $cashierId);
 
+        try {
+            createRatingLink($pdo, $invoiceId, $waiterId, $rating, $ratingComment);
+        } catch (InvalidArgumentException $e) {
+            throw new CheckoutException($e->getMessage(), 0, $e);
+        }
+
         if (!empty($bill['voucher_code'])) {
             require_once __DIR__ . '/vouchers.php';
             recordVoucherUsage($pdo, $bill['voucher_code']);
         }
 
         $pdo->commit();
+
+        // Giải phóng luôn phiên QR ordering đang mở của bàn (nếu module QR đã cài đặt bảng)
+        try {
+            $closeQr = $pdo->prepare("UPDATE `qr_table_sessions` SET `status` = 'closed', `active_slot` = NULL WHERE `table_code` = ? AND `status` = 'open'");
+            $closeQr->execute([$tableCode]);
+        } catch (PDOException $e) {
+            // Bỏ qua nếu hệ thống chưa cài bảng qr_table_sessions
+        }
 
         return $invoiceId;
     } catch (Throwable $e) {

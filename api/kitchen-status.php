@@ -2,8 +2,8 @@
 
 /**
  * API (POST): bếp thao tác trên một món.
- * action=start  : bếp bấm "In phiếu bếp": món chuyển từ chờ tiếp nhận sang đang nấu, trả về nội dung phiếu để in.
- * action=finish : bếp bấm "Hoàn thành món": món chuyển từ đang nấu sang đã nấu xong.
+ * action=start / print : bếp bấm "In phiếu bếp": món chuyển thẳng từ pending -> done (Đã nấu xong),
+ *                        không in vật lý và không qua trạng thái đang nấu.
  */
 
 require_once __DIR__ . '/../includes/auth.php';
@@ -38,10 +38,6 @@ try {
 
     if (!advanceKitchenItem($pdo, $itemId, $action, (int) $_SESSION['user_id'])) {
         respondJson(409, ['error' => 'Món đã được xử lý ở thao tác khác, danh sách sẽ được làm mới.']);
-    }
-
-    if ($action === 'start') {
-        respondJson(200, ['ticket' => fetchItemTicket($pdo, $itemId)]);
     }
 
     respondJson(200, ['ok' => true]);

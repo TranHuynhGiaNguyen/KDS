@@ -106,3 +106,22 @@
         margin: 6mm;
     }
 }
+
+.receipt-rate {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed #94a3b8;
+    text-align: center;
+    font-size: 12px;
+}
+
+.receipt-rate-qr {
+    width: 110px;
+    margin: 6px auto 0;
+}
+
+.receipt-rate-qr svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}

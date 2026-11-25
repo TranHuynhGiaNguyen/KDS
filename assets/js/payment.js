@@ -3,6 +3,14 @@
         if (event.target.closest('[data-print-invoice]')) window.print();
     });
 
+    // Mã QR mời khách đánh giá phục vụ (màn hình thanh toán thành công và hóa đơn in)
+    document.querySelectorAll('[data-rate-qr]').forEach((box) => {
+        const qr = qrcode(0, 'M');
+        qr.addData(box.dataset.rateQr);
+        qr.make();
+        box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1, scalable: true });
+    });
+
     const form = document.querySelector('[data-payment-form]');
     if (!form) return;
 
@@ -17,6 +25,16 @@
     const discountInputs = form.querySelectorAll('[name="discount_type"], [name="discount_value"], [name="voucher_code"]');
     const voucherSelect = form.querySelector('#select-active-voucher');
     const voucherInput = form.querySelector('#input-payment-voucher');
+    const ratingLabel = form.querySelector('[data-pay-rating-label]');
+    const ratingRadios = form.querySelectorAll('input[name="rating"]');
+
+    if (ratingLabel && ratingRadios.length > 0) {
+        ratingRadios.forEach((radio) => {
+            radio.addEventListener('change', () => {
+                ratingLabel.textContent = radio.dataset.ratingText || '';
+            });
+        });
+    }
 
     if (voucherSelect && voucherInput) {
         voucherSelect.addEventListener('change', () => {

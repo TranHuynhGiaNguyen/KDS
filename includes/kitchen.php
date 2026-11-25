@@ -3,10 +3,10 @@
 /**
  * SmartDine - Nghiệp vụ màn hình bếp (KDS) theo từng món.
  *
- * Màn hình bếp hiển thị mỗi bàn một ô, trong ô là các món đang chờ hoặc đang nấu.
- *   - Món "Chờ tiếp nhận" (pending): bếp bấm "In phiếu bếp" -> in phiếu, món chuyển sang "Đang nấu" (cooking).
- *   - Món "Đang nấu" (cooking): bếp bấm "Hoàn thành món" -> món chuyển sang "Đã nấu xong" (done) và biến khỏi màn hình bếp.
- * Món bị nhân viên hủy khi chưa in phiếu sẽ biến khỏi màn hình bếp ngay ở lần làm mới kế tiếp.
+ * Màn hình bếp hiển thị mỗi bàn một ô, trong ô là các món đang chờ bếp làm (pending).
+ *   - Bếp bấm "In phiếu bếp": không in vật lý và không qua bước "đang nấu",
+ *     chuyển thẳng từ "pending" sang "done" (Đã nấu xong) và biến khỏi màn hình bếp.
+ * Món bị Admin hủy sẽ biến khỏi màn hình bếp ngay ở lần làm mới kế tiếp.
  */
 
 require_once __DIR__ . '/orders.php';
@@ -15,8 +15,8 @@ const KITCHEN_WARNING_MINUTES = 10;
 const KITCHEN_URGENT_MINUTES = 20;
 
 const KITCHEN_TRANSITIONS = [
-    'start'  => ['from' => 'pending', 'to' => 'cooking'],
-    'finish' => ['from' => 'cooking', 'to' => 'done'],
+    'start' => ['from' => 'pending', 'to' => 'done'],
+    'print' => ['from' => 'pending', 'to' => 'done'],
 ];
 
 const KITCHEN_STATIONS = [
@@ -57,7 +57,7 @@ function fetchKitchenTickets(PDO $pdo): array
         JOIN `orders` o ON o.`id` = i.`order_id`
         WHERE o.`status` = 'open'
           AND i.`sent_at` IS NOT NULL
-          AND i.`status` IN ('pending', 'cooking')
+          AND i.`status` = 'pending'
         ORDER BY i.`sent_at`, i.`id`
     ");
 
@@ -132,26 +132,19 @@ function countKitchenTickets(array $tickets): array
 }
 
 /**
- * Chuyển trạng thái một món theo thao tác của bếp (start / finish).
- * Khi bắt đầu nấu, lưu người in phiếu vào sent_by nếu món chưa có người gửi.
+ * Chuyển trạng thái một món khi bếp bấm "In phiếu bếp": pending -> done.
+ * Lưu đồng thời cooking_at (nếu chưa có) và done_at để giữ thống kê hiệu suất bếp.
  */
 function advanceKitchenItem(PDO $pdo, int $itemId, string $action, int $userId): bool
 {
     $transition = KITCHEN_TRANSITIONS[$action];
 
-    if ($action === 'start') {
-        $stmt = $pdo->prepare('
-            UPDATE `order_items` SET `status` = ?, `sent_by` = COALESCE(`sent_by`, ?), `cooking_at` = COALESCE(`cooking_at`, NOW())
-            WHERE `id` = ? AND `status` = ?
-        ');
-        $stmt->execute([$transition['to'], $userId, $itemId, $transition['from']]);
-    } else {
-        $stmt = $pdo->prepare('
-            UPDATE `order_items` SET `status` = ?, `done_at` = COALESCE(`done_at`, NOW())
-            WHERE `id` = ? AND `status` = ?
-        ');
-        $stmt->execute([$transition['to'], $itemId, $transition['from']]);
-    }
+    $stmt = $pdo->prepare('
+        UPDATE `order_items`
+        SET `status` = ?, `sent_by` = COALESCE(`sent_by`, ?), `cooking_at` = COALESCE(`cooking_at`, NOW()), `done_at` = COALESCE(`done_at`, NOW())
+        WHERE `id` = ? AND `status` = ?
+    ');
+    $stmt->execute([$transition['to'], $userId, $itemId, $transition['from']]);
 
     return $stmt->rowCount() === 1;
 }

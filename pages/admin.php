@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/tables.php';
 require_once __DIR__ . '/../includes/revenue.php';
 require_once __DIR__ . '/../includes/kitchen-metrics.php';
 require_once __DIR__ . '/../includes/vouchers.php';
+require_once __DIR__ . '/../includes/admin-orders-view.php';
 
 // Xử lý xuất file CSV nếu có yêu cầu
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
@@ -50,6 +51,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) 
 $pdo = getRevenueDb();
 $adminTableStats = getTableStats();
 $todayKitchenStats = getKitchenPerformanceReport(date('Y-m-d'), date('Y-m-d'));
+$adminOpenTables = [];
+try {
+    $adminOpenTables = fetchOpenOrdersSummary(getOrdersDb());
+} catch (RuntimeException | PDOException $e) {
+    error_log('admin active orders: ' . $e->getMessage());
+}
 
 // Xác định chế độ xem: theo ngày (day), theo tháng (month), theo khoảng ngày (range) hay hiệu suất bếp (kitchen)
 $viewMode = $_GET['mode'] ?? 'day';
@@ -219,6 +226,25 @@ $thisMonthStart = date('Y-m-01');
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
       <span>In báo cáo</span>
     </button>
+  </div>
+</section>
+
+<!-- ==========================================================
+     THEO DÕI MÓN ĐANG PHỤC VỤ TẠI BÀN (ĐỒNG BỘ QR · BẾP · STAFF)
+     ========================================================== -->
+<section class="panel" id="admin-live-orders-panel" style="margin-bottom: 24px;" data-poll-url="api/admin-orders.php" data-cancel-url="api/order-item.php">
+  <div class="panel-title">
+    <div>
+      <h2>Theo dõi món đang phục vụ tại bàn</h2>
+      <p class="muted">Đồng bộ tức thì khi khách gọi QR, Bếp bấm In phiếu bếp (Đã nấu xong) hoặc Admin hủy món</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="badge-pill" id="admin-live-orders-badge"><?= count($adminOpenTables) ?> bàn đang mở</span>
+      <button type="button" class="btn btn-small btn-outline" data-admin-orders-refresh>Làm mới</button>
+    </div>
+  </div>
+  <div id="admin-live-orders-body">
+    <?= renderAdminActiveOrders($adminOpenTables) ?>
   </div>
 </section>
 
@@ -970,3 +996,73 @@ $thisMonthStart = date('Y-m-01');
     </div>
   </section>
 </div>
+
+<script>
+(() => {
+  const panel = document.getElementById('admin-live-orders-panel');
+  if (!panel) return;
+
+  const bodyEl = document.getElementById('admin-live-orders-body');
+  const badgeEl = document.getElementById('admin-live-orders-badge');
+  const pollUrl = panel.dataset.pollUrl;
+  const cancelUrl = panel.dataset.cancelUrl;
+
+  const showMsg = (msg) => {
+    if (typeof notify === 'function') notify(msg);
+  };
+
+  const refreshLiveOrders = async () => {
+    try {
+      const res = await fetch(pollUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (bodyEl && typeof data.html === 'string') {
+        bodyEl.innerHTML = data.html;
+      }
+      if (badgeEl && typeof data.table_count === 'number') {
+        badgeEl.textContent = `${data.table_count} bàn đang mở`;
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  panel.addEventListener('click', async (event) => {
+    if (event.target.closest('[data-admin-orders-refresh]')) {
+      const ok = await refreshLiveOrders();
+      showMsg(ok ? 'Đã cập nhật danh sách món tại bàn' : 'Không tải được dữ liệu mới');
+      return;
+    }
+
+    const cancelBtn = event.target.closest('[data-admin-cancel-item]');
+    if (!cancelBtn || cancelBtn.disabled) return;
+
+    const dishName = cancelBtn.dataset.itemName || 'món này';
+    if (!confirm(`Hủy món "${dishName}"?\nMón sẽ lập tức biến mất khỏi Admin, Staff và Bếp.`)) return;
+
+    cancelBtn.disabled = true;
+    const body = new FormData();
+    body.set('action', 'cancel');
+    body.set('item_id', cancelBtn.dataset.adminCancelItem);
+
+    try {
+      const res = await fetch(cancelUrl, { method: 'POST', body });
+      const data = await res.json();
+      if (!res.ok) {
+        showMsg(data.error || 'Không hủy được món');
+      } else {
+        showMsg(`Đã hủy món "${dishName}"`);
+      }
+    } catch (e) {
+      showMsg('Không thể kết nối máy chủ.');
+    }
+
+    await refreshLiveOrders();
+  });
+
+  setInterval(() => {
+    if (!document.hidden) refreshLiveOrders();
+  }, 5000);
+})();
+</script>

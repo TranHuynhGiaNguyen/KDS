@@ -4,9 +4,9 @@
 
 .discount-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 110px) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 130px);
     gap: 10px;
-    margin: 10px 0 24px;
+    margin: 0 0 24px;
 }
 
 .discount-row select,
@@ -190,4 +190,159 @@
     .dashboard-main>.invoice-receipt {
         display: block !important;
     }
+}
+
+/* Ô nhập dùng chung: cùng chiều cao, bo góc, cỡ chữ và font */
+.field-control {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--surface);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field-control::placeholder {
+    font-family: inherit;
+    font-size: 14px;
+    color: #94a3b8;
+    text-transform: none;
+}
+
+.field-control:focus {
+    outline: none;
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px rgba(244, 123, 8, 0.15);
+}
+
+.field-upper:not(:placeholder-shown) {
+    text-transform: uppercase;
+}
+
+.field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.payment-field {
+    margin-bottom: 12px;
+}
+
+.voucher-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 10px;
+}
+
+.voucher-row .btn {
+    white-space: nowrap;
+}
+
+.field-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+}
+
+.rating-invite {
+    margin: 16px 0;
+    padding: 14px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+    background: #f8fafc;
+    text-align: center;
+}
+
+.rating-invite h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+}
+
+.rating-qr {
+    width: 150px;
+    margin: 10px auto;
+    padding: 6px;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.rating-qr svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.rating-link {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 12px;
+    word-break: break-all;
+    color: var(--brand-orange);
+}
+
+.rating-invite .rating-result {
+    justify-content: space-between;
+    text-align: left;
+}
+
+.rating-stars-static {
+    color: #f59e0b;
+    letter-spacing: 2px;
+}
+
+.flash-warning {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.payment-rating-box {
+    padding: 14px;
+    margin-bottom: 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: #f8fafc;
+}
+
+.pay-star-rating {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.pay-star-rating input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pay-star-rating label {
+    font-size: 32px;
+    line-height: 1;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.pay-star-rating input:checked~label,
+.pay-star-rating label:hover,
+.pay-star-rating label:hover~label {
+    color: #f59e0b;
+}
+
+.pay-star-rating label:active {
+    transform: scale(1.12);
+}
+
+.pay-rating-label {
+    margin: 6px 0 0;
+    font-size: 13px;
+    font-weight: 600;
 }
