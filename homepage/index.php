@@ -49,6 +49,9 @@ function homeImageUrl($image)
     <a href="booking-history.php">Tra cứu đặt bàn</a>
 </nav>
     <div class="standalone-header-actions">
+        <a class="standalone-phone" href="../index.php?page=login">
+            Đăng nhập
+        </a>
         <a class="standalone-reserve" href="reservation.php">
             Đặt bàn ngay
         </a>
@@ -292,6 +295,7 @@ function homeImageUrl($image)
         <a href="menu.php">Thực đơn</a>
         <a href="reservation.php">Đặt bàn</a>
         <a href="booking-history.php">Tra cứu đặt bàn</a>
+        <a href="../index.php?page=login">Đăng nhập</a>
     </div>
 </footer>
 

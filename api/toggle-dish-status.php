@@ -8,7 +8,7 @@ header('Content-Type: application/json; charset=UTF-8');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 
-if (!isAdmin()) {
+if (!canRoleAccessPage(currentRole(), 'dishes')) {
     echo json_encode(['success' => false, 'message' => 'Bạn không có quyền thực hiện thao tác này!'], JSON_UNESCAPED_UNICODE);
     exit;
 }

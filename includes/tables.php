@@ -800,8 +800,8 @@ function getAssignableStaffList(): array {
     $stmt = $pdo->query("
         SELECT `id`, `fullname`, `username`, `role`
         FROM `users`
-        WHERE `status` = 'active' AND `role` IN ('staff', 'admin')
-        ORDER BY FIELD(`role`, 'staff', 'admin'), `fullname` ASC
+        WHERE `status` = 'active' AND `role` IN ('staff', 'shift_manager', 'admin')
+        ORDER BY FIELD(`role`, 'staff', 'shift_manager', 'admin'), `fullname` ASC
     ");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -1278,5 +1278,123 @@ function mergeTables(PDO $pdo, string $fromCode, string $toCode, string $note = 
         }
         error_log('mergeTables error: ' . $e->getMessage());
         return ['success' => false, 'message' => 'Lỗi hệ thống khi gộp bàn: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Xác nhận khách đặt bàn đã đến và vào bàn:
+ * - Chuyển trạng thái public_reservations sang 'seated' và lưu seated_at.
+ * - Tự động gán bàn tương ứng trên Sơ đồ bàn (table_assignments) với tên, SĐT, số khách và mã đặt bàn.
+ */
+function seatPublicReservation(PDO $pdo, int $reservationId, int $staffId = 0): array {
+    if ($reservationId <= 0) {
+        return ['success' => false, 'message' => 'Mã đặt bàn không hợp lệ!'];
+    }
+
+    ensurePublicReservationsSchema($pdo);
+    ensureTableAssignmentsSchema($pdo);
+
+    $ownTx = !$pdo->inTransaction();
+    try {
+        if ($ownTx) {
+            $pdo->beginTransaction();
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT r.*, t.`code` AS `table_code`, t.`name` AS `table_name`
+            FROM `public_reservations` r
+            LEFT JOIN `dining_tables` t ON t.`id` = r.`table_id`
+            WHERE r.`id` = :id
+            FOR UPDATE
+        ");
+        $stmt->execute([':id' => $reservationId]);
+        $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$reservation) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Không tìm thấy yêu cầu đặt bàn!'];
+        }
+
+        $currentStatus = (string) ($reservation['status'] ?? '');
+        if ($currentStatus === 'seated') {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Khách đặt bàn này đã được ghi nhận vào bàn trước đó!'];
+        }
+
+        if (!in_array($currentStatus, ['pending', 'confirmed'], true)) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Chỉ có thể cho vào bàn với lượt đặt đang chờ xác nhận hoặc đã xác nhận!'];
+        }
+
+        $tableCode = strtoupper(trim((string) ($reservation['table_code'] ?? '')));
+        if ($tableCode === '') {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Không tìm thấy bàn gắn với lượt đặt này!'];
+        }
+
+        $occupiedMap = fetchOccupiedTables($pdo);
+        if (isset($occupiedMap[$tableCode])) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Bàn ' . $tableCode . ' đang có khách gọi món chưa thanh toán, vui lòng xử lý hoặc chuyển bàn trước!'];
+        }
+
+        $bookingCode = 'SD' . str_pad((string) $reservationId, 6, '0', STR_PAD_LEFT);
+        $rawNote     = trim((string) ($reservation['note'] ?? ''));
+        $assignNote  = 'Đặt bàn #' . $bookingCode . ($rawNote !== '' ? ' | ' . $rawNote : '');
+
+        $assignResult = assignTable($pdo, [
+            'table_code'     => $tableCode,
+            'guest_count'    => max(1, (int) ($reservation['guests'] ?? 2)),
+            'customer_name'  => (string) ($reservation['customer_name'] ?? ''),
+            'customer_phone' => (string) ($reservation['phone'] ?? ''),
+            'staff_id'       => $staffId,
+            'note'           => $assignNote,
+            'allow_update'   => false,
+        ]);
+
+        if (empty($assignResult['success'])) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return $assignResult;
+        }
+
+        $stmtUpd = $pdo->prepare("
+            UPDATE `public_reservations`
+            SET `status` = 'seated',
+                `seated_at` = :seated_at
+            WHERE `id` = :id
+        ");
+        $stmtUpd->execute([
+            ':seated_at' => currentTimeForDb(),
+            ':id'        => $reservationId,
+        ]);
+
+        if ($ownTx) {
+            $pdo->commit();
+        }
+
+        return [
+            'success'      => true,
+            'message'      => 'Khách ' . ($reservation['customer_name'] ?? '') . ' (' . $bookingCode . ') đã vào bàn ' . $tableCode . '!',
+            'table_code'   => $tableCode,
+            'booking_code' => $bookingCode,
+        ];
+    } catch (Throwable $e) {
+        if ($ownTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('seatPublicReservation error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Lỗi hệ thống khi xác nhận vào bàn: ' . $e->getMessage()];
     }
 }

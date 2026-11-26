@@ -4,8 +4,8 @@
  * Dành riêng cho Quản trị viên (Admin)
  */
 
-if (!isAdmin()) {
-    $_SESSION['flash_error'] = 'Chỉ Quản trị viên (Admin) mới có quyền truy cập trang Quản lý bàn & khu vực!';
+if (!canRoleAccessPage(currentRole(), 'tables')) {
+    $_SESSION['flash_error'] = 'Bạn không có quyền truy cập trang Quản lý bàn & khu vực!';
     header('Location: index.php?page=' . getDefaultPageForRole(currentRole()));
     exit;
 }
@@ -437,6 +437,9 @@ $tableStats = getTableStats();
                 <!-- Cột: Thao tác -->
                 <td style="padding: 12px 14px; text-align: right;">
                   <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+                    <?php if ($t['status'] === 'active'): ?>
+                      <a href="qr-order.php?table=<?= urlencode($t['code']) ?>" target="_blank" class="btn btn-small btn-outline" title="Xem giao diện QR Order bàn <?= htmlspecialchars($t['code']) ?>">QR</a>
+                    <?php endif; ?>
                     <!-- Đổi nhanh trạng thái -->
                     <form method="POST" action="index.php?page=tables" style="display: inline;">
                       <input type="hidden" name="action" value="toggle_table_status">

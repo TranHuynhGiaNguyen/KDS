@@ -67,7 +67,7 @@ function initDatabaseTables(PDO $pdo) {
         `username` VARCHAR(50) NOT NULL UNIQUE,
         `password` VARCHAR(255) NOT NULL,
         `fullname` VARCHAR(100) NOT NULL,
-        `role` ENUM('admin', 'staff', 'kitchen') NOT NULL DEFAULT 'staff',
+        `role` ENUM('admin', 'shift_manager', 'staff', 'kitchen') NOT NULL DEFAULT 'staff',
         `phone` VARCHAR(20) DEFAULT NULL,
         `email` VARCHAR(100) DEFAULT NULL,
         `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
@@ -80,6 +80,8 @@ function initDatabaseTables(PDO $pdo) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
     $pdo->exec($createTableQuery);
+
+    ensureUsersRoleSchema($pdo);
 
     // Kiểm tra xem đã có tài khoản nào chưa
     $checkStmt = $pdo->query("SELECT COUNT(*) as total FROM `users`");
@@ -134,6 +136,20 @@ function initDatabaseTables(PDO $pdo) {
 
         foreach ($defaultUsers as $u) {
             $insertStmt->execute($u);
+        }
+    }
+
+    // Đảm bảo schema & tài khoản mẫu cho role shift_manager
+    // (đặt sau nạp user ban đầu để không làm hỏng logic count===0)
+    $stmtShiftExists = $pdo->query("SELECT COUNT(*) FROM `users` WHERE `role` = 'shift_manager'");
+    if ((int) $stmtShiftExists->fetchColumn() === 0) {
+        $stmtChkShiftUser = $pdo->prepare("SELECT `id` FROM `users` WHERE `username` = 'shift_manager' LIMIT 1");
+        $stmtChkShiftUser->execute();
+        if (!$stmtChkShiftUser->fetch()) {
+            $pdo->prepare("
+                INSERT INTO `users` (`username`, `password`, `fullname`, `role`, `phone`, `email`, `status`)
+                VALUES ('shift_manager', :pw, 'Lê Quản Lý Ca', 'shift_manager', '0934567890', 'shift@smartdine.vn', 'active')
+            ")->execute([':pw' => password_hash('shift123', PASSWORD_DEFAULT)]);
         }
     }
 
@@ -471,8 +487,25 @@ function initDatabaseTables(PDO $pdo) {
     }
 
     // ==========================================================
-    // KHỞI TẠO BẢNG ĐẶT BÀN CÔNG KHAI
+    // KHỞI TẠO & NÂNG CẤP BẢNG ĐẶT BÀN CÔNG KHAI
     // ==========================================================
+    ensurePublicReservationsSchema($pdo);
+
+    // ==========================================================
+    // KHỞI TẠO & NÂNG CẤP CẤU HÌNH MENU BUFFET & GỌI MÓN LẺ
+    // ==========================================================
+    ensureMenuConfigSchema($pdo);
+}
+
+/**
+ * Đảm bảo bảng `public_reservations` tồn tại và hỗ trợ trạng thái `seated` + `seated_at`.
+ */
+function ensurePublicReservationsSchema(PDO $pdo): void {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `public_reservations` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -486,7 +519,8 @@ function initDatabaseTables(PDO $pdo) {
             `area_id` INT NOT NULL,
             `table_id` INT NOT NULL,
             `note` TEXT DEFAULT NULL,
-            `status` ENUM('pending', 'confirmed', 'cancelled', 'rejected') NOT NULL DEFAULT 'pending',
+            `status` ENUM('pending', 'confirmed', 'seated', 'cancelled', 'rejected') NOT NULL DEFAULT 'pending',
+            `seated_at` DATETIME DEFAULT NULL,
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX `idx_reservation_date` (`reservation_date`),
             INDEX `idx_reservation_phone` (`phone`),
@@ -496,6 +530,187 @@ function initDatabaseTables(PDO $pdo) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 
+    try {
+        $colStatus = $pdo->query("SHOW COLUMNS FROM `public_reservations` LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+        if ($colStatus && stripos((string) ($colStatus['Type'] ?? ''), "'seated'") === false) {
+            $pdo->exec("
+                ALTER TABLE `public_reservations`
+                MODIFY COLUMN `status` ENUM('pending', 'confirmed', 'seated', 'cancelled', 'rejected') NOT NULL DEFAULT 'pending'
+            ");
+        }
+
+        $colSeatedAt = $pdo->query("SHOW COLUMNS FROM `public_reservations` LIKE 'seated_at'")->fetch(PDO::FETCH_ASSOC);
+        if (!$colSeatedAt) {
+            $pdo->exec("
+                ALTER TABLE `public_reservations`
+                ADD COLUMN `seated_at` DATETIME DEFAULT NULL AFTER `status`
+            ");
+        }
+    } catch (PDOException $e) {
+        error_log('ensurePublicReservationsSchema alter error: ' . $e->getMessage());
+    }
+
+    $done = true;
+}
+
+/**
+ * Đảm bảo schema cho Gói Buffet (buffet_packages) & phân loại Menu (Buffet / Gọi món lẻ) trên categories, dishes.
+ */
+function ensureMenuConfigSchema(PDO $pdo): void {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `buffet_packages` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `name` VARCHAR(150) NOT NULL,
+            `price_per_person` DECIMAL(12, 0) NOT NULL DEFAULT 0,
+            `image` VARCHAR(500) DEFAULT NULL,
+            `description` VARCHAR(500) DEFAULT NULL,
+            `sort_order` INT NOT NULL DEFAULT 0,
+            `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_buffet_status (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    try {
+        $colCatType = $pdo->query("SHOW COLUMNS FROM `categories` LIKE 'menu_type'")->fetch(PDO::FETCH_ASSOC);
+        if (!$colCatType) {
+            $pdo->exec("
+                ALTER TABLE `categories`
+                ADD COLUMN `menu_type` ENUM('alacarte', 'buffet', 'both') NOT NULL DEFAULT 'alacarte' AFTER `slug`
+            ");
+        }
+
+        $colDishType = $pdo->query("SHOW COLUMNS FROM `dishes` LIKE 'menu_type'")->fetch(PDO::FETCH_ASSOC);
+        if (!$colDishType) {
+            $pdo->exec("
+                ALTER TABLE `dishes`
+                ADD COLUMN `menu_type` ENUM('alacarte', 'buffet') NOT NULL DEFAULT 'alacarte' AFTER `category_id`,
+                ADD INDEX `idx_dish_menu_type` (`menu_type`)
+            ");
+        }
+
+        $colPkgId = $pdo->query("SHOW COLUMNS FROM `dishes` LIKE 'buffet_package_id'")->fetch(PDO::FETCH_ASSOC);
+        if (!$colPkgId) {
+            $pdo->exec("
+                ALTER TABLE `dishes`
+                ADD COLUMN `buffet_package_id` INT DEFAULT NULL AFTER `menu_type`,
+                ADD INDEX `idx_dish_buffet_pkg` (`buffet_package_id`)
+            ");
+        }
+    } catch (PDOException $e) {
+        error_log('ensureMenuConfigSchema alter error: ' . $e->getMessage());
+    }
+
+    $pkgCount = (int) $pdo->query("SELECT COUNT(*) FROM `buffet_packages`")->fetchColumn();
+    if ($pkgCount === 0) {
+        $stmtPkg = $pdo->prepare("
+            INSERT INTO `buffet_packages` (`name`, `price_per_person`, `image`, `description`, `sort_order`, `status`)
+            VALUES (:name, :price_per_person, :image, :description, :sort_order, :status)
+        ");
+        $stmtPkg->execute([
+            ':name'             => 'BUFFET XÈO XÈO CLASSIC',
+            ':price_per_person' => 529000,
+            ':image'            => 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80',
+            ':description'      => 'Thỏa sức thưởng thức các món thịt nướng Hàn Quốc, hải sản và lẩu đặc trưng.',
+            ':sort_order'       => 1,
+            ':status'           => 'active',
+        ]);
+        $defaultPkgId = (int) $pdo->lastInsertId();
+
+        $buffetDishCount = (int) $pdo->query("SELECT COUNT(*) FROM `dishes` WHERE `menu_type` = 'buffet'")->fetchColumn();
+        if ($buffetDishCount === 0) {
+            $seedCats = [
+                ['name' => 'SPECIAL OFFER - MÓN TẶNG', 'slug' => 'special-offer-buffet', 'menu_type' => 'buffet', 'icon' => '★', 'sort_order' => 10],
+                ['name' => 'THỊT HEO NƯỚNG HÀN', 'slug' => 'thit-heo-nuong-buffet', 'menu_type' => 'buffet', 'icon' => '♨', 'sort_order' => 11],
+            ];
+            $catIds = [];
+            foreach ($seedCats as $sc) {
+                $stmtFindCat = $pdo->prepare("SELECT `id` FROM `categories` WHERE `slug` = ? LIMIT 1");
+                $stmtFindCat->execute([$sc['slug']]);
+                $existingCatId = (int) $stmtFindCat->fetchColumn();
+                if ($existingCatId > 0) {
+                    $catIds[$sc['slug']] = $existingCatId;
+                } else {
+                    $stmtInsCat = $pdo->prepare("
+                        INSERT INTO `categories` (`name`, `slug`, `menu_type`, `icon`, `description`, `sort_order`, `status`)
+                        VALUES (:name, :slug, :menu_type, :icon, '', :sort_order, 'active')
+                    ");
+                    $stmtInsCat->execute($sc);
+                    $catIds[$sc['slug']] = (int) $pdo->lastInsertId();
+                }
+            }
+
+            $seedBuffetDishes = [
+                [
+                    'category_id'       => $catIds['special-offer-buffet'],
+                    'menu_type'         => 'buffet',
+                    'buffet_package_id' => $defaultPkgId,
+                    'name'              => 'Đĩa mời size L',
+                    'price'             => 0,
+                    'image'             => 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80',
+                    'description'       => 'Đĩa thịt tổng hợp đặc biệt tặng kèm theo gói Buffet.',
+                    'tag'               => 'Món tặng',
+                    'station'           => 'hot',
+                    'status'            => 'active',
+                    'rating'            => 4.9,
+                ],
+                [
+                    'category_id'       => $catIds['special-offer-buffet'],
+                    'menu_type'         => 'buffet',
+                    'buffet_package_id' => $defaultPkgId,
+                    'name'              => 'Đĩa mời size M',
+                    'price'             => 0,
+                    'image'             => 'https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=700&q=80',
+                    'description'       => 'Đĩa thịt bò & ba chỉ tuyển chọn dành cho nhóm 2-3 khách.',
+                    'tag'               => 'Món tặng',
+                    'station'           => 'hot',
+                    'status'            => 'active',
+                    'rating'            => 4.8,
+                ],
+                [
+                    'category_id'       => $catIds['thit-heo-nuong-buffet'],
+                    'menu_type'         => 'buffet',
+                    'buffet_package_id' => $defaultPkgId,
+                    'name'              => 'Ba chỉ heo cuốn phomai',
+                    'price'             => 0,
+                    'image'             => 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=700&q=80',
+                    'description'       => 'Ba chỉ heo nướng thơm lừng chấm cùng phô mai béo ngậy.',
+                    'tag'               => 'Buffet',
+                    'station'           => 'hot',
+                    'status'            => 'active',
+                    'rating'            => 4.9,
+                ],
+                [
+                    'category_id'       => $catIds['thit-heo-nuong-buffet'],
+                    'menu_type'         => 'buffet',
+                    'buffet_package_id' => $defaultPkgId,
+                    'name'              => 'Ba chỉ heo bào cuộn xốt Gochujang',
+                    'price'             => 0,
+                    'image'             => 'https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=700&q=80',
+                    'description'       => 'Thịt ba chỉ thái mỏng thấm đẫm sốt ớt Hàn Quốc đậm vị.',
+                    'tag'               => 'Buffet',
+                    'station'           => 'hot',
+                    'status'            => 'active',
+                    'rating'            => 4.8,
+                ],
+            ];
+            $stmtInsDish = $pdo->prepare("
+                INSERT INTO `dishes` (`category_id`, `menu_type`, `buffet_package_id`, `name`, `price`, `image`, `description`, `tag`, `station`, `status`, `rating`)
+                VALUES (:category_id, :menu_type, :buffet_package_id, :name, :price, :image, :description, :tag, :station, :status, :rating)
+            ");
+            foreach ($seedBuffetDishes as $sd) {
+                $stmtInsDish->execute($sd);
+            }
+        }
+    }
+
+    $done = true;
 }
 
 /**
@@ -694,16 +909,36 @@ function updateLastLogin($id) {
     $stmt->execute([':id' => (int) $id]);
 }
 
+function ensureUsersRoleSchema(PDO $pdo): void {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    try {
+        $colRole = $pdo->query("SHOW COLUMNS FROM `users` LIKE 'role'")->fetch(PDO::FETCH_ASSOC);
+        if ($colRole && stripos((string) ($colRole['Type'] ?? ''), "'shift_manager'") === false) {
+            $pdo->exec("
+                ALTER TABLE `users`
+                MODIFY COLUMN `role` ENUM('admin', 'shift_manager', 'staff', 'kitchen') NOT NULL DEFAULT 'staff'
+            ");
+        }
+    } catch (PDOException $e) {
+        error_log('ensureUsersRoleSchema error: ' . $e->getMessage());
+    }
+    $done = true;
+}
+
 function getUserStats() {
     $pdo = getDbConnection();
     if (!$pdo) {
-        return ['total' => 0, 'admin' => 0, 'staff' => 0, 'kitchen' => 0, 'active' => 0, 'inactive' => 0];
+        return ['total' => 0, 'admin' => 0, 'shift_manager' => 0, 'staff' => 0, 'kitchen' => 0, 'active' => 0, 'inactive' => 0];
     }
 
     $stmt = $pdo->query("
         SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN `role` = 'admin' THEN 1 ELSE 0 END) as admin_count,
+            SUM(CASE WHEN `role` = 'shift_manager' THEN 1 ELSE 0 END) as shift_manager_count,
             SUM(CASE WHEN `role` = 'staff' THEN 1 ELSE 0 END) as staff_count,
             SUM(CASE WHEN `role` = 'kitchen' THEN 1 ELSE 0 END) as kitchen_count,
             SUM(CASE WHEN `status` = 'active' THEN 1 ELSE 0 END) as active_count,
@@ -712,12 +947,13 @@ function getUserStats() {
     ");
     $row = $stmt->fetch();
     return [
-        'total'    => (int) ($row['total'] ?? 0),
-        'admin'    => (int) ($row['admin_count'] ?? 0),
-        'staff'    => (int) ($row['staff_count'] ?? 0),
-        'kitchen'  => (int) ($row['kitchen_count'] ?? 0),
-        'active'   => (int) ($row['active_count'] ?? 0),
-        'inactive' => (int) ($row['inactive_count'] ?? 0),
+        'total'         => (int) ($row['total'] ?? 0),
+        'admin'         => (int) ($row['admin_count'] ?? 0),
+        'shift_manager' => (int) ($row['shift_manager_count'] ?? 0),
+        'staff'         => (int) ($row['staff_count'] ?? 0),
+        'kitchen'       => (int) ($row['kitchen_count'] ?? 0),
+        'active'        => (int) ($row['active_count'] ?? 0),
+        'inactive'      => (int) ($row['inactive_count'] ?? 0),
     ];
 }
 
@@ -859,7 +1095,145 @@ function handleDishImageUpload($file, $imageUrl = '', $currentImage = '') {
  * ==========================================================
  */
 
-function getAllCategories($onlyActive = false) {
+function getMenuTypeLabel($menuType): string {
+    switch ($menuType) {
+        case 'buffet':
+            return 'Buffet';
+        case 'both':
+            return 'Buffet & Gọi lẻ';
+        case 'alacarte':
+        default:
+            return 'Gọi món lẻ';
+    }
+}
+
+function getMenuTypeBadgeHtml($menuType): string {
+    if ($menuType === 'buffet') {
+        return '<span class="status-badge" style="background:#fef2f2;color:#b91c1c;"><span class="status-indicator" style="background:#dc2626;"></span> Buffet</span>';
+    }
+    if ($menuType === 'both') {
+        return '<span class="status-badge" style="background:#eff6ff;color:#1d4ed8;"><span class="status-indicator" style="background:#2563eb;"></span> Cả hai</span>';
+    }
+    return '<span class="status-badge" style="background:#f8fafc;color:#334155;border:1px solid #e2e8f0;"><span class="status-indicator" style="background:#64748b;"></span> Gọi món lẻ</span>';
+}
+
+function getAllBuffetPackages($onlyActive = false): array {
+    $pdo = getDbConnection();
+    if (!$pdo) return [];
+
+    $sql = "
+        SELECT bp.*,
+               (SELECT COUNT(*) FROM `dishes` d WHERE d.`menu_type` = 'buffet' AND (d.`buffet_package_id` = bp.`id` OR d.`buffet_package_id` IS NULL)) AS dish_count
+        FROM `buffet_packages` bp
+        WHERE 1=1
+    ";
+    if ($onlyActive) {
+        $sql .= " AND bp.`status` = 'active'";
+    }
+    $sql .= " ORDER BY bp.`sort_order` ASC, bp.`id` ASC";
+    return $pdo->query($sql)->fetchAll();
+}
+
+function getBuffetPackageById($id): ?array {
+    $pdo = getDbConnection();
+    if (!$pdo) return null;
+
+    $stmt = $pdo->prepare("SELECT * FROM `buffet_packages` WHERE `id` = :id LIMIT 1");
+    $stmt->execute([':id' => (int) $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function createBuffetPackage($data): array {
+    $pdo = getDbConnection();
+    if (!$pdo) return ['success' => false, 'message' => 'Không thể kết nối cơ sở dữ liệu!'];
+
+    $name = trim($data['name'] ?? '');
+    if ($name === '') {
+        return ['success' => false, 'message' => 'Tên gói Buffet không được để trống!'];
+    }
+    $price = max(0, (float) ($data['price_per_person'] ?? 0));
+
+    $stmt = $pdo->prepare("
+        INSERT INTO `buffet_packages` (`name`, `price_per_person`, `image`, `description`, `sort_order`, `status`)
+        VALUES (:name, :price, :image, :description, :sort_order, :status)
+    ");
+    try {
+        $stmt->execute([
+            ':name'        => $name,
+            ':price'       => $price,
+            ':image'       => trim($data['image'] ?? ''),
+            ':description' => trim($data['description'] ?? ''),
+            ':sort_order'  => (int) ($data['sort_order'] ?? 0),
+            ':status'      => in_array($data['status'] ?? '', ['active', 'inactive'], true) ? $data['status'] : 'active',
+        ]);
+        return ['success' => true, 'id' => (int) $pdo->lastInsertId(), 'message' => 'Đã thêm gói Buffet "' . htmlspecialchars($name) . '" thành công!'];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Lỗi thêm gói Buffet: ' . $e->getMessage()];
+    }
+}
+
+function updateBuffetPackage($id, $data): array {
+    $pdo = getDbConnection();
+    if (!$pdo) return ['success' => false, 'message' => 'Không thể kết nối cơ sở dữ liệu!'];
+
+    $pkg = getBuffetPackageById($id);
+    if (!$pkg) {
+        return ['success' => false, 'message' => 'Không tìm thấy gói Buffet!'];
+    }
+
+    $name = trim($data['name'] ?? '');
+    if ($name === '') {
+        return ['success' => false, 'message' => 'Tên gói Buffet không được để trống!'];
+    }
+    $price = max(0, (float) ($data['price_per_person'] ?? $pkg['price_per_person']));
+
+    $stmt = $pdo->prepare("
+        UPDATE `buffet_packages`
+        SET `name` = :name,
+            `price_per_person` = :price,
+            `image` = :image,
+            `description` = :description,
+            `sort_order` = :sort_order,
+            `status` = :status
+        WHERE `id` = :id
+    ");
+    try {
+        $stmt->execute([
+            ':name'        => $name,
+            ':price'       => $price,
+            ':image'       => isset($data['image']) ? trim($data['image']) : $pkg['image'],
+            ':description' => trim($data['description'] ?? $pkg['description']),
+            ':sort_order'  => (int) ($data['sort_order'] ?? $pkg['sort_order']),
+            ':status'      => in_array($data['status'] ?? '', ['active', 'inactive'], true) ? $data['status'] : $pkg['status'],
+            ':id'          => (int) $id,
+        ]);
+        return ['success' => true, 'message' => 'Cập nhật gói Buffet "' . htmlspecialchars($name) . '" thành công!'];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Lỗi cập nhật gói Buffet: ' . $e->getMessage()];
+    }
+}
+
+function deleteBuffetPackage($id): array {
+    $pdo = getDbConnection();
+    if (!$pdo) return ['success' => false, 'message' => 'Không thể kết nối cơ sở dữ liệu!'];
+
+    $pkg = getBuffetPackageById($id);
+    if (!$pkg) {
+        return ['success' => false, 'message' => 'Không tìm thấy gói Buffet!'];
+    }
+
+    try {
+        $pdo->prepare("UPDATE `dishes` SET `buffet_package_id` = NULL WHERE `buffet_package_id` = :id")
+            ->execute([':id' => (int) $id]);
+        $pdo->prepare("DELETE FROM `buffet_packages` WHERE `id` = :id")
+            ->execute([':id' => (int) $id]);
+        return ['success' => true, 'message' => 'Đã xóa gói Buffet "' . htmlspecialchars($pkg['name']) . '"!'];
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Lỗi xóa gói Buffet: ' . $e->getMessage()];
+    }
+}
+
+function getAllCategories($onlyActive = false, $menuType = '') {
     $pdo = getDbConnection();
     if (!$pdo) return [];
 
@@ -867,12 +1241,18 @@ function getAllCategories($onlyActive = false) {
             FROM `categories` c 
             LEFT JOIN `dishes` d ON c.id = d.category_id 
             WHERE 1=1";
+    $params = [];
     if ($onlyActive) {
         $sql .= " AND c.`status` = 'active'";
     }
+    if ($menuType === 'buffet' || $menuType === 'alacarte') {
+        $sql .= " AND c.`menu_type` IN (:menu_type, 'both')";
+        $params[':menu_type'] = $menuType;
+    }
     $sql .= " GROUP BY c.id ORDER BY c.sort_order ASC, c.id ASC";
 
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     return $stmt->fetchAll();
 }
 
@@ -916,14 +1296,16 @@ function createCategory($data) {
         $slug .= '-' . time();
     }
 
-    $sql = "INSERT INTO `categories` (`name`, `slug`, `icon`, `description`, `sort_order`, `status`)
-            VALUES (:name, :slug, :icon, :description, :sort_order, :status)";
+    $sql = "INSERT INTO `categories` (`name`, `slug`, `menu_type`, `icon`, `description`, `sort_order`, `status`)
+            VALUES (:name, :slug, :menu_type, :icon, :description, :sort_order, :status)";
     $stmt = $pdo->prepare($sql);
 
     try {
+        $menuType = in_array($data['menu_type'] ?? '', ['alacarte', 'buffet', 'both'], true) ? $data['menu_type'] : 'alacarte';
         $stmt->execute([
             ':name'        => $name,
             ':slug'        => $slug,
+            ':menu_type'   => $menuType,
             ':icon'        => trim($data['icon'] ?? '✦'),
             ':description' => trim($data['description'] ?? ''),
             ':sort_order'  => (int) ($data['sort_order'] ?? 0),
@@ -965,6 +1347,7 @@ function updateCategory($id, $data) {
     $sql = "UPDATE `categories` SET 
                 `name` = :name, 
                 `slug` = :slug, 
+                `menu_type` = :menu_type,
                 `icon` = :icon, 
                 `description` = :description, 
                 `sort_order` = :sort_order, 
@@ -973,9 +1356,13 @@ function updateCategory($id, $data) {
     $stmt = $pdo->prepare($sql);
 
     try {
+        $menuType = in_array($data['menu_type'] ?? '', ['alacarte', 'buffet', 'both'], true)
+            ? $data['menu_type']
+            : ($category['menu_type'] ?? 'alacarte');
         $stmt->execute([
             ':name'        => $name,
             ':slug'        => $slug,
+            ':menu_type'   => $menuType,
             ':icon'        => trim($data['icon'] ?? '✦'),
             ':description' => trim($data['description'] ?? ''),
             ':sort_order'  => (int) ($data['sort_order'] ?? 0),
@@ -1042,15 +1429,21 @@ function toggleCategoryStatus($id) {
  * ==========================================================
  */
 
-function getAllDishes($filterCategory = '', $filterStatus = '', $search = '', $filterStation = '') {
+function getAllDishes($filterCategory = '', $filterStatus = '', $search = '', $filterStation = '', $filterMenuType = '') {
     $pdo = getDbConnection();
     if (!$pdo) return [];
 
-    $sql = "SELECT d.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
+    $sql = "SELECT d.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon, c.menu_type AS category_menu_type, bp.name AS buffet_package_name
             FROM `dishes` d
             JOIN `categories` c ON d.category_id = c.id
+            LEFT JOIN `buffet_packages` bp ON d.buffet_package_id = bp.id
             WHERE 1=1";
     $params = [];
+
+    if ($filterMenuType === 'buffet' || $filterMenuType === 'alacarte') {
+        $sql .= " AND d.menu_type = :menu_type";
+        $params[':menu_type'] = $filterMenuType;
+    }
 
     if (!empty($filterCategory)) {
         if (is_numeric($filterCategory)) {
@@ -1097,9 +1490,10 @@ function getDishById($id) {
     if (!$pdo) return null;
 
     $stmt = $pdo->prepare("
-        SELECT d.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
+        SELECT d.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon, bp.name AS buffet_package_name
         FROM `dishes` d
         JOIN `categories` c ON d.category_id = c.id
+        LEFT JOIN `buffet_packages` bp ON d.buffet_package_id = bp.id
         WHERE d.id = :id LIMIT 1
     ");
     $stmt->execute([':id' => (int) $id]);
@@ -1125,21 +1519,28 @@ function createDish($data) {
         return ['success' => false, 'message' => 'Giá món ăn không hợp lệ!'];
     }
 
-    $sql = "INSERT INTO `dishes` (`category_id`, `name`, `price`, `image`, `description`, `tag`, `station`, `status`, `rating`)
-            VALUES (:category_id, :name, :price, :image, :description, :tag, :station, :status, :rating)";
+    $menuType        = ($data['menu_type'] ?? '') === 'buffet' ? 'buffet' : 'alacarte';
+    $buffetPackageId = ($menuType === 'buffet' && !empty($data['buffet_package_id']))
+        ? (int) $data['buffet_package_id']
+        : null;
+
+    $sql = "INSERT INTO `dishes` (`category_id`, `menu_type`, `buffet_package_id`, `name`, `price`, `image`, `description`, `tag`, `station`, `status`, `rating`)
+            VALUES (:category_id, :menu_type, :buffet_package_id, :name, :price, :image, :description, :tag, :station, :status, :rating)";
     $stmt = $pdo->prepare($sql);
 
     try {
         $stmt->execute([
-            ':category_id' => $categoryId,
-            ':name'        => $name,
-            ':price'       => $price,
-            ':image'       => trim($data['image'] ?? ''),
-            ':description' => trim($data['description'] ?? ''),
-            ':tag'         => !empty($data['tag']) ? trim($data['tag']) : null,
-            ':station'     => $data['station'] ?? 'hot',
-            ':status'      => $data['status'] ?? 'active',
-            ':rating'      => !empty($data['rating']) ? (float) $data['rating'] : 5.0,
+            ':category_id'       => $categoryId,
+            ':menu_type'         => $menuType,
+            ':buffet_package_id' => $buffetPackageId,
+            ':name'              => $name,
+            ':price'             => $price,
+            ':image'             => trim($data['image'] ?? ''),
+            ':description'       => trim($data['description'] ?? ''),
+            ':tag'               => !empty($data['tag']) ? trim($data['tag']) : null,
+            ':station'           => $data['station'] ?? 'hot',
+            ':status'            => $data['status'] ?? 'active',
+            ':rating'            => !empty($data['rating']) ? (float) $data['rating'] : 5.0,
         ]);
         return ['success' => true, 'id' => $pdo->lastInsertId(), 'message' => 'Thêm món ăn "' . htmlspecialchars($name) . '" thành công!'];
     } catch (PDOException $e) {
@@ -1167,8 +1568,17 @@ function updateDish($id, $data) {
         return ['success' => false, 'message' => 'Giá món ăn không hợp lệ!'];
     }
 
+    $menuType = in_array($data['menu_type'] ?? '', ['alacarte', 'buffet'], true)
+        ? $data['menu_type']
+        : ($dish['menu_type'] ?? 'alacarte');
+    $buffetPackageId = ($menuType === 'buffet')
+        ? (!empty($data['buffet_package_id']) ? (int) $data['buffet_package_id'] : null)
+        : null;
+
     $sql = "UPDATE `dishes` SET 
                 `category_id` = :category_id,
+                `menu_type` = :menu_type,
+                `buffet_package_id` = :buffet_package_id,
                 `name` = :name,
                 `price` = :price,
                 `image` = :image,
@@ -1182,16 +1592,18 @@ function updateDish($id, $data) {
 
     try {
         $stmt->execute([
-            ':category_id' => $categoryId,
-            ':name'        => $name,
-            ':price'       => $price,
-            ':image'       => isset($data['image']) ? trim($data['image']) : $dish['image'],
-            ':description' => trim($data['description'] ?? $dish['description']),
-            ':tag'         => !empty($data['tag']) ? trim($data['tag']) : null,
-            ':station'     => $data['station'] ?? $dish['station'],
-            ':status'      => $data['status'] ?? $dish['status'],
-            ':rating'      => isset($data['rating']) ? (float) $data['rating'] : $dish['rating'],
-            ':id'          => (int) $id
+            ':category_id'       => $categoryId,
+            ':menu_type'         => $menuType,
+            ':buffet_package_id' => $buffetPackageId,
+            ':name'              => $name,
+            ':price'             => $price,
+            ':image'             => isset($data['image']) ? trim($data['image']) : $dish['image'],
+            ':description'       => trim($data['description'] ?? $dish['description']),
+            ':tag'               => !empty($data['tag']) ? trim($data['tag']) : null,
+            ':station'           => $data['station'] ?? $dish['station'],
+            ':status'            => $data['status'] ?? $dish['status'],
+            ':rating'            => isset($data['rating']) ? (float) $data['rating'] : $dish['rating'],
+            ':id'                => (int) $id
         ]);
         return ['success' => true, 'message' => 'Cập nhật món ăn "' . htmlspecialchars($name) . '" thành công!'];
     } catch (PDOException $e) {
@@ -1261,7 +1673,7 @@ function toggleDishStatus($id) {
 function getDishStats() {
     $pdo = getDbConnection();
     if (!$pdo) {
-        return ['total' => 0, 'active' => 0, 'out_of_stock' => 0, 'hidden' => 0, 'categories' => 0, 'avg_price' => 0];
+        return ['total' => 0, 'active' => 0, 'out_of_stock' => 0, 'hidden' => 0, 'buffet' => 0, 'alacarte' => 0, 'buffet_packages' => 0, 'categories' => 0, 'avg_price' => 0];
     }
 
     $dishQuery = $pdo->query("
@@ -1270,20 +1682,25 @@ function getDishStats() {
             SUM(CASE WHEN `status` = 'active' THEN 1 ELSE 0 END) as active_count,
             SUM(CASE WHEN `status` = 'out_of_stock' THEN 1 ELSE 0 END) as out_of_stock_count,
             SUM(CASE WHEN `status` = 'hidden' THEN 1 ELSE 0 END) as hidden_count,
-            AVG(`price`) as avg_price
+            SUM(CASE WHEN `menu_type` = 'buffet' THEN 1 ELSE 0 END) as buffet_count,
+            SUM(CASE WHEN `menu_type` = 'alacarte' THEN 1 ELSE 0 END) as alacarte_count,
+            AVG(CASE WHEN `menu_type` = 'alacarte' AND `price` > 0 THEN `price` ELSE NULL END) as avg_price
         FROM `dishes`
     ");
     $dishRow = $dishQuery->fetch();
 
-    $catQuery = $pdo->query("SELECT COUNT(*) as total_categories FROM `categories`");
-    $catTotal = (int) $catQuery->fetchColumn();
+    $catTotal = (int) $pdo->query("SELECT COUNT(*) as total_categories FROM `categories`")->fetchColumn();
+    $pkgTotal = (int) $pdo->query("SELECT COUNT(*) as total_packages FROM `buffet_packages` WHERE `status` = 'active'")->fetchColumn();
 
     return [
-        'total'        => (int) ($dishRow['total'] ?? 0),
-        'active'       => (int) ($dishRow['active_count'] ?? 0),
-        'out_of_stock' => (int) ($dishRow['out_of_stock_count'] ?? 0),
-        'hidden'       => (int) ($dishRow['hidden_count'] ?? 0),
-        'categories'   => $catTotal,
-        'avg_price'    => (float) ($dishRow['avg_price'] ?? 0),
+        'total'           => (int) ($dishRow['total'] ?? 0),
+        'active'          => (int) ($dishRow['active_count'] ?? 0),
+        'out_of_stock'    => (int) ($dishRow['out_of_stock_count'] ?? 0),
+        'hidden'          => (int) ($dishRow['hidden_count'] ?? 0),
+        'buffet'          => (int) ($dishRow['buffet_count'] ?? 0),
+        'alacarte'        => (int) ($dishRow['alacarte_count'] ?? 0),
+        'buffet_packages' => $pkgTotal,
+        'categories'      => $catTotal,
+        'avg_price'       => (float) ($dishRow['avg_price'] ?? 0),
     ];
 }

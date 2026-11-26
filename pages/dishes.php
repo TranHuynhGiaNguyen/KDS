@@ -4,8 +4,8 @@
  * Dành riêng cho Quản trị viên (Admin)
  */
 
-if (!isAdmin()) {
-    $_SESSION['flash_error'] = 'Chỉ Quản trị viên (Admin) mới có quyền truy cập trang Quản lý thực đơn!';
+if (!canRoleAccessPage(currentRole(), 'dishes')) {
+    $_SESSION['flash_error'] = 'Bạn không có quyền truy cập trang Quản lý thực đơn!';
     header('Location: index.php?page=' . getDefaultPageForRole(currentRole()));
     exit;
 }
@@ -18,15 +18,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
     // 1. THÊM MÓN ĂN MỚI
     if ($action === 'add_dish') {
-        $name        = trim($_POST['name'] ?? '');
-        $categoryId  = (int) ($_POST['category_id'] ?? 0);
-        $price       = (float) ($_POST['price'] ?? 0);
-        $imageUrl    = trim($_POST['image_url'] ?? '');
-        $description = trim($_POST['description'] ?? '');
-        $tag         = trim($_POST['tag'] ?? '');
-        $station     = trim($_POST['station'] ?? 'hot');
-        $status      = trim($_POST['status'] ?? 'active');
-        $rating      = !empty($_POST['rating']) ? (float)$_POST['rating'] : 5.0;
+        $name            = trim($_POST['name'] ?? '');
+        $categoryId      = (int) ($_POST['category_id'] ?? 0);
+        $menuType        = ($_POST['menu_type'] ?? '') === 'buffet' ? 'buffet' : 'alacarte';
+        $buffetPackageId = ($menuType === 'buffet' && !empty($_POST['buffet_package_id'])) ? (int) $_POST['buffet_package_id'] : null;
+        $price           = (float) ($_POST['price'] ?? 0);
+        $imageUrl        = trim($_POST['image_url'] ?? '');
+        $description     = trim($_POST['description'] ?? '');
+        $tag             = trim($_POST['tag'] ?? '');
+        $station         = trim($_POST['station'] ?? 'hot');
+        $status          = trim($_POST['status'] ?? 'active');
+        $rating          = !empty($_POST['rating']) ? (float)$_POST['rating'] : 5.0;
 
         if (empty($name)) {
             $_SESSION['flash_error'] = 'Tên món ăn không được để trống!';
@@ -45,15 +47,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $finalImagePath = $uploadRes['path'];
 
                 $res = createDish([
-                    'category_id' => $categoryId,
-                    'name'        => $name,
-                    'price'       => $price,
-                    'image'       => $finalImagePath,
-                    'description' => $description,
-                    'tag'         => $tag,
-                    'station'     => $station,
-                    'status'      => $status,
-                    'rating'      => $rating
+                    'category_id'       => $categoryId,
+                    'menu_type'         => $menuType,
+                    'buffet_package_id' => $buffetPackageId,
+                    'name'              => $name,
+                    'price'             => $price,
+                    'image'             => $finalImagePath,
+                    'description'       => $description,
+                    'tag'               => $tag,
+                    'station'           => $station,
+                    'status'            => $status,
+                    'rating'            => $rating
                 ]);
 
                 if ($res['success']) {
@@ -69,17 +73,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
     // 2. CHỈNH SỬA MÓN ĂN
     if ($action === 'edit_dish') {
-        $id           = (int) ($_POST['id'] ?? 0);
-        $name         = trim($_POST['name'] ?? '');
-        $categoryId   = (int) ($_POST['category_id'] ?? 0);
-        $price        = (float) ($_POST['price'] ?? 0);
-        $imageUrl     = trim($_POST['image_url'] ?? '');
-        $currentImage = trim($_POST['current_image'] ?? '');
-        $description  = trim($_POST['description'] ?? '');
-        $tag          = trim($_POST['tag'] ?? '');
-        $station      = trim($_POST['station'] ?? 'hot');
-        $status       = trim($_POST['status'] ?? 'active');
-        $rating       = !empty($_POST['rating']) ? (float)$_POST['rating'] : 5.0;
+        $id              = (int) ($_POST['id'] ?? 0);
+        $name            = trim($_POST['name'] ?? '');
+        $categoryId      = (int) ($_POST['category_id'] ?? 0);
+        $menuType        = ($_POST['menu_type'] ?? '') === 'buffet' ? 'buffet' : 'alacarte';
+        $buffetPackageId = ($menuType === 'buffet' && !empty($_POST['buffet_package_id'])) ? (int) $_POST['buffet_package_id'] : null;
+        $price           = (float) ($_POST['price'] ?? 0);
+        $imageUrl        = trim($_POST['image_url'] ?? '');
+        $currentImage    = trim($_POST['current_image'] ?? '');
+        $description     = trim($_POST['description'] ?? '');
+        $tag             = trim($_POST['tag'] ?? '');
+        $station         = trim($_POST['station'] ?? 'hot');
+        $status          = trim($_POST['status'] ?? 'active');
+        $rating          = !empty($_POST['rating']) ? (float)$_POST['rating'] : 5.0;
 
         if (empty($name)) {
             $_SESSION['flash_error'] = 'Tên món ăn không được để trống!';
@@ -98,15 +104,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $finalImagePath = $uploadRes['path'];
 
                 $res = updateDish($id, [
-                    'category_id' => $categoryId,
-                    'name'        => $name,
-                    'price'       => $price,
-                    'image'       => $finalImagePath,
-                    'description' => $description,
-                    'tag'         => $tag,
-                    'station'     => $station,
-                    'status'      => $status,
-                    'rating'      => $rating
+                    'category_id'       => $categoryId,
+                    'menu_type'         => $menuType,
+                    'buffet_package_id' => $buffetPackageId,
+                    'name'              => $name,
+                    'price'             => $price,
+                    'image'             => $finalImagePath,
+                    'description'       => $description,
+                    'tag'               => $tag,
+                    'station'           => $station,
+                    'status'            => $status,
+                    'rating'            => $rating
                 ]);
 
                 if ($res['success']) {
@@ -152,6 +160,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($action === 'add_category') {
         $name        = trim($_POST['name'] ?? '');
         $slug        = trim($_POST['slug'] ?? '');
+        $menuType    = in_array($_POST['menu_type'] ?? '', ['alacarte', 'buffet', 'both'], true) ? $_POST['menu_type'] : 'alacarte';
         $icon        = trim($_POST['icon'] ?? '✦');
         $description = trim($_POST['description'] ?? '');
         $sortOrder   = (int) ($_POST['sort_order'] ?? 0);
@@ -163,6 +172,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $res = createCategory([
                 'name'        => $name,
                 'slug'        => $slug,
+                'menu_type'   => $menuType,
                 'icon'        => $icon,
                 'description' => $description,
                 'sort_order'  => $sortOrder,
@@ -183,6 +193,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $id          = (int) ($_POST['id'] ?? 0);
         $name        = trim($_POST['name'] ?? '');
         $slug        = trim($_POST['slug'] ?? '');
+        $menuType    = in_array($_POST['menu_type'] ?? '', ['alacarte', 'buffet', 'both'], true) ? $_POST['menu_type'] : 'alacarte';
         $icon        = trim($_POST['icon'] ?? '✦');
         $description = trim($_POST['description'] ?? '');
         $sortOrder   = (int) ($_POST['sort_order'] ?? 0);
@@ -194,6 +205,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $res = updateCategory($id, [
                 'name'        => $name,
                 'slug'        => $slug,
+                'menu_type'   => $menuType,
                 'icon'        => $icon,
                 'description' => $description,
                 'sort_order'  => $sortOrder,
@@ -234,6 +246,61 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         header('Location: index.php?page=dishes&tab=categories');
         exit;
     }
+
+    // 9. THÊM / SỬA / XÓA GÓI BUFFET
+    if ($action === 'add_buffet_package') {
+        $name      = trim($_POST['name'] ?? '');
+        $price     = (float) ($_POST['price_per_person'] ?? 0);
+        $imageUrl  = trim($_POST['image_url'] ?? '');
+        $uploadRes = handleDishImageUpload($_FILES['image_file'] ?? null, $imageUrl);
+        if (!$uploadRes['success']) {
+            $_SESSION['flash_error'] = $uploadRes['message'];
+        } else {
+            $res = createBuffetPackage([
+                'name'             => $name,
+                'price_per_person' => $price,
+                'image'            => $uploadRes['path'],
+                'description'      => trim($_POST['description'] ?? ''),
+                'sort_order'       => (int) ($_POST['sort_order'] ?? 0),
+                'status'           => $_POST['status'] ?? 'active',
+            ]);
+            $_SESSION[$res['success'] ? 'flash_success' : 'flash_error'] = $res['message'];
+        }
+        header('Location: index.php?page=dishes&tab=buffet');
+        exit;
+    }
+
+    if ($action === 'edit_buffet_package') {
+        $id           = (int) ($_POST['id'] ?? 0);
+        $name         = trim($_POST['name'] ?? '');
+        $price        = (float) ($_POST['price_per_person'] ?? 0);
+        $imageUrl     = trim($_POST['image_url'] ?? '');
+        $currentImage = trim($_POST['current_image'] ?? '');
+        $uploadRes    = handleDishImageUpload($_FILES['image_file'] ?? null, $imageUrl, $currentImage);
+        if (!$uploadRes['success']) {
+            $_SESSION['flash_error'] = $uploadRes['message'];
+        } else {
+            $res = updateBuffetPackage($id, [
+                'name'             => $name,
+                'price_per_person' => $price,
+                'image'            => $uploadRes['path'],
+                'description'      => trim($_POST['description'] ?? ''),
+                'sort_order'       => (int) ($_POST['sort_order'] ?? 0),
+                'status'           => $_POST['status'] ?? 'active',
+            ]);
+            $_SESSION[$res['success'] ? 'flash_success' : 'flash_error'] = $res['message'];
+        }
+        header('Location: index.php?page=dishes&tab=buffet');
+        exit;
+    }
+
+    if ($action === 'delete_buffet_package') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $res = deleteBuffetPackage($id);
+        $_SESSION[$res['success'] ? 'flash_success' : 'flash_error'] = $res['message'];
+        header('Location: index.php?page=dishes&tab=buffet');
+        exit;
+    }
 }
 
 // ==========================================================
@@ -243,10 +310,12 @@ $currentTab     = $_GET['tab'] ?? 'dishes';
 $filterCategory = trim($_GET['category'] ?? '');
 $filterStatus   = trim($_GET['status'] ?? '');
 $filterStation  = trim($_GET['station'] ?? '');
+$filterMenuType = trim($_GET['menu_type'] ?? '');
 $search         = trim($_GET['search'] ?? '');
 
-$allCategories  = getAllCategories();
-$allDishes      = getAllDishes($filterCategory, $filterStatus, $search, $filterStation);
+$allCategories      = getAllCategories();
+$allBuffetPackages  = getAllBuffetPackages();
+$allDishes          = getAllDishes($filterCategory, $filterStatus, $search, $filterStation, $filterMenuType);
 $totalDishesCount = count($allDishes);
 $perPageDishes  = 10;
 $totalDishPages = max(1, (int) ceil($totalDishesCount / $perPageDishes));
@@ -265,6 +334,10 @@ $dishStats      = getDishStats();
     <p>Thêm món ăn mới, điều chỉnh giá bán, tải ảnh món ăn và thiết lập danh mục phân loại nhà hàng.</p>
   </div>
   <div class="filter-row">
+    <a class="btn btn-outline" href="qr-order.php?table=B01" target="_blank" title="Xem giao diện QR Order tại bàn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 20h3"></path></svg>
+      <span>Giao diện QR Bàn</span>
+    </a>
     <a class="btn btn-outline" href="index.php?page=menu" target="_blank" title="Xem menu khách hàng">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
       <span>Xem menu gọi món</span>
@@ -287,7 +360,7 @@ $dishStats      = getDishStats();
       <span class="stat-badge neutral"><?= $dishStats['total'] ?> món</span>
     </div>
     <b><?= $dishStats['total'] ?> món</b>
-    <small>Được chia làm <?= $dishStats['categories'] ?> danh mục</small>
+    <small><?= $dishStats['buffet'] ?? 0 ?> món Buffet · <?= $dishStats['alacarte'] ?? 0 ?> món gọi lẻ</small>
   </div>
 
   <div class="stat-card">
@@ -296,29 +369,29 @@ $dishStats      = getDishStats();
       <span class="stat-badge positive"><?= $dishStats['active'] ?> món</span>
     </div>
     <b><?= $dishStats['active'] ?> món sẵn sàng</b>
-    <small class="positive">✓ Hiển thị trên thực đơn QR gọi món</small>
+    <small class="positive">✓ Đồng bộ thực đơn &amp; QR gọi món</small>
   </div>
 
   <div class="stat-card">
     <div class="stat-card-head">
-      <span>Tạm hết / Bếp hết nguyên liệu</span>
-      <span class="stat-badge <?= $dishStats['out_of_stock'] > 0 ? 'urgent' : 'neutral' ?>"><?= $dishStats['out_of_stock'] ?> món</span>
+      <span>Gói Buffet &amp; Tạm hết</span>
+      <span class="stat-badge <?= $dishStats['out_of_stock'] > 0 ? 'urgent' : 'neutral' ?>"><?= count($allBuffetPackages) ?> gói</span>
     </div>
-    <b><?= $dishStats['out_of_stock'] ?> món tạm hết</b>
-    <small><?= $dishStats['out_of_stock'] > 0 ? '⚠ Khách không thể thêm vào giỏ' : 'Tất cả nguyên liệu ổn định' ?></small>
+    <b><?= $dishStats['buffet_packages'] ?? count($allBuffetPackages) ?> gói Buffet mở</b>
+    <small><?= $dishStats['out_of_stock'] > 0 ? '⚠ ' . $dishStats['out_of_stock'] . ' món đang tạm hết' : 'Tất cả nguyên liệu ổn định' ?></small>
   </div>
 
   <div class="stat-card">
     <div class="stat-card-head">
-      <span>Giá bán trung bình</span>
+      <span>Giá bán lẻ trung bình</span>
       <span class="stat-badge neutral">Menu</span>
     </div>
     <b><?= formatPrice($dishStats['avg_price']) ?></b>
-    <small>Mức giá trung bình mỗi phần ăn</small>
+    <small>Trung bình các món gọi lẻ</small>
   </div>
 </div>
 
-<!-- TAB CHUYỂN ĐỔI: MÓN ĂN VÀ DANH MỤC -->
+<!-- TAB CHUYỂN ĐỔI: MÓN ĂN, DANH MỤC VÀ GÓI BUFFET -->
 <div class="dishes-nav-tabs">
   <a href="index.php?page=dishes&tab=dishes" class="tab-item <?= $currentTab === 'dishes' ? 'active' : '' ?>">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
@@ -327,6 +400,10 @@ $dishStats      = getDishStats();
   <a href="index.php?page=dishes&tab=categories" class="tab-item <?= $currentTab === 'categories' ? 'active' : '' ?>">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
     <span>Quản lý Danh mục (<?= $dishStats['categories'] ?>)</span>
+  </a>
+  <a href="index.php?page=dishes&tab=buffet" class="tab-item <?= $currentTab === 'buffet' ? 'active' : '' ?>">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+    <span>Gói Buffet (<?= count($allBuffetPackages) ?>)</span>
   </a>
 </div>
 
@@ -346,6 +423,12 @@ $dishStats      = getDishStats();
       </div>
 
       <div class="filter-controls-group">
+        <select name="menu_type" onchange="this.form.submit()">
+          <option value="">-- Loại Menu --</option>
+          <option value="buffet" <?= $filterMenuType === 'buffet' ? 'selected' : '' ?>>Buffet</option>
+          <option value="alacarte" <?= $filterMenuType === 'alacarte' ? 'selected' : '' ?>>Gọi món lẻ</option>
+        </select>
+
         <select name="category" onchange="this.form.submit()">
           <option value="">-- Tất cả danh mục --</option>
           <?php foreach ($allCategories as $cat): ?>
@@ -372,7 +455,7 @@ $dishStats      = getDishStats();
 
         <button type="submit" class="btn btn-small btn-primary-tool">Lọc</button>
 
-        <?php if (!empty($filterCategory) || !empty($filterStatus) || !empty($filterStation) || !empty($search)): ?>
+        <?php if (!empty($filterCategory) || !empty($filterStatus) || !empty($filterStation) || !empty($filterMenuType) || !empty($search)): ?>
           <a href="index.php?page=dishes" class="btn btn-small btn-outline" title="Xóa bộ lọc">Đặt lại</a>
         <?php endif; ?>
       </div>
@@ -386,6 +469,7 @@ $dishStats      = getDishStats();
             <th style="width: 70px;">Hình ảnh</th>
             <th>Tên món ăn & Mô tả</th>
             <th>Danh mục</th>
+            <th>Loại Menu</th>
             <th>Trạm bếp KDS</th>
             <th>Giá bán</th>
             <th>Nhãn</th>
@@ -396,7 +480,7 @@ $dishStats      = getDishStats();
         <tbody>
           <?php if (empty($allDishes)): ?>
             <tr>
-              <td colspan="8">
+              <td colspan="9">
                 <div class="empty-state-table">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--muted);"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path></svg>
                   <h4>Không tìm thấy món ăn nào</h4>
@@ -437,13 +521,24 @@ $dishStats      = getDishStats();
                 </td>
 
                 <td>
+                  <?= getMenuTypeBadgeHtml($dish['menu_type'] ?? 'alacarte') ?>
+                  <?php if (($dish['menu_type'] ?? '') === 'buffet' && !empty($dish['buffet_package_name'])): ?>
+                    <br><small style="color:#64748b;font-size:11px;"><?= htmlspecialchars($dish['buffet_package_name']) ?></small>
+                  <?php endif; ?>
+                </td>
+
+                <td>
                   <span class="station-badge station-<?= htmlspecialchars($dish['station']) ?>">
                     <?= getStationName($dish['station']) ?>
                   </span>
                 </td>
 
                 <td>
-                  <span class="dish-price-badge"><?= formatPrice($dish['price']) ?></span>
+                  <?php if (($dish['menu_type'] ?? 'alacarte') === 'buffet' && (float)$dish['price'] <= 0): ?>
+                    <span class="dish-price-badge" style="color:#b91c1c;">Theo gói Buffet</span>
+                  <?php else: ?>
+                    <span class="dish-price-badge"><?= formatPrice($dish['price']) ?></span>
+                  <?php endif; ?>
                 </td>
 
                 <td>
@@ -467,6 +562,8 @@ $dishStats      = getDishStats();
                             data-id="<?= $dish['id'] ?>"
                             data-name="<?= htmlspecialchars($dish['name']) ?>"
                             data-category-id="<?= $dish['category_id'] ?>"
+                            data-menu-type="<?= htmlspecialchars($dish['menu_type'] ?? 'alacarte') ?>"
+                            data-buffet-package-id="<?= (int) ($dish['buffet_package_id'] ?? 0) ?>"
                             data-price="<?= (float)$dish['price'] ?>"
                             data-image="<?= htmlspecialchars($dish['image'] ?? '') ?>"
                             data-description="<?= htmlspecialchars($dish['description'] ?? '') ?>"
@@ -518,11 +615,12 @@ $dishStats      = getDishStats();
       <?php if ($totalDishPages > 1): ?>
         <div class="pagination-controls" style="display: flex; gap: 6px; align-items: center;">
           <?php
-          $buildDishQuery = function($p) use ($filterCategory, $filterStatus, $filterStation, $search) {
+          $buildDishQuery = function($p) use ($filterCategory, $filterStatus, $filterStation, $filterMenuType, $search) {
               return 'index.php?page=dishes&tab=dishes&p=' . $p
                 . (!empty($filterCategory) ? '&category=' . urlencode($filterCategory) : '')
                 . (!empty($filterStatus) ? '&status=' . urlencode($filterStatus) : '')
                 . (!empty($filterStation) ? '&station=' . urlencode($filterStation) : '')
+                . (!empty($filterMenuType) ? '&menu_type=' . urlencode($filterMenuType) : '')
                 . (!empty($search) ? '&search=' . urlencode($search) : '');
           };
           ?>
@@ -544,7 +642,7 @@ $dishStats      = getDishStats();
     </div>
   </div>
 
-<?php else: ?>
+<?php elseif ($currentTab === 'categories'): ?>
   <!-- ==========================================================
        TAB 2: QUẢN LÝ DANH MỤC MÓN
        ========================================================== -->
@@ -552,7 +650,7 @@ $dishStats      = getDishStats();
     <div class="panel-title users-panel-header">
       <div class="grow">
         <h2>Danh mục phân loại thực đơn</h2>
-        <p class="muted">Danh mục giúp khách hàng và nhân viên dễ dàng lọc món theo nhóm</p>
+        <p class="muted">Danh mục được phân theo nhóm Menu Buffet hoặc Gọi món lẻ</p>
       </div>
       <button type="button" class="btn btn-primary-tool" data-modal-target="modal-add-category">
         <span>+ Thêm danh mục mới</span>
@@ -565,6 +663,7 @@ $dishStats      = getDishStats();
           <tr>
             <th style="width: 50px;">Icon</th>
             <th>Tên danh mục</th>
+            <th>Loại Menu</th>
             <th>Mã định danh (Slug)</th>
             <th>Mô tả</th>
             <th>Số lượng món</th>
@@ -581,6 +680,9 @@ $dishStats      = getDishStats();
               </td>
               <td>
                 <b style="font-size: 14px; color: var(--ink);"><?= htmlspecialchars($cat['name']) ?></b>
+              </td>
+              <td>
+                <?= getMenuTypeBadgeHtml($cat['menu_type'] ?? 'alacarte') ?>
               </td>
               <td>
                 <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px;"><?= htmlspecialchars($cat['slug']) ?></code>
@@ -607,6 +709,7 @@ $dishStats      = getDishStats();
                           title="Sửa danh mục"
                           data-id="<?= $cat['id'] ?>"
                           data-name="<?= htmlspecialchars($cat['name']) ?>"
+                          data-menu-type="<?= htmlspecialchars($cat['menu_type'] ?? 'alacarte') ?>"
                           data-slug="<?= htmlspecialchars($cat['slug']) ?>"
                           data-icon="<?= htmlspecialchars($cat['icon']) ?>"
                           data-description="<?= htmlspecialchars($cat['description'] ?? '') ?>"
@@ -628,6 +731,95 @@ $dishStats      = getDishStats();
               </td>
             </tr>
           <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<?php else: ?>
+  <!-- ==========================================================
+       TAB 3: QUẢN LÝ GÓI BUFFET
+       ========================================================== -->
+  <div class="panel users-panel">
+    <div class="panel-title users-panel-header">
+      <div class="grow">
+        <h2>Cấu hình Gói Buffet</h2>
+        <p class="muted">Thiết lập các gói Buffet hiển thị trên trang QR Order khi khách quét mã tại bàn</p>
+      </div>
+      <button type="button" class="btn btn-primary-tool" data-modal-target="modal-add-buffet">
+        <span>+ Thêm gói Buffet</span>
+      </button>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th style="width: 80px;">Ảnh cover</th>
+            <th>Tên gói Buffet &amp; Mô tả</th>
+            <th>Giá / Người</th>
+            <th>Số món trong gói</th>
+            <th>Thứ tự</th>
+            <th>Trạng thái</th>
+            <th style="text-align: right; width: 140px;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (empty($allBuffetPackages)): ?>
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 36px; color: var(--muted);">
+                Chưa có gói Buffet nào. Nhấn "+ Thêm gói Buffet" để tạo gói mới.
+              </td>
+            </tr>
+          <?php else: ?>
+            <?php foreach ($allBuffetPackages as $pkg):
+              $pkgImg = getDishImageUrl($pkg['image']);
+            ?>
+              <tr class="<?= $pkg['status'] === 'inactive' ? 'row-inactive' : '' ?>">
+                <td>
+                  <div class="dish-thumb-wrap">
+                    <img src="<?= $pkgImg ?>" alt="<?= htmlspecialchars($pkg['name']) ?>" class="dish-thumb-img" onerror="this.src='https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=150&q=80'">
+                  </div>
+                </td>
+                <td>
+                  <b style="font-size: 14px; color: var(--ink);"><?= htmlspecialchars($pkg['name']) ?></b>
+                  <br><small class="muted"><?= htmlspecialchars($pkg['description'] ?: 'Chưa có mô tả gói Buffet') ?></small>
+                </td>
+                <td>
+                  <span class="dish-price-badge"><?= formatPrice($pkg['price_per_person']) ?> / người</span>
+                </td>
+                <td>
+                  <a href="index.php?page=dishes&tab=dishes&menu_type=buffet" class="badge-pill">
+                    <b><?= (int) ($pkg['dish_count'] ?? 0) ?></b> món
+                  </a>
+                </td>
+                <td>#<?= (int) $pkg['sort_order'] ?></td>
+                <td><?= getStatusBadgeHtml($pkg['status']) ?></td>
+                <td style="text-align: right;">
+                  <div class="action-buttons-group">
+                    <button type="button"
+                            class="btn-icon btn-edit-buffet"
+                            title="Chỉnh sửa gói Buffet"
+                            data-id="<?= $pkg['id'] ?>"
+                            data-name="<?= htmlspecialchars($pkg['name']) ?>"
+                            data-price="<?= (float) $pkg['price_per_person'] ?>"
+                            data-image="<?= htmlspecialchars($pkg['image'] ?? '') ?>"
+                            data-description="<?= htmlspecialchars($pkg['description'] ?? '') ?>"
+                            data-sort-order="<?= (int) $pkg['sort_order'] ?>"
+                            data-status="<?= htmlspecialchars($pkg['status']) ?>">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
+                    <form method="POST" action="index.php?page=dishes&tab=buffet" style="display:inline;" onsubmit="return confirm('Xóa gói Buffet <?= htmlspecialchars($pkg['name']) ?>? Các món thuộc gói sẽ chuyển về danh sách Buffet chung.');">
+                      <input type="hidden" name="action" value="delete_buffet_package">
+                      <input type="hidden" name="id" value="<?= $pkg['id'] ?>">
+                      <button type="submit" class="btn-icon btn-delete-dish" title="Xóa gói Buffet">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
         </tbody>
       </table>
     </div>
@@ -674,9 +866,29 @@ $dishStats      = getDishStats();
 
       <div class="form-grid-2">
         <div class="form-group">
+          <label>Hình thức Menu <span class="required">*</span></label>
+          <select name="menu_type" id="add-dish-menu-type" required>
+            <option value="alacarte" selected>Gọi món lẻ (Món tính tiền)</option>
+            <option value="buffet">Món Buffet (Thuộc gói Buffet)</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="add-buffet-pkg-group" style="display: none;">
+          <label>Thuộc gói Buffet</label>
+          <select name="buffet_package_id" id="add-dish-buffet-pkg">
+            <option value="">-- Tất cả gói Buffet --</option>
+            <?php foreach ($allBuffetPackages as $pkg): ?>
+              <option value="<?= $pkg['id'] ?>"><?= htmlspecialchars($pkg['name']) ?> (<?= formatPrice($pkg['price_per_person']) ?>)</option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
           <label>Giá bán (VNĐ) <span class="required">*</span></label>
           <div style="position: relative;">
-            <input type="number" name="price" placeholder="Ví dụ: 75000" min="0" step="1000" required id="add-dish-price">
+            <input type="number" name="price" placeholder="Ví dụ: 75000 (nhập 0 nếu nằm trong gói Buffet)" min="0" step="1000" required id="add-dish-price">
             <span style="position: absolute; right: 12px; top: 10px; color: var(--muted); font-size: 13px; pointer-events: none;">VNĐ</span>
           </div>
           <small class="muted" id="add-price-preview">Tương đương: 0đ</small>
@@ -782,6 +994,26 @@ $dishStats      = getDishStats();
           <select name="category_id" id="edit-dish-category" required>
             <?php foreach ($allCategories as $cat): ?>
               <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['icon']) ?> <?= htmlspecialchars($cat['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>Hình thức Menu <span class="required">*</span></label>
+          <select name="menu_type" id="edit-dish-menu-type" required>
+            <option value="alacarte">Gọi món lẻ (Món tính tiền)</option>
+            <option value="buffet">Món Buffet (Thuộc gói Buffet)</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="edit-buffet-pkg-group" style="display: none;">
+          <label>Thuộc gói Buffet</label>
+          <select name="buffet_package_id" id="edit-dish-buffet-pkg">
+            <option value="">-- Tất cả gói Buffet --</option>
+            <?php foreach ($allBuffetPackages as $pkg): ?>
+              <option value="<?= $pkg['id'] ?>"><?= htmlspecialchars($pkg['name']) ?> (<?= formatPrice($pkg['price_per_person']) ?>)</option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -946,6 +1178,15 @@ $dishStats      = getDishStats();
         <input type="text" name="name" placeholder="Ví dụ: Món nướng BBQ, Cơm trưa..." required autocomplete="off">
       </div>
 
+      <div class="form-group">
+        <label>Áp dụng cho Menu <span class="required">*</span></label>
+        <select name="menu_type" required>
+          <option value="alacarte">Gọi món lẻ (Món tính tiền)</option>
+          <option value="buffet">Món Buffet</option>
+          <option value="both">Cả Buffet &amp; Gọi món lẻ</option>
+        </select>
+      </div>
+
       <div class="form-grid-2">
         <div class="form-group">
           <label>Biểu tượng (Icon)</label>
@@ -1003,6 +1244,15 @@ $dishStats      = getDishStats();
       <div class="form-group">
         <label>Tên danh mục <span class="required">*</span></label>
         <input type="text" name="name" id="edit-cat-name" required>
+      </div>
+
+      <div class="form-group">
+        <label>Áp dụng cho Menu <span class="required">*</span></label>
+        <select name="menu_type" id="edit-cat-menu-type" required>
+          <option value="alacarte">Gọi món lẻ (Món tính tiền)</option>
+          <option value="buffet">Món Buffet</option>
+          <option value="both">Cả Buffet &amp; Gọi món lẻ</option>
+        </select>
       </div>
 
       <div class="form-grid-2">
@@ -1082,6 +1332,132 @@ $dishStats      = getDishStats();
         <button type="submit" class="btn btn-danger" id="btn-confirm-delete-cat">
           <span>Xóa danh mục</span>
         </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================================
+     MODAL 7: THÊM GÓI BUFFET
+     ========================================================== -->
+<div class="custom-modal-backdrop" id="modal-add-buffet" style="display: none;">
+  <div class="custom-modal-dialog custom-modal-sm">
+    <div class="custom-modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-icon-badge" style="background: #fef2f2; color: #dc2626;">♨</div>
+        <div>
+          <h3>Thêm gói Buffet mới</h3>
+          <p>Hiển thị trên màn hình chọn menu QR theo từng bàn</p>
+        </div>
+      </div>
+      <button type="button" class="btn-close-modal" data-modal-close="modal-add-buffet">&times;</button>
+    </div>
+
+    <form method="POST" action="index.php?page=dishes&tab=buffet" class="modal-form" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="add_buffet_package">
+
+      <div class="form-group">
+        <label>Tên gói Buffet <span class="required">*</span></label>
+        <input type="text" name="name" placeholder="Ví dụ: BUFFET XÈO XÈO CLASSIC NEW" required autocomplete="off">
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>Giá / Người (VNĐ) <span class="required">*</span></label>
+          <input type="number" name="price_per_person" min="0" step="1000" value="529000" required>
+        </div>
+        <div class="form-group">
+          <label>Thứ tự</label>
+          <input type="number" name="sort_order" value="1" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Ảnh cover gói Buffet (URL hoặc tải ảnh)</label>
+        <input type="file" name="image_file" accept="image/*" style="margin-bottom: 6px;">
+        <input type="url" name="image_url" placeholder="https://images.unsplash.com/...">
+      </div>
+
+      <div class="form-group">
+        <label>Mô tả ngắn</label>
+        <textarea name="description" rows="2" placeholder="Mô tả các món nổi bật trong gói Buffet..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Trạng thái</label>
+        <select name="status">
+          <option value="active" selected>Đang mở bán</option>
+          <option value="inactive">Tạm ẩn</option>
+        </select>
+      </div>
+
+      <div class="modal-actions-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modal-add-buffet">Hủy</button>
+        <button type="submit" class="btn btn-primary-tool"><span>Lưu gói Buffet</span></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================================
+     MODAL 8: SỬA GÓI BUFFET
+     ========================================================== -->
+<div class="custom-modal-backdrop" id="modal-edit-buffet" style="display: none;">
+  <div class="custom-modal-dialog custom-modal-sm">
+    <div class="custom-modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-icon-badge" style="background: var(--blue-light); color: var(--blue);">✎</div>
+        <div>
+          <h3>Chỉnh sửa gói Buffet</h3>
+          <p>Cập nhật tên gói, đơn giá/người và ảnh hiển thị</p>
+        </div>
+      </div>
+      <button type="button" class="btn-close-modal" data-modal-close="modal-edit-buffet">&times;</button>
+    </div>
+
+    <form method="POST" action="index.php?page=dishes&tab=buffet" class="modal-form" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="edit_buffet_package">
+      <input type="hidden" name="id" id="edit-buffet-id">
+      <input type="hidden" name="current_image" id="edit-buffet-current-image">
+
+      <div class="form-group">
+        <label>Tên gói Buffet <span class="required">*</span></label>
+        <input type="text" name="name" id="edit-buffet-name" required>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>Giá / Người (VNĐ) <span class="required">*</span></label>
+          <input type="number" name="price_per_person" id="edit-buffet-price" min="0" step="1000" required>
+        </div>
+        <div class="form-group">
+          <label>Thứ tự</label>
+          <input type="number" name="sort_order" id="edit-buffet-sort" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Ảnh cover mới (Upload hoặc dán URL)</label>
+        <input type="file" name="image_file" accept="image/*" style="margin-bottom: 6px;">
+        <input type="url" name="image_url" id="edit-buffet-url" placeholder="https://...">
+      </div>
+
+      <div class="form-group">
+        <label>Mô tả ngắn</label>
+        <textarea name="description" id="edit-buffet-desc" rows="2"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Trạng thái</label>
+        <select name="status" id="edit-buffet-status">
+          <option value="active">Đang mở bán</option>
+          <option value="inactive">Tạm ẩn</option>
+        </select>
+      </div>
+
+      <div class="modal-actions-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modal-edit-buffet">Hủy</button>
+        <button type="submit" class="btn btn-primary-tool"><span>Lưu thay đổi</span></button>
       </div>
     </form>
   </div>
@@ -1171,6 +1547,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const id = this.getAttribute('data-id');
       const name = this.getAttribute('data-name');
       const catId = this.getAttribute('data-category-id');
+      const menuType = this.getAttribute('data-menu-type') || 'alacarte';
+      const buffetPkgId = this.getAttribute('data-buffet-package-id') || '';
       const price = this.getAttribute('data-price');
       const image = this.getAttribute('data-image');
       const desc = this.getAttribute('data-description');
@@ -1181,6 +1559,12 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('edit-dish-id').value = id;
       document.getElementById('edit-dish-name').value = name;
       document.getElementById('edit-dish-category').value = catId;
+      const editMenuTypeEl = document.getElementById('edit-dish-menu-type');
+      const editBuffetPkgEl = document.getElementById('edit-dish-buffet-pkg');
+      const editBuffetGrp = document.getElementById('edit-buffet-pkg-group');
+      if (editMenuTypeEl) editMenuTypeEl.value = menuType;
+      if (editBuffetPkgEl) editBuffetPkgEl.value = (buffetPkgId && buffetPkgId !== '0') ? buffetPkgId : '';
+      if (editBuffetGrp) editBuffetGrp.style.display = (menuType === 'buffet') ? '' : 'none';
       document.getElementById('edit-dish-price').value = price;
       document.getElementById('edit-current-image').value = image;
       document.getElementById('edit-dish-description').value = desc;
@@ -1223,6 +1607,7 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.addEventListener('click', function() {
       const id = this.getAttribute('data-id');
       const name = this.getAttribute('data-name');
+      const menuType = this.getAttribute('data-menu-type') || 'alacarte';
       const slug = this.getAttribute('data-slug');
       const icon = this.getAttribute('data-icon');
       const desc = this.getAttribute('data-description');
@@ -1231,6 +1616,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
       document.getElementById('edit-cat-id').value = id;
       document.getElementById('edit-cat-name').value = name;
+      const editCatMenuEl = document.getElementById('edit-cat-menu-type');
+      if (editCatMenuEl) editCatMenuEl.value = menuType;
       document.getElementById('edit-cat-slug').value = slug;
       document.getElementById('edit-cat-icon').value = icon;
       document.getElementById('edit-cat-desc').value = desc;
@@ -1274,6 +1661,42 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       const modal = document.getElementById('modal-delete-category');
+      if (modal) modal.style.display = 'flex';
+    });
+  });
+
+  // Ẩn/hiện chọn Gói Buffet khi chọn Hình thức Menu (Thêm & Sửa món)
+  const bindMenuTypeToggle = (selectId, groupId, priceInputId) => {
+    const sel = document.getElementById(selectId);
+    const grp = document.getElementById(groupId);
+    const prc = priceInputId ? document.getElementById(priceInputId) : null;
+    if (!sel || !grp) return;
+    const sync = () => {
+      const isBuffet = sel.value === 'buffet';
+      grp.style.display = isBuffet ? '' : 'none';
+      if (isBuffet && prc && prc.value === '') {
+        prc.value = '0';
+      }
+    };
+    sel.addEventListener('change', sync);
+    sync();
+  };
+  bindMenuTypeToggle('add-dish-menu-type', 'add-buffet-pkg-group', 'add-dish-price');
+  bindMenuTypeToggle('edit-dish-menu-type', 'edit-buffet-pkg-group', null);
+
+  // Mở Modal Sửa gói Buffet
+  document.querySelectorAll('.btn-edit-buffet').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById('edit-buffet-id').value = this.getAttribute('data-id');
+      document.getElementById('edit-buffet-name').value = this.getAttribute('data-name');
+      document.getElementById('edit-buffet-price').value = this.getAttribute('data-price');
+      const img = this.getAttribute('data-image') || '';
+      document.getElementById('edit-buffet-current-image').value = img;
+      document.getElementById('edit-buffet-url').value = (img.startsWith('http://') || img.startsWith('https://')) ? img : '';
+      document.getElementById('edit-buffet-desc').value = this.getAttribute('data-description') || '';
+      document.getElementById('edit-buffet-sort').value = this.getAttribute('data-sort-order') || '0';
+      document.getElementById('edit-buffet-status').value = this.getAttribute('data-status') || 'active';
+      const modal = document.getElementById('modal-edit-buffet');
       if (modal) modal.style.display = 'flex';
     });
   });

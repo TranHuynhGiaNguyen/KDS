@@ -140,73 +140,9 @@ $userInitial = mb_substr(
 
   <?php endif; ?>
 
+  <?php if (canRoleAccessPage($currentRole, 'reservations')): ?>
 
-  <!-- NHÓM MENU: QUẢN TRỊ CHỈ DÀNH CHO ADMIN -->
-  <?php if (isAdmin()): ?>
-
-    <div class="side-label">QUẢN TRỊ HỆ THỐNG</div>
-
-    <a class="<?= active('users', $page) ?>"
-       href="index.php?page=users">
-
-      <svg width="18" height="18" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-        <circle cx="9" cy="7" r="4"></circle>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-      </svg>
-
-      <span>Quản lý nhân viên</span>
-      <span class="nav-badge role-badge-count">Admin</span>
-    </a>
-
-
-    <a class="<?= active('dishes', $page) ?>"
-       href="index.php?page=dishes">
-
-      <svg width="18" height="18" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path>
-        <path d="M7 2v20"></path>
-        <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path>
-      </svg>
-
-      <span>Quản lý thực đơn</span>
-    </a>
-
-
-    <a class="<?= active('tables', $page) ?>"
-       href="index.php?page=tables">
-
-      <svg width="18" height="18" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-        <path d="M3 9h18M9 21V9"></path>
-      </svg>
-
-      <span>Quản lý bàn & khu vực</span>
-    </a>
-
-
-    <a class="<?= active('vouchers', $page) ?>"
-       href="index.php?page=vouchers">
-
-      <svg width="18" height="18" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-        <line x1="7" y1="7" x2="7.01" y2="7"></line>
-      </svg>
-
-      <span>Mã khuyến mãi</span>
-    </a>
-
-
-    <!-- QUẢN LÝ ĐẶT BÀN HOMEPAGE -->
+    <!-- QUẢN LÝ ĐẶT BÀN HOMEPAGE (Admin & Staff) -->
     <a class="<?= active('reservations', $page) ?>"
        href="index.php?page=reservations">
 
@@ -226,22 +162,98 @@ $userInitial = mb_substr(
   <?php endif; ?>
 
 
+  <!-- NHÓM MENU: QUẢN TRỊ HỆ THỐNG (Admin & Quản lý ca theo quyền từng mục) -->
+  <?php if (
+      canRoleAccessPage($currentRole, 'users') ||
+      canRoleAccessPage($currentRole, 'dishes') ||
+      canRoleAccessPage($currentRole, 'tables') ||
+      canRoleAccessPage($currentRole, 'vouchers')
+  ): ?>
+
+    <div class="side-label">QUẢN TRỊ HỆ THỐNG</div>
+
+    <?php if (canRoleAccessPage($currentRole, 'users')): ?>
+      <a class="<?= active('users', $page) ?>"
+         href="index.php?page=users">
+
+        <svg width="18" height="18" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+
+        <span>Quản lý nhân viên</span>
+        <span class="nav-badge role-badge-count">Admin</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (canRoleAccessPage($currentRole, 'dishes')): ?>
+      <a class="<?= active('dishes', $page) ?>"
+         href="index.php?page=dishes">
+
+        <svg width="18" height="18" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path>
+          <path d="M7 2v20"></path>
+          <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path>
+        </svg>
+
+        <span>Quản lý thực đơn</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (canRoleAccessPage($currentRole, 'tables')): ?>
+      <a class="<?= active('tables', $page) ?>"
+         href="index.php?page=tables">
+
+        <svg width="18" height="18" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <path d="M3 9h18M9 21V9"></path>
+        </svg>
+
+        <span>Quản lý bàn & khu vực</span>
+      </a>
+    <?php endif; ?>
+
+    <?php if (canRoleAccessPage($currentRole, 'vouchers')): ?>
+      <a class="<?= active('vouchers', $page) ?>"
+         href="index.php?page=vouchers">
+
+        <svg width="18" height="18" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+          <line x1="7" y1="7" x2="7.01" y2="7"></line>
+        </svg>
+
+        <span>Mã khuyến mãi</span>
+        <span class="nav-badge role-badge-count">Admin</span>
+      </a>
+    <?php endif; ?>
+
+  <?php endif; ?>
+
+
   <!-- NHÓM MENU: KHÁCH HÀNG -->
   <div class="side-label">KHÁCH HÀNG</div>
 
-  <a href="index.php?page=menu"
-     target="_blank"
+  <a href="homepage/index.php"
      class="client-view-link">
 
     <svg width="18" height="18" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-      <polyline points="15 3 21 3 21 9"></polyline>
-      <line x1="10" y1="14" x2="21" y2="3"></line>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+      <polyline points="9 22 9 12 15 12 15 22"></polyline>
     </svg>
 
-    <span>Xem trang gọi món</span>
+    <span>Về trang Homepage</span>
   </a>
 
 

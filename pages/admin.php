@@ -114,15 +114,17 @@ $thisMonthStart = date('Y-m-01');
     <p><?= $viewMode === 'kitchen' ? 'Thống kê thời gian chế biến trung bình, cảnh báo các món bị trễ giờ và phân tích tải theo từng quầy bếp.' : 'Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng / khoảng ngày và phân bổ vận hành nhà hàng.' ?></p>
   </div>
   <div class="filter-row">
-    <a class="btn btn-outline" href="index.php?page=users">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-        <circle cx="9" cy="7" r="4"></circle>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-      </svg>
-      <span>Quản lý nhân viên</span>
-    </a>
+    <?php if (canRoleAccessPage(currentRole(), 'users')): ?>
+      <a class="btn btn-outline" href="index.php?page=users">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <span>Quản lý nhân viên</span>
+      </a>
+    <?php endif; ?>
     <a class="btn btn-outline" href="index.php?page=dishes">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path>
@@ -138,13 +140,15 @@ $thisMonthStart = date('Y-m-01');
       </svg>
       <span>Quản lý bàn & khu vực</span>
     </a>
-    <a class="btn btn-outline" href="index.php?page=vouchers">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-        <line x1="7" y1="7" x2="7.01" y2="7"></line>
-      </svg>
-      <span>Mã khuyến mãi</span>
-    </a>
+    <?php if (canRoleAccessPage(currentRole(), 'vouchers')): ?>
+      <a class="btn btn-outline" href="index.php?page=vouchers">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+          <line x1="7" y1="7" x2="7.01" y2="7"></line>
+        </svg>
+        <span>Mã khuyến mãi</span>
+      </a>
+    <?php endif; ?>
     <a class="btn btn-primary-tool" href="index.php?page=kitchen">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path>

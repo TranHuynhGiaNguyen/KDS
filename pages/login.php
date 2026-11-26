@@ -22,7 +22,7 @@
       </div>
 
       <p class="login-subtitle">
-        Đăng nhập để truy cập theo phân quyền: Quản trị, Phục vụ hoặc Màn hình Bếp
+        Đăng nhập để truy cập theo phân quyền: Quản trị, Quản lý ca, Phục vụ hoặc Màn hình Bếp
       </p>
     </div>
 
@@ -71,6 +71,14 @@
           <span class="preset-role-badge role-admin">Admin</span>
           <span class="preset-name">Quản trị viên</span>
           <small class="preset-cred">admin / admin123</small>
+        </button>
+
+        <button type="button" class="role-preset-btn"
+          data-user="shift_manager" data-pass="shift123"
+          title="Tài khoản Quản lý ca">
+          <span class="preset-role-badge role-shift-manager">Quản lý ca</span>
+          <span class="preset-name">Quản lý ca</span>
+          <small class="preset-cred">shift_manager / shift123</small>
         </button>
 
         <button type="button" class="role-preset-btn"

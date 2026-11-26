@@ -73,7 +73,7 @@ function getAvailableTables(
                     SELECT 1
                     FROM public_reservations r
                     WHERE r.table_id = t.id
-                      AND r.status IN ('pending', 'confirmed')
+                      AND r.status IN ('pending', 'confirmed', 'seated')
                       AND TIMESTAMP(r.reservation_date, r.reservation_time)
                           < :requested_end
                       AND DATE_ADD(
@@ -123,8 +123,9 @@ $pdo->exec("
         area_id INT NOT NULL,
         table_id INT NOT NULL,
         note TEXT DEFAULT NULL,
-        status ENUM('pending','confirmed','cancelled','rejected')
+        status ENUM('pending','confirmed','seated','cancelled','rejected')
             NOT NULL DEFAULT 'pending',
+        seated_at DATETIME DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_reservation_date (reservation_date),
         INDEX idx_reservation_phone (phone),
@@ -348,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE phone = ?
                   AND reservation_date = ?
                   AND reservation_time = ?
-                  AND status IN ('pending', 'confirmed')
+                  AND status IN ('pending', 'confirmed', 'seated')
                 LIMIT 1
             ");
 
@@ -407,7 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SELECT id
                 FROM public_reservations
                 WHERE table_id = :table_id
-                  AND status IN ('pending', 'confirmed')
+                  AND status IN ('pending', 'confirmed', 'seated')
                   AND TIMESTAMP(reservation_date, reservation_time)
                       < :requested_end
                   AND DATE_ADD(
@@ -1011,6 +1012,9 @@ $minDate = date('Y-m-d');
     </nav>
 
     <div class="standalone-header-actions">
+        <a class="standalone-phone" href="../index.php?page=login">
+            Đăng nhập
+        </a>
         <a class="standalone-reserve" href="reservation.php">
             Đặt bàn ngay
         </a>

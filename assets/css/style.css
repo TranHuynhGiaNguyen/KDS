@@ -2930,6 +2930,11 @@ hr {
   color: #b91c1c;
 }
 
+.preset-role-badge.role-shift-manager {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
 .preset-role-badge.role-staff {
   background: #dcfce7;
   color: #15803d;
@@ -2965,6 +2970,11 @@ hr {
 /* Sidebar Profile Avatars & Badges */
 .avatar.avatar-role-admin {
   background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+}
+
+.avatar.avatar-role-shift_manager {
+  background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
   color: #ffffff !important;
 }
 
@@ -3072,6 +3082,16 @@ hr {
   background: #d97706;
 }
 
+.role-badge.role-shift-manager {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.role-badge.role-shift-manager .role-dot {
+  background: #4f46e5;
+}
+
 /* Status Badges */
 .status-badge {
   display: inline-flex;
@@ -3125,6 +3145,11 @@ hr {
 .stat-badge-kitchen {
   background: #fef3c7;
   color: #b45309;
+}
+
+.stat-badge-shift-manager {
+  background: #e0e7ff;
+  color: #4338ca;
 }
 
 .users-panel {

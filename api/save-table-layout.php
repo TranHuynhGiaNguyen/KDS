@@ -8,9 +8,9 @@ require_once __DIR__ . '/../includes/tables.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!isAdmin()) {
+if (!canRoleAccessPage(currentRole(), 'tables')) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Chỉ Quản trị viên (Admin) mới có quyền lưu vị trí sơ đồ!']);
+    echo json_encode(['success' => false, 'message' => 'Bạn không có quyền lưu vị trí sơ đồ!']);
     exit;
 }
 

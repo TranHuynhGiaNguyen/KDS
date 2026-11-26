@@ -32,8 +32,9 @@ const ORDER_ITEM_STATUSES = [
 ];
 
 const ORDER_ROLE_ACTIONS = [
-    'admin' => ['add', 'cancel'],
-    'staff' => ['add'],
+    'admin'         => ['add', 'cancel'],
+    'shift_manager' => ['add', 'cancel'],
+    'staff'         => ['add'],
 ];
 
 /** Trạng thái món còn hủy được: chưa nấu hoặc đã nấu xong (Admin được hủy mọi lúc khi bàn chưa thanh toán). */
@@ -149,7 +150,9 @@ function lockedItemActions(array $item, ?string $role): array
 function fetchOrderableDishes(PDO $pdo): array
 {
     return $pdo->query("
-        SELECT d.`id`, d.`name`, d.`price`, d.`status`, c.`name` AS `category`
+        SELECT d.`id`, d.`name`, d.`price`, d.`status`, d.`menu_type` AS `dish_menu_type`,
+               d.`buffet_package_id`, c.`id` AS `category_id`, c.`name` AS `category`,
+               c.`menu_type` AS `category_menu_type`
         FROM `dishes` d
         JOIN `categories` c ON c.`id` = d.`category_id`
         WHERE d.`status` IN ('active', 'out_of_stock')
@@ -157,25 +160,87 @@ function fetchOrderableDishes(PDO $pdo): array
     ")->fetchAll();
 }
 
-/** Hủy món: đánh dấu hủy, chỉ khi bếp chưa in phiếu và bàn chưa thanh toán. Quyền hạn do nơi gọi kiểm tra. */
-function cancelOrderItem(PDO $pdo, int $itemId): bool
+/**
+ * Hủy món hoặc giảm bớt số lượng món:
+ * - Nếu $cancelQty === null hoặc >= qty hiện có: đánh dấu cancelled toàn bộ dòng.
+ * - Nếu 1 <= $cancelQty < qty hiện có: giảm qty dòng hiện tại và tách phần đã hủy vào bản ghi cancelled.
+ */
+function cancelOrderItem(PDO $pdo, int $itemId, ?int $cancelQty = null): bool
 {
     $placeholders = implode(', ', array_fill(0, count(ORDER_ITEM_CANCELLABLE_STATUSES), '?'));
+    $ownTx = !$pdo->inTransaction();
 
-    $stmt = $pdo->prepare("
-        UPDATE `order_items` i
-        JOIN `orders` o ON o.`id` = i.`order_id`
-        SET i.`status` = 'cancelled', i.`cancelled_at` = ?
-        WHERE i.`id` = ? AND i.`status` IN ($placeholders) AND o.`status` = 'open'
-    ");
-    $stmt->execute(array_merge([currentTimeForDb(), $itemId], ORDER_ITEM_CANCELLABLE_STATUSES));
+    try {
+        if ($ownTx) {
+            $pdo->beginTransaction();
+        }
 
-    return $stmt->rowCount() === 1;
+        $stmt = $pdo->prepare("
+            SELECT i.`id`, i.`order_id`, i.`item_name`, i.`unit_price`, i.`qty`, i.`note`, i.`status`, i.`sent_by`, i.`sent_at`
+            FROM `order_items` i
+            JOIN `orders` o ON o.`id` = i.`order_id`
+            WHERE i.`id` = ? AND i.`status` IN ($placeholders) AND o.`status` = 'open'
+            FOR UPDATE
+        ");
+        $stmt->execute(array_merge([$itemId], ORDER_ITEM_CANCELLABLE_STATUSES));
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return false;
+        }
+
+        $currentQty = max(1, (int) $row['qty']);
+        $nowDb      = currentTimeForDb();
+
+        if ($cancelQty === null || $cancelQty >= $currentQty) {
+            $upd = $pdo->prepare("UPDATE `order_items` SET `status` = 'cancelled', `cancelled_at` = ? WHERE `id` = ?");
+            $upd->execute([$nowDb, $itemId]);
+        } else {
+            if ($cancelQty < 1) {
+                if ($ownTx && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                return false;
+            }
+            $remainQty = $currentQty - $cancelQty;
+            $upd = $pdo->prepare("UPDATE `order_items` SET `qty` = ? WHERE `id` = ?");
+            $upd->execute([$remainQty, $itemId]);
+
+            $ins = $pdo->prepare("
+                INSERT INTO `order_items`
+                    (`order_id`, `item_name`, `unit_price`, `qty`, `note`, `status`, `sent_by`, `sent_at`, `cancelled_at`)
+                VALUES (?, ?, ?, ?, ?, 'cancelled', ?, ?, ?)
+            ");
+            $ins->execute([
+                (int) $row['order_id'],
+                $row['item_name'],
+                (int) $row['unit_price'],
+                $cancelQty,
+                $row['note'],
+                $row['sent_by'],
+                $row['sent_at'],
+                $nowDb,
+            ]);
+        }
+
+        if ($ownTx) {
+            $pdo->commit();
+        }
+        return true;
+    } catch (Throwable $e) {
+        if ($ownTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 /**
- * Thêm món vào bàn: tự mở đơn mới nếu bàn chưa có đơn, món vào bếp ở trạng thái "pending".
- * Trả về id dòng món vừa tạo.
+ * Thêm món vào bàn: tự mở đơn mới nếu bàn chưa có đơn.
+ * Nếu đang có dòng món ở trạng thái 'pending' trùng tên, đơn giá & ghi chú trong đơn mở, cộng dồn số lượng để dễ tap nhiều lần.
  *
  * @throws OrderException khi dữ liệu không hợp lệ hoặc món không còn phục vụ
  */
@@ -208,18 +273,42 @@ function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string
     }
 
     $note = mb_substr(trim($note), 0, 255);
+    $noteVal = $note === '' ? null : $note;
 
     $pdo->beginTransaction();
 
     try {
         $orderId = findOrCreateOpenOrderId($pdo, $tableCode);
 
-        $insert = $pdo->prepare("
-            INSERT INTO `order_items` (`order_id`, `item_name`, `unit_price`, `qty`, `note`, `status`, `sent_by`, `sent_at`)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+        // Cộng dồn vào dòng đang pending nếu trùng tên, giá và ghi chú
+        $findPending = $pdo->prepare("
+            SELECT `id`, `qty`
+            FROM `order_items`
+            WHERE `order_id` = ?
+              AND `item_name` = ?
+              AND `unit_price` = ?
+              AND COALESCE(`note`, '') = COALESCE(?, '')
+              AND `status` = 'pending'
+            ORDER BY `id` DESC
+            LIMIT 1
+            FOR UPDATE
         ");
-        $insert->execute([$orderId, $dish['name'], (int) $dish['price'], $qty, $note === '' ? null : $note, $userId, currentTimeForDb()]);
-        $itemId = (int) $pdo->lastInsertId();
+        $findPending->execute([$orderId, $dish['name'], (int) $dish['price'], $noteVal]);
+        $existingPending = $findPending->fetch(PDO::FETCH_ASSOC);
+
+        if ($existingPending) {
+            $itemId = (int) $existingPending['id'];
+            $newQty = (int) $existingPending['qty'] + $qty;
+            $pdo->prepare("UPDATE `order_items` SET `qty` = ?, `sent_by` = ?, `sent_at` = ? WHERE `id` = ?")
+                ->execute([$newQty, $userId, currentTimeForDb(), $itemId]);
+        } else {
+            $insert = $pdo->prepare("
+                INSERT INTO `order_items` (`order_id`, `item_name`, `unit_price`, `qty`, `note`, `status`, `sent_by`, `sent_at`)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+            ");
+            $insert->execute([$orderId, $dish['name'], (int) $dish['price'], $qty, $noteVal, $userId, currentTimeForDb()]);
+            $itemId = (int) $pdo->lastInsertId();
+        }
 
         $pdo->commit();
 

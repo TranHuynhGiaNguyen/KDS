@@ -26,10 +26,13 @@ $allowedPages = [
     'dishes',
     'tables',
     'login',
+    'home',
     'menu',
+    'qr-order',
     'cart',
     'tracking',
     'reservation',
+    'booking-history',
     'payment',
     'profile',
     'vouchers',
@@ -91,8 +94,8 @@ if (!function_exists('active')) {
 */
 
 if (
-    isset($_GET['logout']) &&
-    $_GET['logout'] === '1'
+    (isset($_GET['logout']) && $_GET['logout'] === '1') ||
+    (isset($_GET['action']) && $_GET['action'] === 'logout')
 ) {
     // Gọi hàm đăng xuất trong auth.php.
     logoutUser();
@@ -121,6 +124,32 @@ if (empty($_SESSION['csrf_token'])) {
 $page = isset($_GET['page'])
     ? trim((string) $_GET['page'])
     : '';
+
+if (
+    $_SERVER['REQUEST_METHOD'] !== 'POST' &&
+    !isset($_POST['login_submit']) &&
+    ($page === '' || $page === 'home')
+) {
+    header('Location: homepage/index.php');
+    exit;
+}
+
+if ($page === 'reservation') {
+    header('Location: homepage/reservation.php');
+    exit;
+}
+
+if ($page === 'booking-history') {
+    header('Location: homepage/booking-history.php');
+    exit;
+}
+
+if ($page === 'qr-order') {
+    $tableParam = trim((string) ($_GET['table'] ?? ''));
+    $targetUrl = 'qr-order.php' . ($tableParam !== '' ? ('?table=' . urlencode($tableParam)) : '');
+    header('Location: ' . $targetUrl);
+    exit;
+}
 
 if (!in_array($page, $allowedPages, true)) {
     $page = isLoggedIn()
@@ -236,10 +265,9 @@ $dashboardPages = [
 ];
 
 $customerPages = [
-    'menu'        => 'menu.php',
-    'cart'        => 'cart.php',
-    'tracking'    => 'tracking.php',
-    'reservation' => 'reservation.php'
+    'menu'     => 'menu.php',
+    'cart'     => 'cart.php',
+    'tracking' => 'tracking.php'
 ];
 
 /*

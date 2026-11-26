@@ -49,8 +49,14 @@ try {
         respondJson(200, ['ok' => true, 'item_id' => $itemId]);
     }
 
-    $itemId = (int) ($_POST['item_id'] ?? 0);
-    $item   = findOrderItem($pdo, $itemId);
+    $itemId    = (int) ($_POST['item_id'] ?? 0);
+    $cancelQty = isset($_POST['qty']) && $_POST['qty'] !== '' ? (int) $_POST['qty'] : null;
+
+    if ($cancelQty !== null && $cancelQty < 1) {
+        respondJson(422, ['error' => 'Số lượng cần hủy phải từ 1 trở lên.']);
+    }
+
+    $item = findOrderItem($pdo, $itemId);
 
     if ($item === null) {
         respondJson(404, ['error' => 'Không tìm thấy món.']);
@@ -64,7 +70,7 @@ try {
         respondJson(409, ['error' => ORDER_CANCEL_LOCKED_MESSAGE]);
     }
 
-    if (!cancelOrderItem($pdo, $itemId)) {
+    if (!cancelOrderItem($pdo, $itemId, $cancelQty)) {
         respondJson(409, ['error' => 'Không hủy được món: món đã được hủy hoặc bàn đã thanh toán.']);
     }
 

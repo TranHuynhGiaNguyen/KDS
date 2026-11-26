@@ -2,7 +2,7 @@
 <?php
 /**
  * SmartDine - QUẢN LÝ ĐẶT BÀN TỪ HOMEPAGE
- * Chỉ dành cho Admin thông qua phân quyền tại index.php và auth.php.
+ * Dành cho Admin và Nhân viên phục vụ (Staff) thông qua phân quyền tại index.php và auth.php.
  */
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -10,6 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/tables.php';
 
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
@@ -18,6 +19,12 @@ $pdo = getDbConnection();
 if (!$pdo instanceof PDO) {
     die('Không thể kết nối cơ sở dữ liệu. Vui lòng kiểm tra MySQL và XAMPP.');
 }
+
+ensurePublicReservationsSchema($pdo);
+
+$currentUserRole = function_exists('currentRole') ? currentRole() : ($_SESSION['role'] ?? 'staff');
+$isAdminUser     = in_array($currentUserRole, ['admin', 'shift_manager'], true);
+$currentStaffId  = (int) ($_SESSION['user_id'] ?? 0);
 
 if (!function_exists('reservationH')) {
     function reservationH($value): string
@@ -34,10 +41,10 @@ if (empty($_SESSION['reservation_admin_token'])) {
 $csrfToken = $_SESSION['reservation_admin_token'];
 
 // ==========================================================
-// XỬ LÝ XÁC NHẬN / TỪ CHỐI / HỦY ĐẶT BÀN
+// XỬ LÝ XÁC NHẬN / ĐÃ VÀO BÀN / TỪ CHỐI / HỦY ĐẶT BÀN
 // ==========================================================
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST'
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
     && isset($_POST['reservation_action'])) {
 
     $submittedToken = $_POST['csrf_token'] ?? '';
@@ -52,6 +59,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
 
     $reservationId = (int)($_POST['reservation_id'] ?? 0);
     $action = $_POST['reservation_action'] ?? '';
+
+    if ($action === 'seat') {
+        $seatResult = seatPublicReservation($pdo, $reservationId, $currentStaffId);
+        if (!empty($seatResult['success'])) {
+            $_SESSION['flash_success'] = $seatResult['message'];
+        } else {
+            $_SESSION['flash_error'] = $seatResult['message'] ?? 'Không thể xác nhận khách vào bàn.';
+        }
+        header('Location: index.php?page=reservations');
+        exit;
+    }
+
+    if (!$isAdminUser) {
+        $_SESSION['flash_error'] = 'Chỉ Quản trị viên hoặc Quản lý ca mới có quyền xác nhận, từ chối hoặc hủy yêu cầu đặt bàn.';
+        header('Location: index.php?page=reservations');
+        exit;
+    }
 
     $statusMap = [
         'confirm' => 'confirmed',
@@ -121,6 +145,7 @@ $dateFilter = $_GET['date'] ?? '';
 $allowedStatuses = [
     'pending',
     'confirmed',
+    'seated',
     'cancelled',
     'rejected'
 ];
@@ -214,6 +239,7 @@ try {
             COUNT(*) AS total,
             SUM(status = 'pending') AS pending_count,
             SUM(status = 'confirmed') AS confirmed_count,
+            SUM(status = 'seated') AS seated_count,
             SUM(status = 'cancelled') AS cancelled_count,
             SUM(status = 'rejected') AS rejected_count
         FROM public_reservations
@@ -235,6 +261,7 @@ try {
 $statusLabels = [
     'pending'   => 'Chờ xác nhận',
     'confirmed' => 'Đã xác nhận',
+    'seated'    => 'Đã vào bàn',
     'cancelled' => 'Đã hủy',
     'rejected'  => 'Đã từ chối',
 ];
@@ -389,6 +416,11 @@ $statusLabels = [
     color: #047857;
 }
 
+.reservation-status.seated {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
 .reservation-status.cancelled {
     background: #f1f5f9;
     color: #475569;
@@ -421,6 +453,22 @@ $statusLabels = [
 .reservation-btn-confirm {
     background: #dcfce7;
     color: #166534;
+}
+
+.reservation-btn-seat {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.reservation-btn-open {
+    display: inline-block;
+    background: #ecfdf5;
+    color: #047857;
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
 }
 
 .reservation-btn-reject {
@@ -492,6 +540,13 @@ $statusLabels = [
             <span>Đã xác nhận</span>
             <strong style="color:#059669">
                 <?= number_format((int)($stats['confirmed_count'] ?? 0)) ?>
+            </strong>
+        </div>
+
+        <div class="reservation-stat">
+            <span>Đã vào bàn</span>
+            <strong style="color:#2563eb">
+                <?= number_format((int)($stats['seated_count'] ?? 0)) ?>
             </strong>
         </div>
 
@@ -666,6 +721,12 @@ $statusLabels = [
                                 <span class="reservation-status <?= reservationH($status) ?>">
                                     <?= reservationH($statusText) ?>
                                 </span>
+                                <?php if ($status === 'seated' && !empty($reservation['seated_at'])): ?>
+                                    <br>
+                                    <small style="color:#64748b;font-size:11px">
+                                        Vào bàn: <?= date('H:i d/m', strtotime($reservation['seated_at'])) ?>
+                                    </small>
+                                <?php endif; ?>
                             </td>
 
                             <td>
@@ -674,39 +735,41 @@ $statusLabels = [
 
                                     <?php if ($status === 'pending'): ?>
 
-                                        <form method="post" action="index.php?page=reservations">
+                                        <?php if ($isAdminUser): ?>
+                                            <form method="post" action="index.php?page=reservations">
 
-                                            <input
-                                                type="hidden"
-                                                name="csrf_token"
-                                                value="<?= reservationH($csrfToken) ?>"
-                                            >
+                                                <input
+                                                    type="hidden"
+                                                    name="csrf_token"
+                                                    value="<?= reservationH($csrfToken) ?>"
+                                                >
 
-                                            <input
-                                                type="hidden"
-                                                name="reservation_id"
-                                                value="<?= (int)$reservation['id'] ?>"
-                                            >
+                                                <input
+                                                    type="hidden"
+                                                    name="reservation_id"
+                                                    value="<?= (int)$reservation['id'] ?>"
+                                                >
 
-                                            <input
-                                                type="hidden"
-                                                name="reservation_action"
-                                                value="confirm"
-                                            >
+                                                <input
+                                                    type="hidden"
+                                                    name="reservation_action"
+                                                    value="confirm"
+                                                >
 
-                                            <button
-                                                class="reservation-btn-confirm"
-                                                type="submit"
-                                            >
-                                                Xác nhận
-                                            </button>
+                                                <button
+                                                    class="reservation-btn-confirm"
+                                                    type="submit"
+                                                >
+                                                    Xác nhận
+                                                </button>
 
-                                        </form>
+                                            </form>
+                                        <?php endif; ?>
 
                                         <form
                                             method="post"
                                             action="index.php?page=reservations"
-                                            onsubmit="return confirm('Bạn có chắc muốn từ chối lượt đặt bàn này?')"
+                                            onsubmit="return confirm('Xác nhận khách đặt bàn này đã đến và vào bàn <?= reservationH($reservation['table_code'] ?: '') ?>?')"
                                         >
 
                                             <input
@@ -724,24 +787,59 @@ $statusLabels = [
                                             <input
                                                 type="hidden"
                                                 name="reservation_action"
-                                                value="reject"
+                                                value="seat"
                                             >
 
                                             <button
-                                                class="reservation-btn-reject"
+                                                class="reservation-btn-seat"
                                                 type="submit"
                                             >
-                                                Từ chối
+                                                Đã vào bàn
                                             </button>
 
                                         </form>
+
+                                        <?php if ($isAdminUser): ?>
+                                            <form
+                                                method="post"
+                                                action="index.php?page=reservations"
+                                                onsubmit="return confirm('Bạn có chắc muốn từ chối lượt đặt bàn này?')"
+                                            >
+
+                                                <input
+                                                    type="hidden"
+                                                    name="csrf_token"
+                                                    value="<?= reservationH($csrfToken) ?>"
+                                                >
+
+                                                <input
+                                                    type="hidden"
+                                                    name="reservation_id"
+                                                    value="<?= (int)$reservation['id'] ?>"
+                                                >
+
+                                                <input
+                                                    type="hidden"
+                                                    name="reservation_action"
+                                                    value="reject"
+                                                >
+
+                                                <button
+                                                    class="reservation-btn-reject"
+                                                    type="submit"
+                                                >
+                                                    Từ chối
+                                                </button>
+
+                                            </form>
+                                        <?php endif; ?>
 
                                     <?php elseif ($status === 'confirmed'): ?>
 
                                         <form
                                             method="post"
                                             action="index.php?page=reservations"
-                                            onsubmit="return confirm('Bạn có chắc muốn hủy lượt đặt bàn đã xác nhận?')"
+                                            onsubmit="return confirm('Xác nhận khách đặt bàn này đã đến và vào bàn <?= reservationH($reservation['table_code'] ?: '') ?>?')"
                                         >
 
                                             <input
@@ -759,17 +857,67 @@ $statusLabels = [
                                             <input
                                                 type="hidden"
                                                 name="reservation_action"
-                                                value="cancel"
+                                                value="seat"
                                             >
 
                                             <button
-                                                class="reservation-btn-cancel"
+                                                class="reservation-btn-seat"
                                                 type="submit"
                                             >
-                                                Hủy đặt bàn
+                                                Đã vào bàn
                                             </button>
 
                                         </form>
+
+                                        <?php if ($isAdminUser): ?>
+                                            <form
+                                                method="post"
+                                                action="index.php?page=reservations"
+                                                onsubmit="return confirm('Bạn có chắc muốn hủy lượt đặt bàn đã xác nhận?')"
+                                            >
+
+                                                <input
+                                                    type="hidden"
+                                                    name="csrf_token"
+                                                    value="<?= reservationH($csrfToken) ?>"
+                                                >
+
+                                                <input
+                                                    type="hidden"
+                                                    name="reservation_id"
+                                                    value="<?= (int)$reservation['id'] ?>"
+                                                >
+
+                                                <input
+                                                    type="hidden"
+                                                    name="reservation_action"
+                                                    value="cancel"
+                                                >
+
+                                                <button
+                                                    class="reservation-btn-cancel"
+                                                    type="submit"
+                                                >
+                                                    Hủy đặt bàn
+                                                </button>
+
+                                            </form>
+                                        <?php endif; ?>
+
+                                    <?php elseif ($status === 'seated'): ?>
+
+                                        <?php if (!empty($reservation['table_code'])): ?>
+                                            <a
+                                                class="reservation-btn-open"
+                                                href="index.php?page=table-order&amp;table=<?= urlencode($reservation['table_code']) ?>"
+                                            >
+                                                Mở bàn <?= reservationH($reservation['table_code']) ?>
+                                            </a>
+                                        <?php else: ?>
+                                            <span style="color:#1d4ed8;font-size:11px;font-weight:700">
+                                                Đã nhận bàn
+                                            </span>
+                                        <?php endif; ?>
 
                                     <?php else: ?>
 

@@ -19,6 +19,7 @@ require_once __DIR__ . '/../config/database.php';
 if (!defined('SMARTDINE_ROLES')) {
     define('SMARTDINE_ROLES', [
         'admin',
+        'shift_manager',
         'staff',
         'kitchen'
     ]);
@@ -75,6 +76,16 @@ function isAdmin(): bool
     return currentRole() === 'admin';
 }
 
+function isShiftManager(): bool
+{
+    return currentRole() === 'shift_manager';
+}
+
+function isManagerOrAdmin(): bool
+{
+    return in_array(currentRole(), ['admin', 'shift_manager'], true);
+}
+
 function isStaff(): bool
 {
     return currentRole() === 'staff';
@@ -96,6 +107,9 @@ function getRoleName($role): string
     switch ($role) {
         case 'admin':
             return 'Quản trị viên';
+
+        case 'shift_manager':
+            return 'Quản lý ca';
 
         case 'kitchen':
             return 'Đầu bếp KDS';
@@ -119,6 +133,9 @@ function getRoleBadgeHtml($role): string
     switch ($role) {
         case 'admin':
             return '<span class="role-badge role-admin"><i class="role-dot"></i> Quản trị viên</span>';
+
+        case 'shift_manager':
+            return '<span class="role-badge role-shift-manager"><i class="role-dot"></i> Quản lý ca</span>';
 
         case 'kitchen':
             return '<span class="role-badge role-kitchen"><i class="role-dot"></i> Bếp KDS</span>';
@@ -299,6 +316,7 @@ function getDefaultPageForRole($role): string
 {
     switch ($role) {
         case 'admin':
+        case 'shift_manager':
             return 'admin';
 
         case 'kitchen':
@@ -349,6 +367,29 @@ function getRolePermissions(): array
 
         /*
         |--------------------------------------------------------------------------
+        | QUẢN LÝ CA (Tất cả chức năng trừ Mã khuyến mãi & Quản lý tài khoản NV)
+        |--------------------------------------------------------------------------
+        */
+
+        'shift_manager' => [
+            'admin',
+            'dishes',
+            'tables',
+            'staff',
+            'table-order',
+            'kitchen',
+            'bills',
+            'menu',
+            'cart',
+            'tracking',
+            'reservation',
+            'reservations',
+            'payment',
+            'profile'
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
         | NHÂN VIÊN PHỤC VỤ
         |--------------------------------------------------------------------------
         */
@@ -361,6 +402,7 @@ function getRolePermissions(): array
             'cart',
             'tracking',
             'reservation',
+            'reservations',
             'payment',
             'profile'
         ],

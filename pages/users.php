@@ -212,7 +212,16 @@ $stats = getUserStats();
       <span class="stat-badge stat-badge-admin">Toàn quyền</span>
     </div>
     <b><?= $stats['admin'] ?> tài khoản</b>
-    <small>Quản lý hệ thống, menu, kho, nhân sự</small>
+    <small>Toàn quyền hệ thống &amp; nhân sự</small>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-card-head">
+      <span>Quản lý ca</span>
+      <span class="stat-badge stat-badge-shift-manager">Quản lý ca</span>
+    </div>
+    <b><?= $stats['shift_manager'] ?? 0 ?> tài khoản</b>
+    <small>Đầy đủ nghiệp vụ trừ nhân sự &amp; khuyến mãi</small>
   </div>
 
   <div class="stat-card">
@@ -257,6 +266,7 @@ $stats = getUserStats();
         <select name="role" onchange="this.form.submit()">
           <option value="">Tất cả vai trò</option>
           <option value="admin" <?= $filterRole === 'admin' ? 'selected' : '' ?>>Quản trị viên (Admin)</option>
+          <option value="shift_manager" <?= $filterRole === 'shift_manager' ? 'selected' : '' ?>>Quản lý ca (Shift Manager)</option>
           <option value="staff" <?= $filterRole === 'staff' ? 'selected' : '' ?>>Phục vụ (Staff)</option>
           <option value="kitchen" <?= $filterRole === 'kitchen' ? 'selected' : '' ?>>Đầu bếp (Kitchen)</option>
         </select>
@@ -486,6 +496,7 @@ $stats = getUserStats();
           <select id="add-role" name="role" required>
             <option value="staff" selected>Nhân viên phục vụ (Sơ đồ bàn, gọi món)</option>
             <option value="kitchen">Đầu bếp (Màn hình bếp KDS)</option>
+            <option value="shift_manager">Quản lý ca (Tất cả trừ Nhân sự &amp; Khuyến mãi)</option>
             <option value="admin">Quản trị viên (Toàn quyền quản trị)</option>
           </select>
         </div>
@@ -559,6 +570,7 @@ $stats = getUserStats();
           <select id="edit-role" name="role" required>
             <option value="staff">Nhân viên phục vụ (Sơ đồ bàn, gọi món)</option>
             <option value="kitchen">Đầu bếp (Màn hình bếp KDS)</option>
+            <option value="shift_manager">Quản lý ca (Tất cả trừ Nhân sự &amp; Khuyến mãi)</option>
             <option value="admin">Quản trị viên (Toàn quyền quản trị)</option>
           </select>
           <small class="muted" id="edit-role-note" style="display:none; color: var(--yellow);">* Bạn không thể tự hạ quyền của chính mình</small>

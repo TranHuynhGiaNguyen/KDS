@@ -51,6 +51,7 @@ function getBookingStatusLabel($status)
     $labels = [
         'pending' => 'Chờ xác nhận',
         'confirmed' => 'Đã xác nhận',
+        'seated' => 'Đã vào bàn',
         'cancelled' => 'Đã hủy',
         'rejected' => 'Từ chối'
     ];
@@ -63,6 +64,7 @@ function getBookingStatusClass($status)
     $classes = [
         'pending' => 'pending',
         'confirmed' => 'confirmed',
+        'seated' => 'seated',
         'cancelled' => 'cancelled',
         'rejected' => 'rejected'
     ];
@@ -567,6 +569,11 @@ foreach ($bookings as $item) {
         .status.confirmed {
             color: #176b35;
             background: #dff5e5;
+        }
+
+        .status.seated {
+            color: #1d4ed8;
+            background: #dbeafe;
         }
 
         .status.cancelled {

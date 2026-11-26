@@ -7,8 +7,8 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/admin-orders-view.php';
 
-if (!isLoggedIn() || !isAdmin()) {
-    respondJson(403, ['error' => 'Chỉ Quản trị viên mới được xem mục này.']);
+if (!isLoggedIn() || !canRoleAccessPage(currentRole(), 'admin')) {
+    respondJson(403, ['error' => 'Bạn không có quyền xem mục này.']);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
