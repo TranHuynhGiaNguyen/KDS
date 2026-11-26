@@ -1,3 +1,4 @@
+
 <?php
 /**
  * SmartDine - Hệ thống Xác thực & Phân quyền theo Vai trò (RBAC)
@@ -9,243 +10,543 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config/database.php';
 
-/**
- * Kiểm tra xem người dùng đã đăng nhập chưa
- */
-function isLoggedIn() {
-    return !empty($_SESSION['user_id']);
+/*
+|--------------------------------------------------------------------------
+| CẤU HÌNH VAI TRÒ
+|--------------------------------------------------------------------------
+*/
+
+if (!defined('SMARTDINE_ROLES')) {
+    define('SMARTDINE_ROLES', [
+        'admin',
+        'staff',
+        'kitchen'
+    ]);
 }
 
-/**
- * Lấy thông tin tài khoản hiện tại
- */
-function currentUser() {
-    if (!isLoggedIn()) return null;
+/*
+|--------------------------------------------------------------------------
+| KIỂM TRA ĐĂNG NHẬP
+|--------------------------------------------------------------------------
+*/
+
+function isLoggedIn(): bool
+{
+    return isset($_SESSION['user_id']) && (int) $_SESSION['user_id'] > 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| LẤY THÔNG TIN NGƯỜI DÙNG
+|--------------------------------------------------------------------------
+*/
+
+function currentUser(): ?array
+{
+    if (!isLoggedIn()) {
+        return null;
+    }
+
     return [
         'id'       => $_SESSION['user_id'] ?? null,
         'username' => $_SESSION['username'] ?? '',
         'fullname' => $_SESSION['fullname'] ?? '',
         'role'     => $_SESSION['role'] ?? 'staff',
         'email'    => $_SESSION['email'] ?? '',
-        'phone'    => $_SESSION['phone'] ?? '',
+        'phone'    => $_SESSION['phone'] ?? ''
     ];
 }
 
-/**
- * Lấy vai trò của người dùng hiện tại
- */
-function currentRole() {
-    return $_SESSION['role'] ?? null;
+/*
+|--------------------------------------------------------------------------
+| LẤY VAI TRÒ
+|--------------------------------------------------------------------------
+*/
+
+function currentRole(): ?string
+{
+    return isLoggedIn()
+        ? ($_SESSION['role'] ?? null)
+        : null;
 }
 
-function isAdmin() {
+function isAdmin(): bool
+{
     return currentRole() === 'admin';
 }
 
-function isStaff() {
+function isStaff(): bool
+{
     return currentRole() === 'staff';
 }
 
-function isKitchen() {
+function isKitchen(): bool
+{
     return currentRole() === 'kitchen';
 }
 
-/**
- * Tên hiển thị tiếng Việt của vai trò
- */
-function getRoleName($role) {
+/*
+|--------------------------------------------------------------------------
+| TÊN VAI TRÒ
+|--------------------------------------------------------------------------
+*/
+
+function getRoleName($role): string
+{
     switch ($role) {
         case 'admin':
             return 'Quản trị viên';
+
         case 'kitchen':
             return 'Đầu bếp KDS';
+
         case 'staff':
-        default:
             return 'Nhân viên phục vụ';
+
+        default:
+            return 'Không xác định';
     }
 }
 
-/**
- * HTML Badge của vai trò với style màu riêng
- */
-function getRoleBadgeHtml($role) {
+/*
+|--------------------------------------------------------------------------
+| BADGE VAI TRÒ
+|--------------------------------------------------------------------------
+*/
+
+function getRoleBadgeHtml($role): string
+{
     switch ($role) {
         case 'admin':
             return '<span class="role-badge role-admin"><i class="role-dot"></i> Quản trị viên</span>';
+
         case 'kitchen':
             return '<span class="role-badge role-kitchen"><i class="role-dot"></i> Bếp KDS</span>';
+
         case 'staff':
-        default:
             return '<span class="role-badge role-staff"><i class="role-dot"></i> Phục vụ</span>';
+
+        default:
+            return '<span class="role-badge">Không xác định</span>';
     }
 }
 
-/**
- * HTML Badge trạng thái hoạt động
- */
-function getStatusBadgeHtml($status) {
+/*
+|--------------------------------------------------------------------------
+| BADGE TRẠNG THÁI
+|--------------------------------------------------------------------------
+*/
+
+function getStatusBadgeHtml($status): string
+{
     if ($status === 'active') {
         return '<span class="status-badge status-active"><span class="status-indicator"></span> Đang hoạt động</span>';
-    } else {
-        return '<span class="status-badge status-inactive"><span class="status-indicator"></span> Đã khóa</span>';
     }
+
+    return '<span class="status-badge status-inactive"><span class="status-indicator"></span> Đã khóa</span>';
 }
 
-/**
- * Xử lý đăng nhập
- */
-function loginUser($username, $password) {
-    $username = trim($username);
-    $password = trim($password);
+/*
+|--------------------------------------------------------------------------
+| XỬ LÝ ĐĂNG NHẬP
+|--------------------------------------------------------------------------
+*/
 
-    if (empty($username) || empty($password)) {
-        return ['success' => false, 'message' => 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!'];
+function loginUser($username, $password): array
+{
+    $username = trim((string) $username);
+    $password = (string) $password;
+
+    if ($username === '' || $password === '') {
+        return [
+            'success' => false,
+            'message' => 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!'
+        ];
     }
 
+    // Lấy tài khoản từ database.
     $user = getUserByUsername($username);
 
-    // Không tìm thấy tài khoản
     if (!$user) {
-        return ['success' => false, 'message' => 'Tài khoản hoặc mật khẩu không chính xác!'];
+        return [
+            'success' => false,
+            'message' => 'Tài khoản hoặc mật khẩu không chính xác!'
+        ];
     }
 
-    // Kiểm tra tài khoản có bị khóa không
-    if ($user['status'] !== 'active') {
-        return ['success' => false, 'message' => 'Tài khoản này đã bị khóa. Vui lòng liên hệ Quản trị viên!'];
+    // Kiểm tra trạng thái tài khoản.
+    if (($user['status'] ?? '') !== 'active') {
+        return [
+            'success' => false,
+            'message' => 'Tài khoản này đã bị khóa. Vui lòng liên hệ Quản trị viên!'
+        ];
     }
 
-    // Kiểm tra mật khẩu (hỗ trợ password_hash hoặc so sánh trực tiếp nếu mật khẩu chưa hash)
+    // Kiểm tra vai trò hợp lệ.
+    $role = $user['role'] ?? '';
+
+    if (!in_array($role, SMARTDINE_ROLES, true)) {
+        return [
+            'success' => false,
+            'message' => 'Tài khoản chưa được phân quyền hợp lệ. Vui lòng liên hệ Quản trị viên!'
+        ];
+    }
+
+    // Kiểm tra mật khẩu.
+    $storedPassword = (string) ($user['password'] ?? '');
+
     $passwordMatched = false;
-    if (password_verify($password, $user['password'])) {
+
+    if (
+        $storedPassword !== '' &&
+        password_verify($password, $storedPassword)
+    ) {
         $passwordMatched = true;
-    } elseif ($password === $user['password']) {
-        // Nâng cấp tự động lên hash an toàn
+
+        // Tự động nâng cấp thuật toán hash nếu cần.
+        if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+            updateUserPassword($user['id'], $password);
+        }
+
+    } elseif (
+        $storedPassword !== '' &&
+        hash_equals($storedPassword, $password)
+    ) {
+        // Tương thích tài khoản cũ lưu mật khẩu dạng văn bản.
         $passwordMatched = true;
+
+        // Nâng cấp sang password_hash.
         updateUserPassword($user['id'], $password);
     }
 
     if (!$passwordMatched) {
-        return ['success' => false, 'message' => 'Tài khoản hoặc mật khẩu không chính xác!'];
+        return [
+            'success' => false,
+            'message' => 'Tài khoản hoặc mật khẩu không chính xác!'
+        ];
     }
 
-    // Đăng nhập thành công -> Lưu vào Session
-    $_SESSION['user_id']   = (int) $user['id'];
-    $_SESSION['username']  = $user['username'];
-    $_SESSION['fullname']  = $user['fullname'];
-    $_SESSION['role']      = $user['role'];
-    $_SESSION['phone']     = $user['phone'] ?? '';
-    $_SESSION['email']     = $user['email'] ?? '';
+    /*
+    |--------------------------------------------------------------------------
+    | ĐĂNG NHẬP THÀNH CÔNG
+    |--------------------------------------------------------------------------
+    */
 
-    // Tương thích ngược với các trang cũ
+    // Chỉ tái tạo session ID tại đây.
+    session_regenerate_id(true);
+
+    $_SESSION['user_id'] = (int) $user['id'];
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['fullname'] = $user['fullname'];
+    $_SESSION['role'] = $role;
+    $_SESSION['phone'] = $user['phone'] ?? '';
+    $_SESSION['email'] = $user['email'] ?? '';
+
+    // Tương thích với các trang cũ.
     $_SESSION['staff_user'] = $user['username'];
     $_SESSION['staff_name'] = $user['fullname'];
 
-    // Cập nhật lần đăng nhập cuối
+    // Cập nhật thời gian đăng nhập gần nhất.
     updateLastLogin($user['id']);
 
-    return ['success' => true, 'user' => $user];
+    return [
+        'success' => true,
+        'message' => 'Đăng nhập thành công!',
+        'user' => $user
+    ];
 }
 
-/**
- * Xử lý đăng xuất
- */
-function logoutUser() {
+/*
+|--------------------------------------------------------------------------
+| ĐĂNG XUẤT
+|--------------------------------------------------------------------------
+*/
+
+function logoutUser(): void
+{
+    // Xóa toàn bộ dữ liệu session.
     $_SESSION = [];
-    if (ini_get("session.use_cookies")) {
+
+    // Xóa cookie session.
+    if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000,
-            $params["path"], $params["domain"],
-            $params["secure"], $params["httponly"]
+
+        setcookie(
+            session_name(),
+            '',
+            [
+                'expires' => time() - 42000,
+                'path' => $params['path'],
+                'domain' => $params['domain'],
+                'secure' => $params['secure'],
+                'httponly' => $params['httponly'],
+                'samesite' => $params['samesite'] ?? 'Lax'
+            ]
         );
     }
+
+    // Hủy session hiện tại.
     session_destroy();
 }
 
-/**
- * Trang mặc định khi đăng nhập thành công theo từng vai trò
- */
-function getDefaultPageForRole($role) {
+/*
+|--------------------------------------------------------------------------
+| TRANG MẶC ĐỊNH THEO VAI TRÒ
+|--------------------------------------------------------------------------
+*/
+
+function getDefaultPageForRole($role): string
+{
     switch ($role) {
         case 'admin':
             return 'admin';
+
         case 'kitchen':
             return 'kitchen';
+
         case 'staff':
-        default:
             return 'staff';
+
+        default:
+            return 'login';
     }
 }
 
-/**
- * Kiểm tra xem vai trò có quyền truy cập trang hay không
- */
-function canRoleAccessPage($role, $page) {
-    $permissions = [
+/*
+|--------------------------------------------------------------------------
+| DANH SÁCH QUYỀN TRUY CẬP
+|--------------------------------------------------------------------------
+*/
+
+function getRolePermissions(): array
+{
+    return [
+
+        /*
+        |--------------------------------------------------------------------------
+        | QUẢN TRỊ VIÊN
+        |--------------------------------------------------------------------------
+        */
+
         'admin' => [
-            'admin', 'users', 'dishes', 'tables', 'staff', 'table-order', 'kitchen', 'bills',
-            'menu', 'cart', 'tracking', 'reservation', 'payment', 'profile', 'vouchers'
+            'admin',
+            'users',
+            'dishes',
+            'tables',
+            'staff',
+            'table-order',
+            'kitchen',
+            'bills',
+            'menu',
+            'cart',
+            'tracking',
+            'reservation',
+            'payment',
+            'profile',
+            'vouchers',
+            'reservations'
         ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | NHÂN VIÊN PHỤC VỤ
+        |--------------------------------------------------------------------------
+        */
+
         'staff' => [
-            'staff', 'table-order', 'bills',
-            'menu', 'cart', 'tracking', 'reservation', 'payment', 'profile'
+            'staff',
+            'table-order',
+            'bills',
+            'menu',
+            'cart',
+            'tracking',
+            'reservation',
+            'payment',
+            'profile'
         ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | NHÂN VIÊN BẾP
+        |--------------------------------------------------------------------------
+        */
+
         'kitchen' => [
-            'kitchen', 'bills',
-            'menu', 'profile'
-        ],
+            'kitchen',
+            'bills',
+            'menu',
+            'profile'
+        ]
     ];
+}
+
+/*
+|--------------------------------------------------------------------------
+| KIỂM TRA QUYỀN TRUY CẬP TRANG
+|--------------------------------------------------------------------------
+*/
+
+function canRoleAccessPage($role, $page): bool
+{
+    $permissions = getRolePermissions();
 
     if (!isset($permissions[$role])) {
         return false;
     }
 
-    return in_array($page, $permissions[$role], true);
+    return in_array(
+        $page,
+        $permissions[$role],
+        true
+    );
 }
 
-const PAGE_LABELS = [
-    'staff'       => 'Sơ đồ bàn',
-    'table-order' => 'Đơn hàng / Bàn',
-    'payment'     => 'Thanh toán',
-    'kitchen'     => 'Màn hình bếp',
-    'bills'       => 'Lịch sử bill',
-    'admin'       => 'Tổng quan quản trị',
-    'users'       => 'Quản lý nhân viên',
-    'dishes'      => 'Quản lý thực đơn',
-    'tables'      => 'Quản lý bàn & khu vực',
-    'menu'        => 'Thực đơn',
-    'profile'     => 'Hồ sơ cá nhân',
-    'vouchers'    => 'Quản lý mã giảm giá',
-];
+/*
+|--------------------------------------------------------------------------
+| TÊN HIỂN THỊ CÁC TRANG
+|--------------------------------------------------------------------------
+*/
 
-/**
- * Kiểm tra và chuyển hướng nếu không có quyền
- */
-function enforceAuthorization(&$page) {
+if (!defined('PAGE_LABELS')) {
+    define('PAGE_LABELS', [
+
+        'login'        => 'Đăng nhập',
+
+        'staff'        => 'Sơ đồ bàn',
+
+        'table-order'  => 'Đơn hàng / Bàn',
+
+        'payment'      => 'Thanh toán',
+
+        'kitchen'      => 'Màn hình bếp',
+
+        'bills'        => 'Lịch sử bill',
+
+        'admin'        => 'Tổng quan quản trị',
+
+        'users'        => 'Quản lý nhân viên',
+
+        'dishes'       => 'Quản lý thực đơn',
+
+        'tables'       => 'Quản lý bàn & khu vực',
+
+        'menu'         => 'Thực đơn',
+
+        'cart'         => 'Giỏ hàng',
+
+        'tracking'     => 'Theo dõi đơn hàng',
+
+        'reservation'  => 'Đặt bàn',
+
+        'profile'      => 'Hồ sơ cá nhân',
+
+        'vouchers'     => 'Quản lý mã giảm giá',
+
+        'reservations' => 'Quản lý đặt bàn'
+    ]);
+}
+
+/*
+|--------------------------------------------------------------------------
+| DANH SÁCH TRANG BẮT BUỘC ĐĂNG NHẬP
+|--------------------------------------------------------------------------
+*/
+
+function getProtectedPages(): array
+{
+    return [
+        'staff',
+        'table-order',
+        'kitchen',
+        'admin',
+        'users',
+        'payment',
+        'dishes',
+        'tables',
+        'bills',
+        'profile',
+        'vouchers',
+        'reservations'
+    ];
+}
+
+/*
+|--------------------------------------------------------------------------
+| KIỂM TRA VÀ ĐIỀU HƯỚNG PHÂN QUYỀN
+|--------------------------------------------------------------------------
+*/
+
+function enforceAuthorization(&$page): void
+{
     $isAuthed = isLoggedIn();
+
     $role = currentRole();
 
-    // Các trang thuộc khu vực quản trị/vận hành (yêu cầu đăng nhập)
-    $protectedPages = ['staff', 'table-order', 'kitchen', 'admin', 'users', 'payment', 'dishes', 'tables', 'bills', 'profile', 'vouchers'];
+    /*
+    |--------------------------------------------------------------------------
+    | NGƯỜI CHƯA ĐĂNG NHẬP
+    |--------------------------------------------------------------------------
+    */
 
     if (!$isAuthed) {
-        // Chưa đăng nhập mà truy cập trang bảo vệ -> Chuyển về login
-        if (in_array($page, $protectedPages, true) || empty($page)) {
+
+        $protectedPages = getProtectedPages();
+
+        if (
+            in_array($page, $protectedPages, true) ||
+            empty($page)
+        ) {
             $page = 'login';
         }
+
         return;
     }
 
-    // Đã đăng nhập:
-    // Nếu vào trang login hoặc trang chủ trống -> đưa về trang mặc định theo vai trò
+    /*
+    |--------------------------------------------------------------------------
+    | KIỂM TRA VAI TRÒ SESSION
+    |--------------------------------------------------------------------------
+    */
+
+    if (!in_array($role, SMARTDINE_ROLES, true)) {
+
+        logoutUser();
+
+        $page = 'login';
+
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ĐIỀU HƯỚNG KHI ĐÃ ĐĂNG NHẬP
+    |--------------------------------------------------------------------------
+    */
+
     if (empty($page) || $page === 'login') {
+
         $page = getDefaultPageForRole($role);
+
         return;
     }
 
-    // Kiểm tra quyền truy cập trang hiện tại
+    /*
+    |--------------------------------------------------------------------------
+    | KIỂM TRA QUYỀN TRUY CẬP
+    |--------------------------------------------------------------------------
+    */
+
     if (!canRoleAccessPage($role, $page)) {
-        // Không có quyền -> set flash error và chuyển về trang mặc định của vai trò
-        $_SESSION['flash_error'] = 'Bạn không có quyền truy cập chức năng "' . htmlspecialchars(PAGE_LABELS[$page] ?? $page) . '"!';
+
+        $pageLabel = PAGE_LABELS[$page] ?? $page;
+
+        $_SESSION['flash_error'] =
+            'Bạn không có quyền truy cập chức năng "' .
+            $pageLabel .
+            '"!';
+
         $page = getDefaultPageForRole($role);
+
+        return;
     }
 }

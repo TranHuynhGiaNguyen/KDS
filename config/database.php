@@ -469,6 +469,33 @@ function initDatabaseTables(PDO $pdo) {
             ]);
         }
     }
+
+    // ==========================================================
+    // KHỞI TẠO BẢNG ĐẶT BÀN CÔNG KHAI
+    // ==========================================================
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `public_reservations` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `customer_name` VARCHAR(120) NOT NULL,
+            `phone` VARCHAR(20) NOT NULL,
+            `email` VARCHAR(120) DEFAULT NULL,
+            `guests` INT NOT NULL,
+            `reservation_date` DATE NOT NULL,
+            `reservation_time` TIME NOT NULL,
+            `duration_minutes` INT NOT NULL DEFAULT 120,
+            `area_id` INT NOT NULL,
+            `table_id` INT NOT NULL,
+            `note` TEXT DEFAULT NULL,
+            `status` ENUM('pending', 'confirmed', 'cancelled', 'rejected') NOT NULL DEFAULT 'pending',
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX `idx_reservation_date` (`reservation_date`),
+            INDEX `idx_reservation_phone` (`phone`),
+            INDEX `idx_reservation_table` (`table_id`),
+            INDEX `idx_reservation_status` (`status`),
+            INDEX `idx_reservation_area` (`area_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
 }
 
 /**

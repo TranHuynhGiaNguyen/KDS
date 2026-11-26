@@ -15,9 +15,14 @@
 
   <nav class="top-links">
     <a class="<?=active('menu',$page)?>" href="index.php?page=menu">Thực đơn</a>
+    <a class="<?=active('reservation',$page)?>" href="index.php?page=reservation">Đặt bàn</a>
   </nav>
 
   <div class="top-actions">
+    <a class="home-nav-reserve <?=active('reservation',$page)?>" href="index.php?page=reservation">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+      <span>Đặt bàn</span>
+    </a>
     <?php if (isLoggedIn()): ?>
       <a class="workspace-switch-btn" href="index.php?page=<?= getDefaultPageForRole(currentRole()) ?>" title="Quay lại khu vực vận hành">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
@@ -25,10 +30,6 @@
       </a>
       <a class="text-link" href="index.php?action=logout" style="color: #ef4444;" title="Đăng xuất">Đăng xuất</a>
     <?php else: ?>
-      <a class="workspace-switch-btn" href="index.php?page=kitchen" title="Chuyển sang màn hình bếp">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
-        <span>Màn hình bếp (KDS)</span>
-      </a>
       <a class="text-link <?=active('login',$page)?>" href="index.php?page=login">Đăng nhập</a>
     <?php endif; ?>
     <a class="btn btn-cart <?=active('cart',$page)?>" href="index.php?page=cart">
