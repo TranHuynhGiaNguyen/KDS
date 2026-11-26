@@ -13,6 +13,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/orders.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -735,6 +736,14 @@ function qoSubmit(
          VALUES (?, ?, ?)'
     );
 
+    $now = currentTimeForDb();
+    $mainOrderId = findOrCreateOpenOrderId($pdo, $context['table_code']);
+    $insertMainItem = $pdo->prepare(
+        "INSERT INTO `order_items`
+            (`order_id`, `item_name`, `unit_price`, `qty`, `note`, `status`, `sent_by`, `sent_at`)
+         VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?)"
+    );
+
     foreach (
         $prepared as [
             $item,
@@ -767,6 +776,27 @@ function qoSubmit(
                 $prices[$toppingName],
             ]);
         }
+
+        $noteParts = [];
+        if ($item['note'] !== '') {
+            $noteParts[] = $item['note'];
+        }
+        if ($item['toppings'] !== []) {
+            $noteParts[] = 'Topping: ' . implode(', ', array_column($item['toppings'], 'name'));
+        }
+        if ($noteParts === [] && $note !== '') {
+            $noteParts[] = $note;
+        }
+        $mainNote = mb_substr(implode(' · ', $noteParts), 0, 255);
+
+        $insertMainItem->execute([
+            $mainOrderId,
+            $name,
+            (int) round($unit / 100),
+            $item['qty'],
+            $mainNote === '' ? null : $mainNote,
+            $now,
+        ]);
     }
 
     $stmt = $pdo->prepare(
@@ -1120,6 +1150,10 @@ function qoApi(): void
                 403,
                 'Ngữ cảnh bàn không hợp lệ.'
             );
+        }
+
+        if ($action === 'submit') {
+            initOrderTables($pdo);
         }
 
         $pdo->beginTransaction();

@@ -9,22 +9,20 @@ require_once __DIR__ . '/kitchen.php';
 require_once __DIR__ . '/http.php';
 
 const KITCHEN_ITEM_BUTTONS = [
-  'pending' => ['action' => 'start',  'label' => 'In phiếu bếp',   'class' => 'btn-kds-print'],
-  'cooking' => ['action' => 'finish', 'label' => 'Hoàn thành món', 'class' => 'btn-kds-finish'],
+  'pending' => ['action' => 'start', 'label' => 'In phiếu bếp', 'class' => 'btn-kds-print'],
 ];
 
 function renderKitchenItemRow(array $ticket): string
 {
-  $button    = KITCHEN_ITEM_BUTTONS[$ticket['status']];
-  $station   = KITCHEN_STATIONS[$ticket['station']] ?? $ticket['station'];
-  $isCooking = $ticket['status'] === 'cooking';
+  $button  = KITCHEN_ITEM_BUTTONS[$ticket['status']] ?? KITCHEN_ITEM_BUTTONS['pending'];
+  $station = KITCHEN_STATIONS[$ticket['station']] ?? $ticket['station'];
 
   ob_start();
 ?>
   <div class="kds-item kds-item-<?= escapeHtml($ticket['status']) ?>" data-kds-item data-item-id="<?= $ticket['id'] ?>" data-status="<?= escapeHtml($ticket['status']) ?>" data-station="<?= escapeHtml($ticket['station']) ?>">
     <div class="kds-item-main">
       <span class="item-name"><?= escapeHtml($ticket['name']) ?></span>
-      <small class="kds-item-meta"><?= escapeHtml($station) ?> · <?= escapeHtml($ticket['time']) ?> · <?= $isCooking ? 'đang nấu' : 'chờ ' . $ticket['minutes'] . ' phút' ?></small>
+      <small class="kds-item-meta"><?= escapeHtml($station) ?> · <?= escapeHtml($ticket['time']) ?> · chờ <?= $ticket['minutes'] ?> phút</small>
       <?php if ($ticket['note'] !== ''): ?>
         <small class="item-note"><?= escapeHtml($ticket['note']) ?></small>
       <?php endif; ?>

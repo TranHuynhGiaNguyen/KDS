@@ -67,8 +67,7 @@ $counts = countKitchenTickets($tickets);
 <div class="kds-filter-bar">
   <div class="kds-summary">
     <span><b data-kds-count="tables"><?= $counts['tables'] ?></b> bàn</span>
-    <span><b data-kds-count="pending"><?= $counts['pending'] ?></b> món chờ tiếp nhận</span>
-    <span><b data-kds-count="cooking"><?= $counts['cooking'] ?></b> món đang nấu</span>
+    <span><b data-kds-count="pending"><?= $counts['pending'] ?></b> món chờ nấu</span>
     <a class="kds-history-link" href="index.php?page=bills">Lịch sử bill</a>
   </div>
 

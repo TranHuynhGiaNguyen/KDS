@@ -1,6 +1,7 @@
 <?php
 
-function initOrderTables(PDO $pdo): void {
+function initOrderTables(PDO $pdo): void
+{
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `orders` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,12 +99,28 @@ function initOrderTables(PDO $pdo): void {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `service_ratings` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `invoice_id` INT NOT NULL UNIQUE,
+            `token` CHAR(32) NOT NULL UNIQUE,
+            `staff_id` INT DEFAULT NULL,
+            `rating` TINYINT DEFAULT NULL,
+            `comment` VARCHAR(255) DEFAULT NULL,
+            `created_at` DATETIME NOT NULL,
+            `rated_at` DATETIME DEFAULT NULL,
+            INDEX idx_service_ratings_staff (`staff_id`),
+            CONSTRAINT fk_service_ratings_invoice FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
     if ((int) $pdo->query('SELECT COUNT(*) FROM `orders`')->fetchColumn() === 0) {
         seedDemoOrders($pdo);
     }
 }
 
-function seedDemoOrders(PDO $pdo): void {
+function seedDemoOrders(PDO $pdo): void
+{
     $demoOrders = [
         'B03' => [
             ['Cơm gà Hải Nam', 75000, 1, 'served'],
@@ -145,7 +162,11 @@ function seedDemoOrders(PDO $pdo): void {
         foreach ($items as [$name, $price, $qty, $status]) {
             $isSent = $status !== 'unsent';
             $itemSql->execute([
-                $orderId, $name, $price, $qty, $status,
+                $orderId,
+                $name,
+                $price,
+                $qty,
+                $status,
                 $isSent ? $staffId : null,
                 $isSent ? $sentAt : null,
             ]);
