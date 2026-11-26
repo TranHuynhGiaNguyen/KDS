@@ -1,5 +1,6 @@
 
 <?php
+
 $currentRole = currentRole();
 $user = currentUser();
 
@@ -9,6 +10,7 @@ $userInitial = mb_substr(
     1,
     'UTF-8'
 );
+
 ?>
 
 <aside class="sidebar">
@@ -36,6 +38,7 @@ $userInitial = mb_substr(
   <div class="side-label">QUẢN LÝ VẬN HÀNH</div>
 
   <?php if (canRoleAccessPage($currentRole, 'admin')): ?>
+
     <a class="<?= active('admin', $page) ?>"
        href="index.php?page=admin">
 
@@ -50,9 +53,11 @@ $userInitial = mb_substr(
 
       <span>Tổng quan</span>
     </a>
+
   <?php endif; ?>
 
   <?php if (canRoleAccessPage($currentRole, 'staff')): ?>
+
     <a class="<?= active(
         'staff',
         in_array($page, ['staff', 'table-order', 'payment'], true)
@@ -71,14 +76,17 @@ $userInitial = mb_substr(
 
       <span>Sơ đồ bàn</span>
     </a>
+
   <?php endif; ?>
 
   <?php if (canRoleAccessPage($currentRole, 'kitchen')): ?>
 
     <?php
+
     require_once __DIR__ . '/kitchen.php';
 
     try {
+
         $kitchenCounts = countKitchenTickets(
             fetchKitchenTickets(getOrdersDb())
         );
@@ -91,6 +99,7 @@ $userInitial = mb_substr(
 
         $kitchenOpenCount = 0;
     }
+
     ?>
 
     <a class="<?= active('kitchen', $page) ?>"
@@ -109,11 +118,13 @@ $userInitial = mb_substr(
       <span class="nav-badge kitchen-counter">
         <?= (int) $kitchenOpenCount ?>
       </span>
+
     </a>
 
   <?php endif; ?>
 
   <?php if (canRoleAccessPage($currentRole, 'bills')): ?>
+
     <a class="<?= active('bills', $page) ?>"
        href="index.php?page=bills">
 
@@ -126,6 +137,7 @@ $userInitial = mb_substr(
 
       <span>Lịch sử bill</span>
     </a>
+
   <?php endif; ?>
 
 
@@ -242,7 +254,9 @@ $userInitial = mb_substr(
 
       <div class="avatar avatar-role-<?= htmlspecialchars($currentRole ?? '') ?>"
            title="<?= htmlspecialchars($user['fullname'] ?? '') ?>">
+
         <?= htmlspecialchars($userInitial) ?>
+
       </div>
 
       <div class="grow user-info-meta" style="overflow:hidden;">
@@ -262,6 +276,7 @@ $userInitial = mb_substr(
         </div>
 
       </div>
+
     </a>
 
 
@@ -280,7 +295,8 @@ $userInitial = mb_substr(
     </a>
 
 
-    <a href="index.php?action=logout"
+    <!-- ĐĂNG XUẤT -->
+    <a href="index.php?logout=1"
        class="btn-sidebar-logout"
        title="Đăng xuất khỏi hệ thống">
 

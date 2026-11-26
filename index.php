@@ -1,7 +1,8 @@
+
 <?php
-declare(strict_types=1);
 
 ob_start();
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -83,28 +84,32 @@ if (!function_exists('active')) {
 
 /*
 |--------------------------------------------------------------------------
-| CSRF TOKEN
+| XỬ LÝ ĐĂNG XUẤT
+|--------------------------------------------------------------------------
+| Phải xử lý trước khi xác định trang và phân quyền.
+|--------------------------------------------------------------------------
+*/
+
+if (
+    isset($_GET['logout']) &&
+    $_GET['logout'] === '1'
+) {
+    // Gọi hàm đăng xuất trong auth.php.
+    logoutUser();
+
+    // Chuyển về trang đăng nhập.
+    header('Location: index.php?page=login');
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
+| KHỞI TẠO CSRF TOKEN
 |--------------------------------------------------------------------------
 */
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
-/*
-|--------------------------------------------------------------------------
-| ĐĂNG XUẤT
-|--------------------------------------------------------------------------
-*/
-
-if (
-    isset($_GET['action']) &&
-    $_GET['action'] === 'logout'
-) {
-    logoutUser();
-
-    header('Location: index.php?page=login&logged_out=1');
-    exit;
 }
 
 /*
@@ -135,43 +140,32 @@ if (
     $_SERVER['REQUEST_METHOD'] === 'POST' &&
     isset($_POST['login_submit'])
 ) {
-    $submittedToken = $_POST['csrf_token'] ?? '';
+    $username = trim((string) ($_POST['username'] ?? ''));
+    $password = (string) ($_POST['password'] ?? '');
 
-    if (
-        !is_string($submittedToken) ||
-        !hash_equals($_SESSION['csrf_token'], $submittedToken)
-    ) {
-        $loginError = 'Phiên đăng nhập không hợp lệ. Vui lòng tải lại trang.';
+    if ($username === '' || $password === '') {
+
+        $loginError = 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.';
+
     } else {
-        $username = trim((string) ($_POST['username'] ?? ''));
-        $password = (string) ($_POST['password'] ?? '');
 
-        if ($username === '' || $password === '') {
-            $loginError = 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.';
-        } else {
-            $result = loginUser($username, $password);
+        $result = loginUser($username, $password);
 
-            if (!empty($result['success'])) {
-                // Chống session fixation.
-                session_regenerate_id(true);
+        if (!empty($result['success'])) {
 
-                // Tạo CSRF token mới.
-                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            $role = currentRole();
+            $defaultPage = getDefaultPageForRole($role);
 
-                // Điều hướng theo vai trò.
-                $role = currentRole();
-                $defaultPage = getDefaultPageForRole($role);
-
-                if (!in_array($defaultPage, $allowedPages, true)) {
-                    $defaultPage = 'login';
-                }
-
-                header('Location: index.php?page=' . urlencode($defaultPage));
-                exit;
+            if (!in_array($defaultPage, $allowedPages, true)) {
+                $defaultPage = 'login';
             }
 
-            $loginError = $result['message'] ?? 'Đăng nhập thất bại. Vui lòng thử lại.';
+            header('Location: index.php?page=' . urlencode($defaultPage));
+            exit;
         }
+
+        $loginError = $result['message']
+            ?? 'Đăng nhập thất bại. Vui lòng thử lại.';
     }
 }
 
@@ -181,10 +175,8 @@ if (
 |--------------------------------------------------------------------------
 */
 
-// Chỉ gọi sau khi đã xác định trang hợp lệ.
 enforceAuthorization($page);
 
-// Kiểm tra lại trang sau khi xử lý phân quyền.
 if (!in_array($page, $allowedPages, true)) {
     $page = isLoggedIn()
         ? getDefaultPageForRole(currentRole())
@@ -257,16 +249,24 @@ $customerPages = [
 */
 
 if ($page === 'login') {
+
     $pageFile = __DIR__ . '/pages/login.php';
+
 } elseif ($isDashboard && isset($dashboardPages[$page])) {
+
     $pageFile = __DIR__ . '/pages/' . $dashboardPages[$page];
+
 } elseif (isset($customerPages[$page])) {
+
     $pageFile = __DIR__ . '/pages/' . $customerPages[$page];
+
 } else {
+
     $pageFile = '';
 }
 
 if ($pageFile !== '' && !is_file($pageFile)) {
+
     error_log('SmartDine: Không tìm thấy file trang: ' . $pageFile);
 
     http_response_code(500);
@@ -275,10 +275,12 @@ if ($pageFile !== '' && !is_file($pageFile)) {
 }
 
 ?>
+
 <!doctype html>
 <html lang="vi">
 
 <head>
+
     <meta charset="utf-8">
 
     <meta
@@ -298,18 +300,22 @@ if ($pageFile !== '' && !is_file($pageFile)) {
 
     <!-- ADMIN -->
     <?php if ($page === 'admin'): ?>
+
         <link
             rel="stylesheet"
             href="<?= htmlspecialchars(assetUrl('assets/css/revenue.css'), ENT_QUOTES, 'UTF-8') ?>"
         >
+
     <?php endif; ?>
 
     <!-- SƠ ĐỒ BÀN -->
     <?php if (in_array($page, ['staff', 'tables'], true)): ?>
+
         <link
             rel="stylesheet"
             href="<?= htmlspecialchars(assetUrl('assets/css/visual-floor.css'), ENT_QUOTES, 'UTF-8') ?>"
         >
+
     <?php endif; ?>
 
     <!-- THANH TOÁN -->

@@ -1,3 +1,4 @@
+
 <?php
 /*
 |--------------------------------------------------------------------------
@@ -520,7 +521,6 @@ $minDate = date('Y-m-d');
 
     <title>Đặt bàn | <?= h($restaurant['name'] ?? 'SmartDine') ?></title>
 
-    <!-- Dùng CSS chung của Homepage -->
     <link rel="stylesheet" href="../assets/css/home.css">
 
     <style>
@@ -539,7 +539,7 @@ $minDate = date('Y-m-d');
             text-decoration: none;
         }
 
-        /* HEADER VÀ LOGO GIỐNG HOMEPAGE */
+        /* HEADER VÀ LOGO */
         .standalone-header {
             width: 100%;
             min-height: 76px;
@@ -580,18 +580,30 @@ $minDate = date('Y-m-d');
         .standalone-header nav {
             display: flex;
             align-items: center;
-            gap: 25px;
+            gap: 20px;
         }
 
         .standalone-header nav a {
             color: #333;
             font-weight: 600;
             font-size: 14px;
+            white-space: nowrap;
         }
 
         .standalone-header nav a:hover,
         .standalone-header nav a.active {
             color: #f47b08;
+        }
+
+        /* TRA CỨU ĐẶT BÀN */
+        .standalone-header nav .booking-lookup-link {
+            color: #f47b08;
+            font-weight: 700;
+        }
+
+        .standalone-header nav .booking-lookup-link:hover {
+            color: #e06d04;
+            text-decoration: underline;
         }
 
         .standalone-header-actions {
@@ -607,6 +619,7 @@ $minDate = date('Y-m-d');
             border-radius: 9px;
             font-weight: 800;
             font-size: 14px;
+            white-space: nowrap;
         }
 
         /* NỘI DUNG */
@@ -899,10 +912,23 @@ $minDate = date('Y-m-d');
             line-height: 1.8;
         }
 
+        /* RESPONSIVE */
+        @media (max-width: 900px) {
+            .standalone-header {
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+
+            .standalone-header nav {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 15px;
+            }
+        }
+
         @media (max-width: 700px) {
             .standalone-header {
                 padding: 13px 15px;
-                flex-wrap: wrap;
                 gap: 12px;
             }
 
@@ -910,11 +936,11 @@ $minDate = date('Y-m-d');
                 order: 3;
                 width: 100%;
                 justify-content: center;
-                gap: 18px;
+                gap: 12px;
             }
 
             .standalone-header nav a {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             .standalone-header-actions {
@@ -958,7 +984,7 @@ $minDate = date('Y-m-d');
             }
 
             .standalone-header nav {
-                gap: 12px;
+                gap: 10px;
             }
         }
     </style>
@@ -966,7 +992,7 @@ $minDate = date('Y-m-d');
 
 <body>
 
-<!-- HEADER: LOGO GIỐNG HOMEPAGE -->
+<!-- HEADER: LOGO VÀ MENU HOMEPAGE -->
 <header class="standalone-header">
 
     <a class="standalone-brand" href="index.php">
@@ -979,6 +1005,9 @@ $minDate = date('Y-m-d');
         <a href="index.php#gioi-thieu">Giới thiệu</a>
         <a href="menu.php">Thực đơn</a>
         <a class="active" href="reservation.php">Đặt bàn</a>
+        <a href="booking-history.php" class="booking-lookup-link">
+            Tra cứu đặt bàn
+        </a>
     </nav>
 
     <div class="standalone-header-actions">
@@ -1014,6 +1043,10 @@ $minDate = date('Y-m-d');
                 <br>
                 Vui lòng lưu lại mã đặt bàn để tiện tra cứu.
                 Nhà hàng sẽ liên hệ với bạn để xác nhận.
+                <br>
+                <a href="booking-history.php" class="booking-lookup-link">
+                    Tra cứu đặt bàn
+                </a>
             </div>
         <?php endif; ?>
 
