@@ -783,65 +783,6 @@ $thisMonthStart = date('Y-m-01');
   </section>
 <?php endif; ?>
 
-<!-- ==========================================================
-     QUẢN LÝ TÌNH TRẠNG NGUYÊN LIỆU & BÁO HẾT MÓN (OUT OF STOCK MANAGEMENT)
-     ========================================================== -->
-<div class="admin-grid" style="margin-top: 24px;">
-  <?php
-  // Lấy danh sách các món ăn đang hiển thị (active & out_of_stock)
-  $allManageDishes = getAllDishes('', 'visible', '', '');
-  ?>
-  <section class="panel unavailable-panel" id="menu-stock-management" style="grid-column: 1 / -1; margin-bottom: 24px;">
-    <div class="unavailable-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
-      <div>
-        <h2 style="font-size: 18px; margin-bottom: 4px;">Quản lý tình trạng nguyên liệu & món tại quán</h2>
-        <p class="muted" style="margin: 0; font-size: 13.5px;">Tạm dừng nhận món khi bếp hết nguyên liệu hoặc đột xuất quá tải (Đồng bộ tức thì với Menu QR của thực khách)</p>
-      </div>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span class="badge-pill" style="background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; font-weight: 600;">Đồng bộ tự động với Menu QR</span>
-        <a class="btn btn-small btn-outline" href="index.php?page=dishes">Quản lý thực đơn đầy đủ →</a>
-      </div>
-    </div>
-
-    <div class="unavailable-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
-      <?php if (empty($allManageDishes)): ?>
-        <p class="muted" style="padding: 16px;">Chưa có món ăn nào trong thực đơn.</p>
-      <?php else: ?>
-        <?php foreach ($allManageDishes as $dish): ?>
-          <?php
-          $isOut = ($dish['status'] === 'out_of_stock');
-          ?>
-          <div class="unavailable-row" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-            <div class="un-info" style="display: flex; flex-direction: column; gap: 4px;">
-              <b style="font-size: 15px; color: var(--ink);"><?= htmlspecialchars($dish['name']) ?></b>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="status status-<?= $isOut ? 'pending' : 'ready' ?>" style="font-size: 11.5px; padding: 2px 8px;">
-                  <?= $isOut ? 'Đã tạm hết nguyên liệu' : 'Đang phục vụ bình thường' ?>
-                </span>
-                <small style="color: #64748b; font-size: 11.5px;"><?= formatPrice($dish['price']) ?> · <?= htmlspecialchars($dish['category_name']) ?></small>
-              </div>
-            </div>
-
-            <form method="POST" action="index.php?page=admin&mode=<?= urlencode($viewMode) ?>" style="margin: 0;">
-              <input type="hidden" name="action" value="toggle_dish_status">
-              <input type="hidden" name="id" value="<?= $dish['id'] ?>">
-              <?php if ($isOut): ?>
-                <button type="submit" class="btn btn-small btn-success" data-toggle-dish-ajax="<?= $dish['id'] ?>" style="white-space: nowrap; font-size: 12.5px; padding: 6px 14px;">
-                  Mở bán lại
-                </button>
-              <?php else: ?>
-                <button type="submit" class="btn btn-small btn-outline-danger" data-toggle-dish-ajax="<?= $dish['id'] ?>" style="white-space: nowrap; font-size: 12.5px; padding: 6px 14px; border: 1px solid #fca5a5; color: #dc2626;">
-                  Tạm ngừng bán
-                </button>
-              <?php endif; ?>
-            </form>
-          </div>
-        <?php endforeach; ?>
-      <?php endif; ?>
-    </div>
-  </section>
-</div>
-
 <script>
   (() => {
     const panel = document.getElementById('admin-live-orders-panel');
