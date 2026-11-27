@@ -698,6 +698,392 @@ LOCK TABLES `vouchers` WRITE;
 INSERT INTO `vouchers` VALUES (1,'WELCOME10','Khuyến mãi thành viên mới 10%','percent',10,100000,50000,500,12,'2026-11-18','2026-12-31','active','2026-11-18 09:39:47'),(2,'GIAM50K','Giảm trực tiếp 50K cho đơn từ 300K','amount',50000,300000,0,200,45,'2026-11-18','2026-12-31','active','2026-11-18 09:39:47'),(3,'VIP20','Tri ân khách hàng VIP giảm 20%','percent',20,500000,150000,100,8,'2026-11-18','2026-12-31','active','2026-11-18 09:39:47'),(4,'LUNCH30K','Ưu đãi giờ trưa giảm 30K','amount',30000,150000,0,150,26,'2026-11-18','2026-12-31','active','2026-11-18 09:39:47'),(5,'EXPIRED15','Chương trình khai trương (Đã kết thúc)','percent',15,200000,60000,50,50,'2026-01-01','2026-02-01','inactive','2026-11-18 09:39:47');
 /*!40000 ALTER TABLE `vouchers` ENABLE KEYS */;
 UNLOCK TABLES;
+-- Table structure for table `qr_carts`
+--
+
+DROP TABLE IF EXISTS `qr_carts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_carts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `session_id` bigint(20) unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_cart_session` (`session_id`),
+  CONSTRAINT `fk_qr_cart_session` FOREIGN KEY (`session_id`) REFERENCES `qr_table_sessions` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_carts`
+--
+
+LOCK TABLES `qr_carts` WRITE;
+/*!40000 ALTER TABLE `qr_carts` DISABLE KEYS */;
+INSERT INTO `qr_carts` VALUES (21,1,'2026-11-18 05:25:38','2026-11-18 05:25:38');
+/*!40000 ALTER TABLE `qr_carts` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_cart_items`
+--
+
+DROP TABLE IF EXISTS `qr_cart_items`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_cart_items` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cart_id` bigint(20) unsigned NOT NULL,
+  `menu_item_id` bigint(20) unsigned NOT NULL,
+  `quantity` int(10) unsigned NOT NULL DEFAULT 1,
+  `unit_price` decimal(12,2) NOT NULL,
+  `toppings_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `note` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_cart_items_cart` (`cart_id`),
+  KEY `idx_cart_items_menu` (`menu_item_id`),
+  CONSTRAINT `fk_qr_cart_item_cart` FOREIGN KEY (`cart_id`) REFERENCES `qr_carts` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_qr_cart_item_menu` FOREIGN KEY (`menu_item_id`) REFERENCES `qr_menu_items` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_cart_items`
+--
+
+LOCK TABLES `qr_cart_items` WRITE;
+/*!40000 ALTER TABLE `qr_cart_items` DISABLE KEYS */;
+/*!40000 ALTER TABLE `qr_cart_items` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_kitchen_links`
+--
+
+DROP TABLE IF EXISTS `qr_kitchen_links`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_kitchen_links` (
+  `qr_item_id` bigint(20) unsigned NOT NULL,
+  `kitchen_item_id` int(11) NOT NULL,
+  PRIMARY KEY (`qr_item_id`),
+  UNIQUE KEY `kitchen_item_id` (`kitchen_item_id`),
+  CONSTRAINT `fk_qr_kitchen_item` FOREIGN KEY (`qr_item_id`) REFERENCES `qr_order_items` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_kitchen_links`
+--
+
+LOCK TABLES `qr_kitchen_links` WRITE;
+/*!40000 ALTER TABLE `qr_kitchen_links` DISABLE KEYS */;
+/*!40000 ALTER TABLE `qr_kitchen_links` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_menu_details`
+--
+
+DROP TABLE IF EXISTS `qr_menu_details`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_menu_details` (
+  `menu_item_id` bigint(20) unsigned NOT NULL,
+  `category` varchar(30) NOT NULL DEFAULT 'main',
+  `description` varchar(1000) NOT NULL DEFAULT '',
+  `image_url` varchar(1000) NOT NULL DEFAULT '',
+  PRIMARY KEY (`menu_item_id`),
+  CONSTRAINT `qr_menu_details_ibfk_1` FOREIGN KEY (`menu_item_id`) REFERENCES `qr_menu_items` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_menu_details`
+--
+
+LOCK TABLES `qr_menu_details` WRITE;
+/*!40000 ALTER TABLE `qr_menu_details` DISABLE KEYS */;
+INSERT INTO `qr_menu_details` VALUES (1,'main','Gà mềm ngọt, cơm thơm nấu cùng nước luộc gà; dùng kèm dưa leo và sốt gừng.','https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80'),(2,'main','Mì trứng xào cùng thịt bò, rau cải và nấm. Có thể ghi chú ít dầu hoặc không hành.','https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80'),(3,'side','Rau xanh, cà chua và rau củ trộn sốt mè rang. Dùng làm món khai vị.','https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80'),(4,'drink','Trà đào dùng cùng cam, sả và đá. Có thể ghi chú mức đường hoặc lượng đá mong muốn.','https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=600&q=80'),(5,'main','Thịt bò áp chảo cùng rau củ và sốt tiêu đen, dùng nóng.','https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80'),(6,'dessert','Sữa chua mát lạnh dùng cùng trái cây theo mùa.','https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80');
+/*!40000 ALTER TABLE `qr_menu_details` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_menu_items`
+--
+
+DROP TABLE IF EXISTS `qr_menu_items`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_menu_items` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(200) NOT NULL,
+  `price` decimal(12,2) NOT NULL,
+  `is_available` tinyint(1) NOT NULL DEFAULT 1,
+  `source_menu_id` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_source_menu` (`source_menu_id`),
+  KEY `idx_qr_menu_available` (`is_available`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_menu_items`
+--
+
+LOCK TABLES `qr_menu_items` WRITE;
+/*!40000 ALTER TABLE `qr_menu_items` DISABLE KEYS */;
+INSERT INTO `qr_menu_items` VALUES (1,'Cơm gà Hải Nam',75000.00,1,'qr-ui-com-ga','2026-11-08 01:06:31','2026-11-08 01:06:31'),(2,'Mì xào bò',85000.00,1,'qr-ui-mi-bo','2026-11-08 01:06:31','2026-11-08 01:06:31'),(3,'Salad trộn',55000.00,1,'qr-ui-salad','2026-11-08 01:06:31','2026-11-08 01:06:31'),(4,'Trà đào cam sả',35000.00,1,'qr-ui-tra-dao','2026-11-08 01:06:31','2026-11-08 01:06:31'),(5,'Bò lúc lắc',120000.00,1,'qr-ui-bo-luc-lac','2026-11-08 01:06:31','2026-11-08 01:06:31'),(6,'Sữa chua trái cây',40000.00,1,'qr-ui-sua-chua','2026-11-08 01:06:31','2026-11-08 01:06:31');
+/*!40000 ALTER TABLE `qr_menu_items` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_menu_toppings`
+--
+
+DROP TABLE IF EXISTS `qr_menu_toppings`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_menu_toppings` (
+  `menu_item_id` bigint(20) unsigned NOT NULL,
+  `topping_id` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`menu_item_id`,`topping_id`),
+  KEY `topping_id` (`topping_id`),
+  CONSTRAINT `qr_menu_toppings_ibfk_1` FOREIGN KEY (`menu_item_id`) REFERENCES `qr_menu_items` (`id`),
+  CONSTRAINT `qr_menu_toppings_ibfk_2` FOREIGN KEY (`topping_id`) REFERENCES `qr_toppings` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_menu_toppings`
+--
+
+LOCK TABLES `qr_menu_toppings` WRITE;
+/*!40000 ALTER TABLE `qr_menu_toppings` DISABLE KEYS */;
+INSERT INTO `qr_menu_toppings` VALUES (1,1),(1,2),(2,1),(2,2),(3,1),(3,2),(5,1),(5,2);
+/*!40000 ALTER TABLE `qr_menu_toppings` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_order_item_toppings`
+--
+
+DROP TABLE IF EXISTS `qr_order_item_toppings`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_order_item_toppings` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `order_item_id` bigint(20) unsigned NOT NULL,
+  `topping_name` varchar(150) NOT NULL,
+  `topping_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id`),
+  KEY `idx_qr_topping_order_item` (`order_item_id`),
+  CONSTRAINT `fk_qr_topping_order_item` FOREIGN KEY (`order_item_id`) REFERENCES `qr_order_items` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_order_item_toppings`
+--
+
+LOCK TABLES `qr_order_item_toppings` WRITE;
+/*!40000 ALTER TABLE `qr_order_item_toppings` DISABLE KEYS */;
+INSERT INTO `qr_order_item_toppings` VALUES (1,2,'Phô mai',15000.00),(2,5,'Phô mai',15000.00),(3,6,'Trứng thêm',10000.00);
+/*!40000 ALTER TABLE `qr_order_item_toppings` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_order_items`
+--
+
+DROP TABLE IF EXISTS `qr_order_items`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_order_items` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `order_id` bigint(20) unsigned NOT NULL,
+  `menu_item_id` bigint(20) unsigned NOT NULL,
+  `item_name` varchar(200) NOT NULL,
+  `quantity` int(10) unsigned NOT NULL,
+  `base_price` decimal(12,2) NOT NULL,
+  `unit_price` decimal(12,2) NOT NULL,
+  `line_total` decimal(12,2) NOT NULL,
+  `note` varchar(500) DEFAULT NULL,
+  `status` enum('pending','preparing','ready','served','cancelled') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_qr_order_items_order` (`order_id`),
+  KEY `idx_qr_order_items_status` (`status`),
+  KEY `idx_qr_order_items_menu` (`menu_item_id`),
+  CONSTRAINT `fk_qr_order_item_menu` FOREIGN KEY (`menu_item_id`) REFERENCES `qr_menu_items` (`id`),
+  CONSTRAINT `fk_qr_order_item_order` FOREIGN KEY (`order_id`) REFERENCES `qr_orders` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_order_items`
+--
+
+LOCK TABLES `qr_order_items` WRITE;
+/*!40000 ALTER TABLE `qr_order_items` DISABLE KEYS */;
+INSERT INTO `qr_order_items` VALUES (1,1,1,'Cơm gà Hải Nam',1,75000.00,75000.00,75000.00,'','pending','2026-11-18 05:31:34','2026-11-18 05:31:34'),(2,2,1,'Cơm gà Hải Nam',1,75000.00,90000.00,90000.00,'','pending','2026-11-24 20:23:04','2026-11-24 20:23:04'),(3,2,1,'Cơm gà Hải Nam',1,75000.00,75000.00,75000.00,'','pending','2026-11-24 20:23:04','2026-11-24 20:23:04'),(4,2,2,'Mì xào bò',1,85000.00,85000.00,85000.00,'','pending','2026-11-24 20:23:04','2026-11-24 20:23:04'),(5,3,1,'Cơm gà Hải Nam',1,75000.00,90000.00,90000.00,'','pending','2026-11-24 20:26:48','2026-11-24 20:26:48'),(6,3,2,'Mì xào bò',2,85000.00,95000.00,190000.00,'','pending','2026-11-24 20:26:48','2026-11-24 20:26:48'),(7,4,3,'Salad trộn',1,55000.00,55000.00,55000.00,'','pending','2026-11-24 20:27:23','2026-11-24 20:27:23');
+/*!40000 ALTER TABLE `qr_order_items` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_order_requests`
+--
+
+DROP TABLE IF EXISTS `qr_order_requests`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_order_requests` (
+  `request_key` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `payload_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `order_id` bigint(20) unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`request_key`),
+  KEY `idx_qr_request_order` (`order_id`),
+  CONSTRAINT `fk_qr_request_order` FOREIGN KEY (`order_id`) REFERENCES `qr_orders` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_order_requests`
+--
+
+LOCK TABLES `qr_order_requests` WRITE;
+/*!40000 ALTER TABLE `qr_order_requests` DISABLE KEYS */;
+INSERT INTO `qr_order_requests` VALUES ('616fd6d477ba97dcbab10be5b2980a6cb905669ff8db380ab8c3ac23b9f15f55','b9840ca312c073f631036ee8db298720357519e8085a1c4fb55d0c608ba162f3',2,'2026-11-24 20:23:04'),('78e35754202e8c69f9dda9ad9466dd5bd7e06ad62fb737767342de64e3be1188','f5d673b3a106abc6e3f21d3a759f173164244c072198c2711d7cc75622667992',1,'2026-11-18 05:31:34'),('80a8a9cc30e1e246228f50f2297f27e390132cb2bd26bc3e32ab1931b98b500b','2e45985be33d1bdca6a27f1ed43b4d8436e913ee6ab0906adf2c3df743de1008',3,'2026-11-24 20:26:48'),('ba863b75484f9cb449216b55dfde47de6861e115f1343586ae3e822301b42d90','b3f506a1bd151827f66f45b8f93eaad9cdd279488ff88089923c569ff5977cf8',4,'2026-11-24 20:27:23');
+/*!40000 ALTER TABLE `qr_order_requests` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_orders`
+--
+
+DROP TABLE IF EXISTS `qr_orders`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_orders` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `session_id` bigint(20) unsigned NOT NULL,
+  `order_code` varchar(40) DEFAULT NULL,
+  `status` enum('submitted','preparing','ready','served','cancelled') NOT NULL DEFAULT 'submitted',
+  `order_note` varchar(1000) DEFAULT NULL,
+  `subtotal` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_qr_order_code` (`order_code`),
+  KEY `idx_qr_order_session` (`session_id`),
+  KEY `idx_qr_order_status` (`status`),
+  KEY `idx_qr_order_created` (`created_at`),
+  CONSTRAINT `fk_qr_order_session` FOREIGN KEY (`session_id`) REFERENCES `qr_table_sessions` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_orders`
+--
+
+LOCK TABLES `qr_orders` WRITE;
+/*!40000 ALTER TABLE `qr_orders` DISABLE KEYS */;
+INSERT INTO `qr_orders` VALUES (1,1,'QR-BE153564DC27CCE84EB04D3C','submitted','',75000.00,'2026-11-18 05:31:34','2026-11-18 05:31:34'),(2,1,'QR-658BA06EFFCED8A0EC9212FF','submitted','',250000.00,'2026-11-24 20:23:04','2026-11-24 20:23:04'),(3,1,'QR-334C2E283BBF80FBBDAF0416','submitted','ít cay',280000.00,'2026-11-24 20:26:48','2026-11-24 20:26:48'),(4,1,'QR-CBFB0C3D77240FAB0E4B9580','submitted','',55000.00,'2026-11-24 20:27:23','2026-11-24 20:27:23');
+/*!40000 ALTER TABLE `qr_orders` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_table_codes`
+--
+
+DROP TABLE IF EXISTS `qr_table_codes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_table_codes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `table_code` varchar(20) NOT NULL,
+  `qr_token` varchar(64) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_qr_table_code` (`table_code`),
+  UNIQUE KEY `uq_qr_token` (`qr_token`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_table_codes`
+--
+
+LOCK TABLES `qr_table_codes` WRITE;
+/*!40000 ALTER TABLE `qr_table_codes` DISABLE KEYS */;
+INSERT INTO `qr_table_codes` VALUES (1,'B01','39895a98d9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(2,'B02','39895ffed9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(3,'B03','398960b1d9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(4,'B04','39896106d9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(5,'B05','39896153d9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(6,'B06','398961bbd9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(7,'B07','3989620bd9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(8,'B08','39896253d9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(9,'B09','398962a1d9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31'),(10,'B10','398962edd9ce11f1a98914857fe0442a',1,'2026-11-08 01:06:31');
+/*!40000 ALTER TABLE `qr_table_codes` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_table_sessions`
+--
+
+DROP TABLE IF EXISTS `qr_table_sessions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_table_sessions` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `table_code` varchar(20) NOT NULL,
+  `status` enum('open','closed') NOT NULL DEFAULT 'open',
+  `active_slot` tinyint(3) unsigned DEFAULT 1,
+  `opened_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `closed_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_active_table` (`table_code`,`active_slot`),
+  CONSTRAINT `fk_qr_session_table` FOREIGN KEY (`table_code`) REFERENCES `qr_table_codes` (`table_code`)
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_table_sessions`
+--
+
+LOCK TABLES `qr_table_sessions` WRITE;
+/*!40000 ALTER TABLE `qr_table_sessions` DISABLE KEYS */;
+INSERT INTO `qr_table_sessions` VALUES (1,'B01','open',1,'2026-11-18 05:25:38',NULL);
+/*!40000 ALTER TABLE `qr_table_sessions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `qr_toppings`
+--
+
+DROP TABLE IF EXISTS `qr_toppings`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `qr_toppings` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) NOT NULL,
+  `price` decimal(12,2) NOT NULL,
+  `is_available` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `qr_toppings`
+--
+
+LOCK TABLES `qr_toppings` WRITE;
+/*!40000 ALTER TABLE `qr_toppings` DISABLE KEYS */;
+INSERT INTO `qr_toppings` VALUES (1,'Trứng thêm',10000.00,1),(2,'Phô mai',15000.00,1);
+/*!40000 ALTER TABLE `qr_toppings` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
