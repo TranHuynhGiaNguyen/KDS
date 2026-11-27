@@ -1,0 +1,25 @@
+.product-info {
+  background: #f0fdf4;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  border: 1px solid var(--green-border);
+  border-left: 4px solid var(--green);
+}
+
+.product-info h4 {
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.product-info p {
+  margin-bottom: 4px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.current-stock {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green);
+}

@@ -129,7 +129,7 @@
         background: #fff !important;
     }
 
-    body>*:not(.bill-ticket-dialog):not(.receipt-dialog) {
+    body:has(.bill-ticket-dialog[open], .receipt-dialog[open])>*:not(.bill-ticket-dialog):not(.receipt-dialog) {
         display: none !important;
     }
 

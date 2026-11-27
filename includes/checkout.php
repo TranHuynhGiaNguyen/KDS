@@ -9,6 +9,7 @@
 
 require_once __DIR__ . '/orders.php';
 require_once __DIR__ . '/ratings.php';
+require_once __DIR__ . '/tables.php';
 
 class CheckoutException extends DomainException {}
 
@@ -61,6 +62,7 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
         throw new CheckoutException('Bàn ' . $tableCode . ' không có đơn đang mở, có thể đã được thanh toán.');
     }
 
+    ensureTableAssignmentsSchema($pdo);
     $pdo->beginTransaction();
 
     try {

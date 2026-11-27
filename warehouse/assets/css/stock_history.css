@@ -1,0 +1,50 @@
+.filters {
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 9px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  outline: none;
+  border-color: var(--brand-orange);
+  box-shadow: 0 0 0 3px var(--brand-orange-glow);
+}
+
+.transaction-in {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.transaction-out {
+  color: var(--red);
+  font-weight: 700;
+}

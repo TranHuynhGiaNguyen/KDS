@@ -106,6 +106,7 @@
 
 .revenue-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -170,6 +171,16 @@
 .stat-trend-badge.neutral {
   background: #f1f5f9;
   color: #475569;
+}
+
+.stat-trend-badge.warning {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.stat-trend-badge.urgent {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .revenue-stat-value {
@@ -422,49 +433,135 @@
 /* ==========================================================
    5. CHẾ ĐỘ IN ẤN A4 (PRINT STYLES)
    ========================================================== */
+/* ==========================================================
+   5. CHẾ ĐỘ IN ẤN BILL BÁO CÁO THUẦN CHỮ (KHÔNG DÙNG UI WEB)
+   ========================================================== */
+.print-bill-report {
+  display: none;
+}
+
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
   body {
     background: #fff !important;
     color: #000 !important;
-    font-size: 11pt;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 10.5pt !important;
+    line-height: 1.45 !important;
   }
 
   .sidebar,
-  .revenue-filter-toolbar,
-  .revenue-actions,
-  .btn,
-  .filter-row,
-  .side-bottom {
+  .side-bottom,
+  .screen-report-ui,
+  .flash-alert {
     display: none !important;
   }
 
   .dashboard-main {
+    display: block !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
+    min-height: auto !important;
+    background: #fff !important;
   }
 
-  .revenue-chart-panel,
-  .revenue-stat-card,
-  .panel {
-    border: 1px solid #ccc !important;
-    box-shadow: none !important;
+  .print-bill-report {
+    display: block !important;
+    width: 100%;
+    max-width: 175mm;
+    margin: 0 auto;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .pb-center { text-align: center; }
+  .pb-bold { font-weight: 700; }
+  .pb-title { font-size: 14pt; letter-spacing: 0.5px; }
+  .pb-doc-title { font-size: 12pt; margin: 4px 0; }
+  .pb-sec-title { font-weight: 700; margin: 6px 0 4px; font-size: 10.5pt; }
+
+  .pb-rule-double {
+    border-top: 2px solid #000;
+    border-bottom: 1px solid #000;
+    height: 3px;
+    margin: 8px 0;
+  }
+
+  .pb-rule-dashed {
+    border-top: 1px dashed #000;
+    margin: 8px 0;
+  }
+
+  .pb-kv {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 0;
+  }
+
+  .pb-grand-total {
+    font-size: 11.5pt;
+    font-weight: 700;
+    padding: 4px 0;
+  }
+
+  .pb-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4px;
+    font-size: 9.8pt;
+  }
+
+  .pb-table th,
+  .pb-table td {
+    border-bottom: 1px dotted #000;
+    padding: 4px 6px;
+    text-align: left;
+    color: #000 !important;
+    background: transparent !important;
+  }
+
+  .pb-table th {
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    font-weight: 700;
+  }
+
+  .pb-table .pb-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .pb-table tr.pb-total-row td {
+    border-top: 1px solid #000;
+    border-bottom: 2px solid #000;
+    font-weight: 700;
+  }
+
+  .pb-signatures {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    text-align: center;
+    margin-top: 10px;
     break-inside: avoid;
   }
 
-  .revenue-svg-chart {
-    height: 180px !important;
+  .pb-sign-note {
+    margin-top: 42px;
+    font-size: 9.5pt;
   }
 
-  .print-header {
-    display: block !important;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #000;
-    padding-bottom: 10px;
+  .pb-footer-note {
+    font-size: 9.5pt;
+    margin-top: 4px;
   }
-}
-
-.print-header {
-  display: none;
 }
 

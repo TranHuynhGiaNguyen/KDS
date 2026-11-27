@@ -1,0 +1,35 @@
+.product-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-link-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.btn-link-action:hover {
+  border-color: var(--brand-orange);
+  color: var(--brand-orange);
+  background: var(--brand-orange-light);
+}
+
+.btn-link-danger {
+  border-color: var(--red-border);
+  color: var(--red);
+  background: #fff;
+}
+
+.btn-link-danger:hover {
+  background: var(--red-light);
+  border-color: var(--red);
+}

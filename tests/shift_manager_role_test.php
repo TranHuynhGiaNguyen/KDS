@@ -64,13 +64,35 @@ assert(strpos($sidebarHtml, 'index.php?page=tables') !== false, 'Sidebar Quản 
 assert(strpos($sidebarHtml, 'index.php?page=kitchen') !== false, 'Sidebar Quản lý ca phải có Màn hình bếp');
 assert(strpos($sidebarHtml, 'index.php?page=users') === false, 'Sidebar Quản lý ca KHÔNG được hiện Quản lý nhân viên');
 assert(strpos($sidebarHtml, 'index.php?page=vouchers') === false, 'Sidebar Quản lý ca KHÔNG được hiện Mã khuyến mãi');
+assert(strpos($sidebarHtml, 'warehouse/index.php') !== false && strpos($sidebarHtml, 'Quản lý kho') !== false, 'Sidebar Quản lý ca PHẢI có nút Quản lý kho');
+
+// Kiểm tra Admin thấy Quản lý kho; Staff & Kitchen KHÔNG thấy Quản lý kho ở sidebar
+$_SESSION['role'] = 'admin';
+ob_start();
+include __DIR__ . '/../includes/sidebar.php';
+$adminSidebar = ob_get_clean();
+assert(strpos($adminSidebar, 'warehouse/index.php') !== false, 'Sidebar Admin PHẢI có nút Quản lý kho');
+
+foreach (['staff', 'kitchen'] as $restrictedRole) {
+    $_SESSION['role'] = $restrictedRole;
+    ob_start();
+    include __DIR__ . '/../includes/sidebar.php';
+    $restrictedSidebar = ob_get_clean();
+    assert(strpos($restrictedSidebar, 'warehouse/index.php') === false, "Sidebar role {$restrictedRole} KHÔNG được thấy nút Quản lý kho");
+}
+
+// Khôi phục phiên Quản lý ca cho các kiểm tra tiếp theo
+$_SESSION['role'] = 'shift_manager';
 
 ob_start();
 include __DIR__ . '/../pages/admin.php';
 $adminHtml = ob_get_clean();
-assert(strpos($adminHtml, 'index.php?page=users') === false, 'Header Tổng quan của Quản lý ca KHÔNG được hiện nút users');
-assert(strpos($adminHtml, 'index.php?page=vouchers') === false, 'Header Tổng quan của Quản lý ca KHÔNG được hiện nút vouchers');
-assert(strpos($adminHtml, 'index.php?page=dishes') !== false, 'Header Tổng quan của Quản lý ca phải có nút thực đơn');
+assert(strpos($adminHtml, 'index.php?page=users') === false, 'Trang Tổng quan không còn nút shortcut users');
+assert(strpos($adminHtml, 'index.php?page=vouchers') === false, 'Trang Tổng quan không còn nút shortcut vouchers');
+assert(strpos($adminHtml, 'index.php?page=dishes') === false, 'Trang Tổng quan không còn nút shortcut thực đơn');
+assert(strpos($adminHtml, 'index.php?page=tables') === false, 'Trang Tổng quan không còn nút shortcut bàn');
+assert(strpos($adminHtml, 'index.php?page=kitchen') === false, 'Trang Tổng quan không còn nút shortcut bếp KDS');
+assert(strpos($adminHtml, 'admin-live-orders-panel') === false, 'Trang Tổng quan không còn khối Theo dõi món đang phục vụ tại bàn');
 
 ob_start();
 include __DIR__ . '/../pages/users.php';

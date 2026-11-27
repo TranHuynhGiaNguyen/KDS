@@ -953,6 +953,50 @@ function getVietnameseDayOfWeek(string $date): string {
 }
 
 /**
+ * Làm sạch buffer đang chờ để tải xuống CSV thuần, đồng thời thiết lập header chuẩn UTF-8 BOM.
+ */
+function prepareCsvDownload(string $filename) {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    $safeFilename = str_replace(["\r", "\n", '"'], '', $filename);
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    // Ghi UTF-8 BOM cho Excel
+    echo "\xEF\xBB\xBF";
+
+    return fopen('php://output', 'w');
+}
+
+/**
+ * Chống CSV Formula Injection nhưng giữ nguyên giá trị số nguyên/số thực (bao gồm số âm).
+ */
+function sanitizeCsvCell($value) {
+    if (is_int($value) || is_float($value)) {
+        return $value;
+    }
+    $text = (string) $value;
+    if ($text !== '' && preg_match('/^[=+@\t\r]/', $text) === 1) {
+        return "'" . $text;
+    }
+    if ($text !== '' && str_starts_with($text, '-') && !is_numeric($text)) {
+        return "'" . $text;
+    }
+    return $text;
+}
+
+/**
+ * Ghi một dòng vào stream CSV với sanitization chuẩn.
+ */
+function writeCsvRow($output, array $row): void {
+    fputcsv($output, array_map('sanitizeCsvCell', $row));
+}
+
+/**
  * Xuất dữ liệu báo cáo doanh thu ra tệp CSV (kèm BOM để Excel hiển thị đúng tiếng Việt)
  */
 function exportRevenueCsv(array $report): void {
@@ -968,34 +1012,26 @@ function exportRevenueCsv(array $report): void {
         $titlePeriod = 'NGÀY ' . $report['date_display'];
     }
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Pragma: no-cache');
-    header('Expires: 0');
-
-    // Ghi UTF-8 BOM cho Excel
-    echo "\xEF\xBB\xBF";
-
-    $output = fopen('php://output', 'w');
+    $output = prepareCsvDownload($filename);
 
     // Tiêu đề báo cáo
-    fputcsv($output, ['SMARTDINE - BÁO CÁO DOANH THU ' . $titlePeriod]);
-    fputcsv($output, ['Thời gian xuất:', date('d/m/Y H:i:s')]);
-    fputcsv($output, ['Tổng doanh thu thực nhận:', number_format($report['total_revenue'], 0, ',', '.') . ' đ']);
-    fputcsv($output, ['Tổng số hóa đơn:', $report['total_invoices']]);
-    fputcsv($output, ['Giá trị trung bình/đơn:', number_format($report['avg_order_value'], 0, ',', '.') . ' đ']);
-    fputcsv($output, ['Tổng số phần món đã bán:', $report['total_items_sold']]);
-    fputcsv($output, ['Doanh thu QR:', number_format($report['payment_methods']['qr']['total'], 0, ',', '.') . ' đ (' . $report['payment_methods']['qr']['count'] . ' đơn)']);
-    fputcsv($output, ['Doanh thu Tiền mặt:', number_format($report['payment_methods']['cash']['total'], 0, ',', '.') . ' đ (' . $report['payment_methods']['cash']['count'] . ' đơn)']);
-    fputcsv($output, []); // Dòng trống
+    writeCsvRow($output, ['SMARTDINE - BÁO CÁO DOANH THU ' . $titlePeriod]);
+    writeCsvRow($output, ['Thời gian xuất:', date('d/m/Y H:i:s')]);
+    writeCsvRow($output, ['Tổng doanh thu thực nhận:', number_format($report['total_revenue'], 0, ',', '.') . ' đ']);
+    writeCsvRow($output, ['Tổng số hóa đơn:', $report['total_invoices']]);
+    writeCsvRow($output, ['Giá trị trung bình/đơn:', number_format($report['avg_order_value'], 0, ',', '.') . ' đ']);
+    writeCsvRow($output, ['Tổng số phần món đã bán:', $report['total_items_sold']]);
+    writeCsvRow($output, ['Doanh thu QR:', number_format($report['payment_methods']['qr']['total'], 0, ',', '.') . ' đ (' . $report['payment_methods']['qr']['count'] . ' đơn)']);
+    writeCsvRow($output, ['Doanh thu Tiền mặt:', number_format($report['payment_methods']['cash']['total'], 0, ',', '.') . ' đ (' . $report['payment_methods']['cash']['count'] . ' đơn)']);
+    writeCsvRow($output, []); // Dòng trống
 
     if ($mode === 'month' || $mode === 'range') {
         // Bảng chi tiết từng ngày trong khoảng/tháng
-        fputcsv($output, ['BẢNG CHI TIẾT DOANH THU TỪNG NGÀY']);
-        fputcsv($output, ['Ngày', 'Thứ', 'Số hóa đơn', 'Doanh thu món (Tạm tính)', 'Giảm giá', 'Thuế & Phí', 'Doanh thu thực nhận', 'Tiền mặt', 'Chuyển khoản QR', 'TB/Đơn']);
+        writeCsvRow($output, ['BẢNG CHI TIẾT DOANH THU TỪNG NGÀY']);
+        writeCsvRow($output, ['Ngày', 'Thứ', 'Số hóa đơn', 'Doanh thu món (Tạm tính)', 'Giảm giá', 'Thuế & Phí', 'Doanh thu thực nhận', 'Tiền mặt', 'Chuyển khoản QR', 'TB/Đơn']);
 
         foreach ($report['daily_data'] as $d) {
-            fputcsv($output, [
+            writeCsvRow($output, [
                 $d['date'],
                 $d['day_name'],
                 $d['invoices'],
@@ -1009,7 +1045,7 @@ function exportRevenueCsv(array $report): void {
             ]);
         }
 
-        fputcsv($output, [
+        writeCsvRow($output, [
             'TỔNG CỘNG',
             '-',
             $report['total_invoices'],
@@ -1023,11 +1059,11 @@ function exportRevenueCsv(array $report): void {
         ]);
     } else {
         // Bảng danh sách hóa đơn trong ngày
-        fputcsv($output, ['DANH SÁCH HÓA ĐƠN ĐÃ THANH TOÁN TRONG NGÀY']);
-        fputcsv($output, ['Mã HĐ', 'Bàn', 'Giờ thanh toán', 'Thu ngân', 'Phương thức', 'Tạm tính', 'Giảm giá', 'Phí DV', 'VAT', 'Tổng thanh toán']);
+        writeCsvRow($output, ['DANH SÁCH HÓA ĐƠN ĐÃ THANH TOÁN TRONG NGÀY']);
+        writeCsvRow($output, ['Mã HĐ', 'Bàn', 'Giờ thanh toán', 'Thu ngân', 'Phương thức', 'Tạm tính', 'Giảm giá', 'Phí DV', 'VAT', 'Tổng thanh toán']);
 
         foreach ($report['invoices_list'] as $inv) {
-            fputcsv($output, [
+            writeCsvRow($output, [
                 $inv['code'],
                 $inv['table_code'],
                 $inv['paid_at'],
@@ -1041,7 +1077,7 @@ function exportRevenueCsv(array $report): void {
             ]);
         }
 
-        fputcsv($output, [
+        writeCsvRow($output, [
             'TỔNG CỘNG',
             '-',
             '-',
@@ -1055,13 +1091,13 @@ function exportRevenueCsv(array $report): void {
         ]);
     }
 
-    fputcsv($output, []); // Dòng trống
+    writeCsvRow($output, []); // Dòng trống
 
     // Bảng Top 5 món bán chạy
-    fputcsv($output, ['TOP 5 MÓN ĂN BÁN CHẠY NHẤT']);
-    fputcsv($output, ['Thứ hạng', 'Tên món ăn', 'Số lượng bán (phần)', 'Doanh thu']);
+    writeCsvRow($output, ['TOP 5 MÓN ĂN BÁN CHẠY NHẤT']);
+    writeCsvRow($output, ['Thứ hạng', 'Tên món ăn', 'Số lượng bán (phần)', 'Doanh thu']);
     foreach ($report['top_dishes'] as $rank => $item) {
-        fputcsv($output, [
+        writeCsvRow($output, [
             $rank + 1,
             $item['item_name'],
             $item['total_qty'],

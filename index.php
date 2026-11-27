@@ -334,11 +334,6 @@ if ($pageFile !== '' && !is_file($pageFile)) {
             href="<?= htmlspecialchars(assetUrl('assets/css/revenue.css'), ENT_QUOTES, 'UTF-8') ?>"
         >
 
-        <link
-            rel="stylesheet"
-            href="<?= htmlspecialchars(assetUrl('assets/css/orders.css'), ENT_QUOTES, 'UTF-8') ?>"
-        >
-
     <?php endif; ?>
 
     <!-- SƠ ĐỒ BÀN -->

@@ -10,28 +10,56 @@ require_once __DIR__ . '/../includes/tables.php';
 require_once __DIR__ . '/../includes/revenue.php';
 require_once __DIR__ . '/../includes/kitchen-metrics.php';
 require_once __DIR__ . '/../includes/vouchers.php';
-require_once __DIR__ . '/../includes/admin-orders-view.php';
+require_once __DIR__ . '/../includes/shift-reconciliation.php';
+require_once __DIR__ . '/../includes/excel-report.php';
+require_once __DIR__ . '/../includes/print-bill-report.php';
 
-// Xử lý xuất file CSV nếu có yêu cầu
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+// Xử lý xuất file Excel (bảng kẻ .xlsx) hoặc CSV thuần nếu có yêu cầu
+$exportFormat = $_GET['export'] ?? '';
+if (in_array($exportFormat, ['csv', 'excel', 'xlsx'], true)) {
   $pdo = getRevenueDb();
   $viewMode = $_GET['mode'] ?? 'day';
-  if (!in_array($viewMode, ['day', 'month', 'range'], true)) {
+  if (!in_array($viewMode, ['day', 'month', 'range', 'kitchen', 'reconcile'], true)) {
     $viewMode = 'day';
   }
   $selectedDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
   $selectedMonth = preg_match('/^\d{4}-\d{2}$/', $_GET['month'] ?? '') ? $_GET['month'] : date('Y-m');
   $startDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['start_date'] ?? '') ? $_GET['start_date'] : date('Y-m-d', strtotime('-6 days'));
   $endDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['end_date'] ?? '') ? $_GET['end_date'] : date('Y-m-d');
-
-  if ($viewMode === 'range') {
-    $report = getRevenueByRange($pdo, $startDate, $endDate);
-  } elseif ($viewMode === 'month') {
-    $report = getRevenueByMonth($pdo, $selectedMonth);
-  } else {
-    $report = getRevenueByDate($pdo, $selectedDate);
+  if ($startDate > $endDate) {
+    $tmp = $startDate;
+    $startDate = $endDate;
+    $endDate = $tmp;
   }
-  exportRevenueCsv($report);
+
+  $payload = ['start_date' => $startDate, 'end_date' => $endDate];
+  if ($viewMode === 'reconcile') {
+    $payload['reconcile'] = getShiftReconciliationReport($pdo, $selectedDate);
+  } elseif ($viewMode === 'kitchen') {
+    $payload['kitchen'] = getKitchenPerformanceReport($startDate, $endDate);
+  } elseif ($viewMode === 'range') {
+    $payload['report'] = getRevenueByRange($pdo, $startDate, $endDate);
+  } elseif ($viewMode === 'month') {
+    $payload['report'] = getRevenueByMonth($pdo, $selectedMonth);
+    $payload['month_display'] = $payload['report']['month_display'] ?? '';
+  } else {
+    $payload['report'] = getRevenueByDate($pdo, $selectedDate);
+    $payload['date_display'] = $payload['report']['date_display'] ?? '';
+  }
+
+  if (isset($payload['report']) && !isset($payload['date_display'])) {
+    $payload['date_display'] = $payload['report']['date_display'] ?? '';
+  }
+
+  if ($exportFormat === 'excel' || $exportFormat === 'xlsx') {
+    exportAdminReportExcel($viewMode, $payload);
+  } elseif ($viewMode === 'reconcile') {
+    exportShiftReconciliationCsv($payload['reconcile']);
+  } elseif ($viewMode === 'kitchen') {
+    exportKitchenCsv($payload['kitchen'], $startDate, $endDate);
+  } else {
+    exportRevenueCsv($payload['report']);
+  }
   exit;
 }
 
@@ -52,16 +80,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['action']) 
 $pdo = getRevenueDb();
 $adminTableStats = getTableStats();
 $todayKitchenStats = getKitchenPerformanceReport(date('Y-m-d'), date('Y-m-d'));
-$adminOpenTables = [];
-try {
-  $adminOpenTables = fetchOpenOrdersSummary(getOrdersDb());
-} catch (RuntimeException | PDOException $e) {
-  error_log('admin active orders: ' . $e->getMessage());
-}
 
-// Xác định chế độ xem: theo ngày (day), theo tháng (month), theo khoảng ngày (range) hay hiệu suất bếp (kitchen)
+// Xác định chế độ xem: theo ngày (day), theo tháng (month), khoảng ngày (range), hiệu suất bếp (kitchen) hay đối chiếu thực xuất kết ca (reconcile)
 $viewMode = $_GET['mode'] ?? 'day';
-if (!in_array($viewMode, ['day', 'month', 'range', 'kitchen'], true)) {
+if (!in_array($viewMode, ['day', 'month', 'range', 'kitchen', 'reconcile'], true)) {
   $viewMode = 'day';
 }
 $selectedDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
@@ -75,7 +97,9 @@ if ($startDate > $endDate) {
 }
 
 // Lấy dữ liệu báo cáo tương ứng
-if ($viewMode === 'kitchen') {
+if ($viewMode === 'reconcile') {
+  $reconcileReport = getShiftReconciliationReport($pdo, $selectedDate);
+} elseif ($viewMode === 'kitchen') {
   $kitchenReport = getKitchenPerformanceReport($startDate, $endDate);
   $report = getRevenueByRange($pdo, $startDate, $endDate);
 } elseif ($viewMode === 'range') {
@@ -85,6 +109,9 @@ if ($viewMode === 'kitchen') {
 } else {
   $report = getRevenueByDate($pdo, $selectedDate);
 }
+
+$currentActor = currentUser();
+$printerName = trim((string) ($currentActor['fullname'] ?? ($currentActor['username'] ?? ''))) ?: 'Quản trị viên';
 
 // Các mốc ngày nhanh
 $todayStr = date('Y-m-d');
@@ -97,66 +124,19 @@ $range30Start = date('Y-m-d', strtotime('-29 days'));
 $thisMonthStart = date('Y-m-01');
 ?>
 
-<!-- Header in ấn A4 (Chỉ hiển thị khi in hoặc lưu PDF) -->
-<div class="print-header">
-  <h1 style="margin: 0 0 6px; font-size: 20pt;">SMARTDINE RESTAURANT — <?= $viewMode === 'kitchen' ? 'BÁO CÁO HIỆU SUẤT BẾP (KDS)' : 'BÁO CÁO DOANH THU' ?></h1>
-  <p style="margin: 0; color: #555;">
-    Thời gian thống kê: <b><?= $viewMode === 'kitchen' ? 'Từ ' . date('d/m/Y', strtotime($startDate)) . ' đến ' . date('d/m/Y', strtotime($endDate)) : ($viewMode === 'month' ? 'Tháng ' . $report['month_display'] : ($viewMode === 'range' ? 'Khoảng ' . $report['date_display'] : 'Ngày ' . $report['date_display'] . ' (' . $report['day_name'] . ')')) ?></b>
-    · Xuất lúc: <?= date('d/m/Y H:i:s') ?> · Người lập: Quản trị viên
-  </p>
-</div>
-
+<div class="screen-report-ui">
 <!-- HEADER CHÍNH CỦA DASHBOARD -->
 <div class="dash-header">
   <div>
-    <span class="eyebrow"><?= $viewMode === 'kitchen' ? 'KITCHEN PERFORMANCE & EFFICIENCY DASHBOARD' : 'SMARTDINE MANAGEMENT & REVENUE DASHBOARD' ?></span>
-    <h1><?= $viewMode === 'kitchen' ? 'Báo cáo Hiệu suất Bếp (Kitchen Metrics)' : 'Tổng quan & Báo cáo Doanh thu' ?></h1>
-    <p><?= $viewMode === 'kitchen' ? 'Thống kê thời gian chế biến trung bình, cảnh báo các món bị trễ giờ và phân tích tải theo từng quầy bếp.' : 'Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng / khoảng ngày và phân bổ vận hành nhà hàng.' ?></p>
-  </div>
-  <div class="filter-row">
-    <?php if (canRoleAccessPage(currentRole(), 'users')): ?>
-      <a class="btn btn-outline" href="index.php?page=users">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-        <span>Quản lý nhân viên</span>
-      </a>
-    <?php endif; ?>
-    <a class="btn btn-outline" href="index.php?page=dishes">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path>
-        <path d="M7 2v20"></path>
-        <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path>
-      </svg>
-      <span>Quản lý thực đơn</span>
-    </a>
-    <a class="btn btn-outline" href="index.php?page=tables">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-        <path d="M3 9h18M9 21V9"></path>
-      </svg>
-      <span>Quản lý bàn & khu vực</span>
-    </a>
-    <?php if (canRoleAccessPage(currentRole(), 'vouchers')): ?>
-      <a class="btn btn-outline" href="index.php?page=vouchers">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-          <line x1="7" y1="7" x2="7.01" y2="7"></line>
-        </svg>
-        <span>Mã khuyến mãi</span>
-      </a>
-    <?php endif; ?>
-    <a class="btn btn-primary-tool" href="index.php?page=kitchen">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path>
-        <path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path>
-        <path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path>
-      </svg>
-      <span>Màn hình bếp KDS</span>
-    </a>
+    <span class="eyebrow">
+      <?= $viewMode === 'reconcile' ? 'END-OF-DAY SHIFT CLOSING & DAILY WAREHOUSE STOCK' : ($viewMode === 'kitchen' ? 'KITCHEN PERFORMANCE & EFFICIENCY DASHBOARD' : 'SMARTDINE MANAGEMENT & REVENUE DASHBOARD') ?>
+    </span>
+    <h1>
+      <?= $viewMode === 'reconcile' ? 'Báo cáo Món thực xuất cuối ngày (Kết ca)' : ($viewMode === 'kitchen' ? 'Báo cáo Hiệu suất Bếp (Kitchen Metrics)' : 'Tổng quan & Báo cáo Doanh thu') ?>
+    </h1>
+    <p>
+      <?= $viewMode === 'reconcile' ? 'Tổng hợp lượng món thực xuất trên KDS cuối ngày để đối chiếu với số hàng tồn lại theo ngày trong Warehouse.' : ($viewMode === 'kitchen' ? 'Thống kê thời gian chế biến trung bình, cảnh báo các món bị trễ giờ và phân tích tải theo từng quầy bếp.' : 'Theo dõi chi tiết hiệu quả kinh doanh, doanh thu theo ngày / tháng / khoảng ngày và phân bổ vận hành nhà hàng.') ?>
+    </p>
   </div>
 </div>
 
@@ -164,7 +144,7 @@ $thisMonthStart = date('Y-m-01');
      BỘ LỌC DOANH THU THEO NGÀY / THÁNG / KHOẢNG NGÀY & CÔNG CỤ
      ========================================================== -->
 <section class="revenue-filter-toolbar">
-  <!-- Tabs chuyển chế độ: Theo ngày vs Theo tháng vs Khoảng ngày vs Hiệu suất bếp -->
+  <!-- Tabs chuyển chế độ -->
   <div class="revenue-view-tabs">
     <a class="revenue-tab-btn <?= $viewMode === 'day' ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= htmlspecialchars($selectedDate) ?>">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -198,6 +178,13 @@ $thisMonthStart = date('Y-m-01');
       </svg>
       <span>Hiệu suất bếp</span>
     </a>
+    <a class="revenue-tab-btn <?= $viewMode === 'reconcile' ? 'active' : '' ?>" href="index.php?page=admin&mode=reconcile&date=<?= htmlspecialchars($selectedDate) ?>">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 11l3 3L22 4"></path>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <span>Đối chiếu thực xuất</span>
+    </a>
   </div>
 
   <!-- Form chọn ngày / tháng / khoảng cụ thể -->
@@ -205,12 +192,12 @@ $thisMonthStart = date('Y-m-01');
     <input type="hidden" name="page" value="admin">
     <input type="hidden" name="mode" value="<?= htmlspecialchars($viewMode) ?>">
 
-    <?php if ($viewMode === 'day'): ?>
-      <input type="date" name="date" value="<?= htmlspecialchars($selectedDate) ?>" aria-label="Chọn ngày xem doanh thu">
+    <?php if ($viewMode === 'day' || $viewMode === 'reconcile'): ?>
+      <input type="date" name="date" value="<?= htmlspecialchars($selectedDate) ?>" aria-label="Chọn ngày báo cáo">
       <div class="quick-filter-chips">
-        <a class="quick-chip <?= $selectedDate === $todayStr ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= $todayStr ?>">Hôm nay</a>
-        <a class="quick-chip <?= $selectedDate === $yesterdayStr ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= $yesterdayStr ?>">Hôm qua</a>
-        <a class="quick-chip <?= $selectedDate === $sevenDaysAgoStr ? 'active' : '' ?>" href="index.php?page=admin&mode=day&date=<?= $sevenDaysAgoStr ?>">7 ngày trước (<?= date('d/m', strtotime('-7 days')) ?>)</a>
+        <a class="quick-chip <?= $selectedDate === $todayStr ? 'active' : '' ?>" href="index.php?page=admin&mode=<?= htmlspecialchars($viewMode) ?>&date=<?= $todayStr ?>">Hôm nay</a>
+        <a class="quick-chip <?= $selectedDate === $yesterdayStr ? 'active' : '' ?>" href="index.php?page=admin&mode=<?= htmlspecialchars($viewMode) ?>&date=<?= $yesterdayStr ?>">Hôm qua</a>
+        <a class="quick-chip <?= $selectedDate === $sevenDaysAgoStr ? 'active' : '' ?>" href="index.php?page=admin&mode=<?= htmlspecialchars($viewMode) ?>&date=<?= $sevenDaysAgoStr ?>">7 ngày trước (<?= date('d/m', strtotime('-7 days')) ?>)</a>
       </div>
     <?php elseif ($viewMode === 'month'): ?>
       <input type="month" name="month" value="<?= htmlspecialchars($selectedMonth) ?>" aria-label="Chọn tháng xem doanh thu">
@@ -246,11 +233,11 @@ $thisMonthStart = date('Y-m-01');
     <button type="submit" class="btn btn-small btn-primary">Lọc dữ liệu</button>
   </form>
 
-  <!-- Nút Thao tác: Xuất CSV & In báo cáo -->
+  <!-- Nút Thao tác: Xuất CSV, In báo cáo & Báo cáo thực xuất kết ca -->
   <div class="revenue-actions">
     <?php
     $exportParams = 'mode=' . urlencode($viewMode);
-    if ($viewMode === 'range') {
+    if ($viewMode === 'range' || $viewMode === 'kitchen') {
       $exportParams .= '&start_date=' . urlencode($startDate) . '&end_date=' . urlencode($endDate);
     } elseif ($viewMode === 'month') {
       $exportParams .= '&month=' . urlencode($selectedMonth);
@@ -258,15 +245,15 @@ $thisMonthStart = date('Y-m-01');
       $exportParams .= '&date=' . urlencode($selectedDate);
     }
     ?>
-    <a class="btn btn-small btn-outline" href="index.php?page=admin&export=csv&<?= $exportParams ?>" title="Xuất báo cáo sang file Excel CSV">
+    <a class="btn btn-small btn-outline" href="index.php?page=admin&export=excel&<?= $exportParams ?>" title="Xuất báo cáo dạng bảng Excel (.xlsx) có viền kẻ rõ ràng">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="7 10 12 15 17 10"></polyline>
         <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
-      <span>Xuất CSV (Excel)</span>
+      <span>Xuất Excel (Bảng kẻ)</span>
     </a>
-    <button type="button" class="btn btn-small btn-outline" onclick="window.print()" title="In báo cáo doanh thu ra máy in hoặc lưu PDF">
+    <button type="button" class="btn btn-small btn-outline" onclick="window.print()" title="In báo cáo ra máy in hoặc lưu PDF">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="6 9 6 2 18 2 18 9"></polyline>
         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
@@ -274,27 +261,16 @@ $thisMonthStart = date('Y-m-01');
       </svg>
       <span>In báo cáo</span>
     </button>
+    <a class="btn btn-small btn-primary-tool" href="index.php?page=admin&mode=reconcile&date=<?= htmlspecialchars($selectedDate) ?>" title="Báo cáo món thực xuất cuối ngày lúc kết ca để đối chiếu với lượng bán ra ở trong kho">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 11l3 3L22 4"></path>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <span>Báo cáo thực xuất (Kết ca)</span>
+    </a>
   </div>
 </section>
 
-<!-- ==========================================================
-     THEO DÕI MÓN ĐANG PHỤC VỤ TẠI BÀN (ĐỒNG BỘ QR · BẾP · STAFF)
-     ========================================================== -->
-<section class="panel" id="admin-live-orders-panel" style="margin-bottom: 24px;" data-poll-url="api/admin-orders.php" data-cancel-url="api/order-item.php">
-  <div class="panel-title">
-    <div>
-      <h2>Theo dõi món đang phục vụ tại bàn</h2>
-      <p class="muted">Đồng bộ tức thì khi khách gọi QR, Bếp bấm In phiếu bếp (Đã nấu xong) hoặc Admin hủy món</p>
-    </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <span class="badge-pill" id="admin-live-orders-badge"><?= count($adminOpenTables) ?> bàn đang mở</span>
-      <button type="button" class="btn btn-small btn-outline" data-admin-orders-refresh>Làm mới</button>
-    </div>
-  </div>
-  <div id="admin-live-orders-body">
-    <?= renderAdminActiveOrders($adminOpenTables) ?>
-  </div>
-</section>
 
 <?php if ($viewMode === 'kitchen'): ?>
   <!-- ==========================================================
@@ -545,6 +521,204 @@ $thisMonthStart = date('Y-m-01');
     </div>
   </section>
 
+<?php elseif ($viewMode === 'reconcile'): ?>
+  <!-- ==========================================================
+       BÁO CÁO MÓN THỰC XUẤT ĐÃ BÁN TRONG NGÀY THEO DANH MỤC & TỒN KHO
+       ========================================================== -->
+  <?php if (!$reconcileReport['warehouse_ready']): ?>
+    <div class="flash-alert flash-error">
+      Chưa phát hiện bảng Kho hàng (<code>products</code> / <code>stock_transactions</code>) trong cơ sở dữ liệu để đối chiếu.
+    </div>
+  <?php elseif (empty($reconcileReport['groups'])): ?>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; color: #475569; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <span>Chưa có món nào bán được trong ngày <b><?= htmlspecialchars($reconcileReport['date_display']) ?></b>.</span>
+      <a href="warehouse/inventory/daily_stock.php?date=<?= htmlspecialchars($selectedDate) ?>" class="btn btn-small btn-outline">Mở Tồn theo ngày (Kho) →</a>
+    </div>
+  <?php elseif ($reconcileReport['is_fully_matched']): ?>
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <span><b>✓ Đã chốt tồn &amp; khớp hoàn toàn!</b> Tất cả <b><?= count($reconcileReport['items']) ?></b> món bán được trong ngày đã chốt tồn trong Kho khớp với lượng bán ra KDS.</span>
+      <a href="warehouse/inventory/daily_stock.php?date=<?= htmlspecialchars($selectedDate) ?>" class="btn btn-small btn-outline">Xem Tồn theo ngày (Kho) →</a>
+    </div>
+  <?php else: ?>
+    <div style="background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <span>
+        <b>📋 Đối chiếu kết ca theo món đã bán hôm nay:</b>
+        Tổng <b><?= count($reconcileReport['items']) ?></b> món bán được ·
+        Đã chốt tồn Kho <b><?= $reconcileReport['closed_snapshot_count'] ?> / <?= $reconcileReport['tracked_in_warehouse_count'] ?></b> món có trong Kho.
+      </span>
+      <a href="warehouse/inventory/daily_stock.php?date=<?= htmlspecialchars($selectedDate) ?>" class="btn btn-small btn-primary">Mở Tồn theo ngày &amp; Chốt tồn →</a>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($reconcileReport['total_kds_pending_open_qty'] > 0): ?>
+    <div style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 12px 18px; margin-bottom: 20px; font-size: 13px;">
+      <b>⏳ Lưu ý trước khi chốt ca:</b> Vẫn còn <b><?= number_format($reconcileReport['total_kds_pending_open_qty']) ?></b> phần món đang ở trạng thái chờ/đang nấu trên bàn mở (chưa tính vào mục đã bán).
+    </div>
+  <?php endif; ?>
+
+  <div class="revenue-stats-grid">
+    <div class="revenue-stat-card" style="border-top: 4px solid #ea580c;">
+      <div class="revenue-stat-head">
+        <span>Tổng món đã bán hôm nay</span>
+        <span class="stat-trend-badge neutral"><?= htmlspecialchars($reconcileReport['date_display']) ?></span>
+      </div>
+      <div class="revenue-stat-value"><?= number_format($reconcileReport['total_kds_actual_qty']) ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">phần</span></div>
+      <div class="revenue-stat-sub">
+        Gồm <b><?= count($reconcileReport['items']) ?></b> món chia theo <b><?= count($reconcileReport['groups']) ?></b> danh mục
+      </div>
+      <small style="color: #64748b; font-size: 11px;">Chỉ thống kê những món thực sự bán được trong ngày</small>
+    </div>
+
+    <div class="revenue-stat-card" style="border-top: 4px solid #0284c7;">
+      <div class="revenue-stat-head">
+        <span>Tồn đầu + Nhập (Kho)</span>
+        <span class="stat-trend-badge neutral">Warehouse</span>
+      </div>
+      <div class="revenue-stat-value" style="color: #0284c7;"><?= number_format($reconcileReport['total_warehouse_available_qty']) ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">đơn vị</span></div>
+      <div class="revenue-stat-sub">
+        Tổng nguồn kho của các món đã bán hôm nay
+      </div>
+      <small style="color: #64748b; font-size: 11px;">Sản phẩm khớp danh mục kho: <?= number_format($reconcileReport['tracked_in_warehouse_count']) ?></small>
+    </div>
+
+    <div class="revenue-stat-card" style="border-top: 4px solid #16a34a;">
+      <div class="revenue-stat-head">
+        <span>Tồn lại cuối ngày (Kho)</span>
+        <span class="stat-trend-badge positive">Hàng tồn</span>
+      </div>
+      <div class="revenue-stat-value" style="color: #16a34a;"><?= number_format($reconcileReport['total_warehouse_closing_qty']) ?> <span style="font-size: 16px; font-weight: 600; color: #64748b;">đơn vị</span></div>
+      <div class="revenue-stat-sub">
+        Số hàng tồn lại trong ngày để đối chiếu lượng bán ra
+      </div>
+      <small style="color: #64748b; font-size: 11px;">Đã chốt cuối ngày: <?= number_format($reconcileReport['closed_snapshot_count']) ?> món</small>
+    </div>
+
+    <div class="revenue-stat-card" style="border-top: 4px solid #64748b;">
+      <div class="revenue-stat-head">
+        <span>Tổng hợp theo danh mục</span>
+        <span class="stat-trend-badge <?= $reconcileReport['mismatch_count'] === 0 ? 'positive' : 'warning' ?>">
+          <?= $reconcileReport['matched_count'] ?> khớp
+        </span>
+      </div>
+      <div class="revenue-stat-sub" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+        <?php if (empty($reconcileReport['groups'])): ?>
+          <span>Chưa có dữ liệu nhóm món</span>
+        <?php else: ?>
+          <?php foreach ($reconcileReport['groups'] as $grp): ?>
+            <span class="badge-method qr" style="font-size: 11px;"><?= htmlspecialchars($grp['group_label']) ?>: <?= number_format((int) $grp['total_kds_qty']) ?></span>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+      <small style="color: #64748b; font-size: 11px; margin-top: 8px; display: block;">Chưa có trong Kho: <?= number_format($reconcileReport['unmapped_count']) ?> món</small>
+    </div>
+  </div>
+
+  <section class="panel" style="margin-bottom: 24px;">
+    <div class="panel-title">
+      <div>
+        <h2>Bảng báo cáo món đã bán hôm nay theo danh mục (<?= htmlspecialchars($reconcileReport['date_display']) ?>)</h2>
+        <p class="muted">Chỉ hiển thị những món đã bán được trong ngày, phân nhóm theo Bếp nóng, Rau / Salad, Bếp súp, Quầy Bar và đối chiếu tồn cuối ngày</p>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="revenue-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tên món đã bán</th>
+            <th>Danh mục / SKU</th>
+            <th class="num-col">Thực xuất KDS</th>
+            <th class="num-col">Tồn đầu + Nhập (Kho)</th>
+            <th class="num-col">Tồn lại cuối ngày (Kho)</th>
+            <th>Trạng thái đối chiếu</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (empty($reconcileReport['groups'])): ?>
+            <tr>
+              <td colspan="7" style="padding: 30px; text-align: center; color: #94a3b8;">
+                Hôm nay (<?= htmlspecialchars($reconcileReport['date_display']) ?>) chưa có món nào bán được trên KDS.
+              </td>
+            </tr>
+          <?php else: ?>
+            <?php $rowIdx = 1; ?>
+            <?php foreach ($reconcileReport['groups'] as $group): ?>
+              <tr style="background: #f8fafc;">
+                <td colspan="7" style="font-weight: 800; color: #0f172a; padding: 10px 14px; border-top: 2px solid #e2e8f0;">
+                  📂 <?= htmlspecialchars($group['group_label']) ?>
+                  <span style="font-weight: 600; color: #64748b; font-size: 12px; margin-left: 8px;">(<?= count($group['items']) ?> món · Tổng bán: <?= number_format((int) $group['total_kds_qty']) ?> phần)</span>
+                </td>
+              </tr>
+              <?php foreach ($group['items'] as $item): ?>
+                <tr>
+                  <td><?= $rowIdx++ ?></td>
+                  <td>
+                    <b><?= htmlspecialchars($item['item_name']) ?></b>
+                    <?php if ((int) $item['pending_open_qty'] > 0): ?>
+                      <div style="font-size: 11px; color: #b91c1c;">⏳ Còn <?= (int) $item['pending_open_qty'] ?> phần đang chờ trên bàn mở</div>
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($item['sku'] !== ''): ?>
+                      <span class="badge-method qr"><?= htmlspecialchars($item['sku']) ?></span>
+                    <?php endif; ?>
+                    <span style="font-size: 12px; color: #64748b;">
+                      <?= htmlspecialchars($item['category_name'] !== '' ? $item['category_name'] : $group['group_label']) ?>
+                    </span>
+                  </td>
+                  <td class="num-col"><b><?= number_format($item['kds_actual_qty']) ?></b></td>
+                  <td class="num-col">
+                    <?php if ($item['has_product']): ?>
+                      <b><?= number_format((int) $item['warehouse_available_qty']) ?></b>
+                      <div style="font-size: 11px; color: #64748b;">Đầu: <?= (int) $item['warehouse_opening_qty'] ?> · Nhập: +<?= (int) $item['warehouse_in_qty'] ?></div>
+                    <?php else: ?>
+                      <span style="color: #94a3b8;">—</span>
+                    <?php endif; ?>
+                  </td>
+                  <td class="num-col">
+                    <?php if ($item['warehouse_closing_qty'] !== null): ?>
+                      <b><?= number_format((int) $item['warehouse_closing_qty']) ?></b>
+                      <?php if (!$item['is_snapshot_closed']): ?>
+                        <div style="font-size: 11px; color: #64748b;">Dự kiến sau bán: <?= number_format((int) $item['warehouse_expected_qty']) ?></div>
+                      <?php else: ?>
+                        <div style="font-size: 11px; color: #16a34a;">Đã chốt tồn (Tiêu hao: <?= number_format((int) $item['warehouse_consumed_qty']) ?>)</div>
+                      <?php endif; ?>
+                    <?php else: ?>
+                      <span style="color: #94a3b8;">—</span>
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <span class="stat-trend-badge <?= htmlspecialchars($item['badge_class']) ?>">
+                      <?= htmlspecialchars($item['status_label']) ?>
+                    </span>
+                    <?php if ($item['has_product'] && !$item['is_snapshot_closed']): ?>
+                      <a href="warehouse/inventory/daily_stock.php?date=<?= htmlspecialchars($selectedDate) ?>" style="margin-left: 6px; font-size: 11.5px; color: #ea580c; font-weight: 700; text-decoration: none;">Chốt tồn →</a>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+              <tr style="background: #fff7ed; font-weight: 700;">
+                <td colspan="3" style="text-align: right; color: #9a3412;">Cộng nhóm <?= htmlspecialchars($group['group_label']) ?></td>
+                <td class="num-col" style="color: #9a3412;"><?= number_format((int) $group['total_kds_qty']) ?></td>
+                <td class="num-col" style="color: #9a3412;"><?= number_format((int) $group['total_available_qty']) ?></td>
+                <td class="num-col" style="color: #9a3412;"><?= number_format((int) $group['total_closing_qty']) ?></td>
+                <td></td>
+              </tr>
+            <?php endforeach; ?>
+            <tr class="total-row">
+              <td colspan="3">TỔNG CỘNG MÓN ĐÃ BÁN HÔM NAY</td>
+              <td class="num-col"><?= number_format($reconcileReport['total_kds_actual_qty']) ?></td>
+              <td class="num-col"><?= number_format($reconcileReport['total_warehouse_available_qty']) ?></td>
+              <td class="num-col"><?= number_format($reconcileReport['total_warehouse_closing_qty']) ?></td>
+              <td><?= $reconcileReport['is_fully_matched'] ? 'Khớp toàn bộ' : 'Theo dõi cuối ngày' ?></td>
+            </tr>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
 <?php else: ?>
   <!-- ==========================================================
      4 THẺ CHỈ SỐ KPI DOANH THU CỐT LÕI
@@ -786,81 +960,14 @@ $thisMonthStart = date('Y-m-01');
     </div>
   </section>
 <?php endif; ?>
+</div>
 
-<script>
-  (() => {
-    const panel = document.getElementById('admin-live-orders-panel');
-    if (!panel) return;
-
-    const bodyEl = document.getElementById('admin-live-orders-body');
-    const badgeEl = document.getElementById('admin-live-orders-badge');
-    const pollUrl = panel.dataset.pollUrl;
-    const cancelUrl = panel.dataset.cancelUrl;
-
-    const showMsg = (msg) => {
-      if (typeof notify === 'function') notify(msg);
-    };
-
-    const refreshLiveOrders = async () => {
-      try {
-        const res = await fetch(pollUrl, {
-          headers: {
-            Accept: 'application/json'
-          },
-          cache: 'no-store'
-        });
-        if (!res.ok) return false;
-        const data = await res.json();
-        if (bodyEl && typeof data.html === 'string') {
-          bodyEl.innerHTML = data.html;
-        }
-        if (badgeEl && typeof data.table_count === 'number') {
-          badgeEl.textContent = `${data.table_count} bàn đang mở`;
-        }
-        return true;
-      } catch (e) {
-        return false;
-      }
-    };
-
-    panel.addEventListener('click', async (event) => {
-      if (event.target.closest('[data-admin-orders-refresh]')) {
-        const ok = await refreshLiveOrders();
-        showMsg(ok ? 'Đã cập nhật danh sách món tại bàn' : 'Không tải được dữ liệu mới');
-        return;
-      }
-
-      const cancelBtn = event.target.closest('[data-admin-cancel-item]');
-      if (!cancelBtn || cancelBtn.disabled) return;
-
-      const dishName = cancelBtn.dataset.itemName || 'món này';
-      if (!confirm(`Hủy món "${dishName}"?\nMón sẽ lập tức biến mất khỏi Admin, Staff và Bếp.`)) return;
-
-      cancelBtn.disabled = true;
-      const body = new FormData();
-      body.set('action', 'cancel');
-      body.set('item_id', cancelBtn.dataset.adminCancelItem);
-
-      try {
-        const res = await fetch(cancelUrl, {
-          method: 'POST',
-          body
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          showMsg(data.error || 'Không hủy được món');
-        } else {
-          showMsg(`Đã hủy món "${dishName}"`);
-        }
-      } catch (e) {
-        showMsg('Không thể kết nối máy chủ.');
-      }
-
-      await refreshLiveOrders();
-    });
-
-    setInterval(() => {
-      if (!document.hidden) refreshLiveOrders();
-    }, 5000);
-  })();
-</script>
+<?= renderPureTextPrintBillReport($viewMode, [
+  'report'        => $report ?? [],
+  'kitchen'       => $kitchenReport ?? [],
+  'reconcile'     => $reconcileReport ?? [],
+  'selected_date' => $selectedDate,
+  'start_date'    => $startDate,
+  'end_date'      => $endDate,
+  'printer_name'  => $printerName,
+]) ?>

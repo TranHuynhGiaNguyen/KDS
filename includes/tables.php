@@ -725,6 +725,15 @@ function ensureTableAssignmentsSchema(PDO $pdo): void {
         return;
     }
 
+    if ($pdo->query("SHOW TABLES LIKE 'table_assignments'")->fetchColumn() !== false) {
+        $initialized = true;
+        return;
+    }
+
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('Cannot create table_assignments inside an active transaction.');
+    }
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `table_assignments` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -810,7 +819,14 @@ function getAssignableStaffList(): array {
  * Đóng lượt gán bàn khi thanh toán xong (dùng bên trong transaction checkout).
  */
 function closeTableAssignmentInTx(PDO $pdo, string $tableCode): void {
-    ensureTableAssignmentsSchema($pdo);
+    if ($pdo->inTransaction()) {
+        if ($pdo->query("SHOW TABLES LIKE 'table_assignments'")->fetchColumn() === false) {
+            return;
+        }
+    } else {
+        ensureTableAssignmentsSchema($pdo);
+    }
+
     $stmt = $pdo->prepare("
         UPDATE `table_assignments`
         SET `status` = 'closed', `closed_at` = NOW()

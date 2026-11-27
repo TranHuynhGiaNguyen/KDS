@@ -1,0 +1,125 @@
+.upload-area {
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: var(--radius-md);
+  padding: 36px 20px;
+  text-align: center;
+  margin-bottom: 18px;
+  transition: var(--transition);
+  position: relative;
+}
+
+.upload-area:hover,
+.upload-area.dragover {
+  border-color: var(--brand-orange);
+  background: var(--brand-orange-light);
+}
+
+.upload-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.upload-text {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.upload-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.import-options {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.option-group label {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 10px;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.radio-group {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.radio-option input[type="radio"] {
+  accent-color: var(--brand-orange);
+}
+
+.results-container {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 22px;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13.5px;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-status {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 74px;
+  text-align: center;
+}
+
+.result-status.created { background: var(--blue-light); color: var(--blue); border: 1px solid var(--blue-border); }
+.result-status.updated { background: var(--green-light); color: #15803d; border: 1px solid var(--green-border); }
+.result-status.error   { background: var(--red-light); color: #b91c1c; border: 1px solid var(--red-border); }
+.result-status.skipped { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+.progress-bar {
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  height: 8px;
+  margin: 10px 0;
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, var(--brand-orange), #fb923c);
+  height: 100%;
+}

@@ -68,5 +68,30 @@ foreach ([
 echo "Định dạng tiền\n";
 check('formatMoney', formatMoney(204120), '204.120đ');
 
+echo "Ràng buộc thuế VAT theo quy định Việt Nam\n";
+check('VAT 2026-11-27 = 8%', resolveVietnamVatRate('2026-11-27'), 0.08);
+check('VAT 2026-12-31 = 8%', resolveVietnamVatRate('2026-12-31'), 0.08);
+check('VAT 2027-01-01 = 10%', resolveVietnamVatRate('2027-01-01'), 0.10);
+foreach ([0.0, 0.05, 0.08, 0.10] as $okRate) {
+    $billOk = calculateBill([['name' => 'Test', 'price' => 100000, 'qty' => 1]], [], ['vat_rate' => $okRate, 'service_fee_rate' => 0]);
+    check('VAT hợp lệ ' . ($okRate * 100) . '%', $billOk['vat_rate'], $okRate);
+}
+foreach ([-0.05, 0.07, 0.12, 0.20] as $badRate) {
+    try {
+        calculateBill($items, [], ['vat_rate' => $badRate, 'service_fee_rate' => 0.05]);
+        check('chặn VAT ngoài khung VN ' . $badRate, 'không lỗi', 'lỗi');
+    } catch (InvalidArgumentException $e) {
+        check('chặn VAT ngoài khung VN ' . $badRate, 'lỗi', 'lỗi');
+    }
+}
+try {
+    calculateBill($items, [], ['vat_rate' => 0.08, 'effective_date' => '2027-01-01', 'service_fee_rate' => 0.05]);
+    check('chặn VAT 8% sau 31/12/2026', 'không lỗi', 'lỗi');
+} catch (InvalidArgumentException $e) {
+    check('chặn VAT 8% sau 31/12/2026', 'lỗi', 'lỗi');
+}
+$billAuto2027 = calculateBill([['name' => 'A', 'price' => 100000, 'qty' => 1]], [], ['vat_rate' => 'auto', 'effective_date' => '2027-01-01', 'service_fee_rate' => 0]);
+check('auto VAT từ 01/01/2027 = 10%', $billAuto2027['vat'], 10000);
+
 echo $failed === 0 ? "\nTẤT CẢ ĐỀU ĐẠT\n" : "\nCÓ $failed LỖI\n";
 exit($failed === 0 ? 0 : 1);

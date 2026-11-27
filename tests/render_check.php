@@ -137,6 +137,24 @@ ob_start();
 include __DIR__ . '/../pages/admin.php';
 $adminCleanHtml = ob_get_clean();
 assert(strpos($adminCleanHtml, 'menu-stock-management') === false, "menu-stock-management should be removed from admin.php");
-echo "  [PASS] pages/admin.php overview sections cleaned successfully\n";
+assert(strpos($adminCleanHtml, 'admin-live-orders-panel') === false, "admin-live-orders-panel should be removed from admin.php");
+assert(strpos($adminCleanHtml, 'Theo dõi món đang phục vụ tại bàn') === false, "Live orders heading should be removed from admin.php");
+assert(strpos($adminCleanHtml, 'filter-row') === false, "Header quick-action filter-row should be removed from admin.php");
+assert(strpos($adminCleanHtml, 'Màn hình bếp KDS') === false, "Quick-action KDS button should be removed from admin.php");
+assert(strpos($adminCleanHtml, 'Báo cáo thực xuất (Kết ca)') !== false, "Shift-close reconciliation button should be rendered on admin.php");
+
+// 13. Render pages/admin.php (mode=reconcile)
+$_GET['page'] = 'admin';
+$_GET['mode'] = 'reconcile';
+$_GET['date'] = date('Y-m-d');
+ob_start();
+include __DIR__ . '/../pages/admin.php';
+$adminReconcileHtml = ob_get_clean();
+assert(strpos($adminReconcileHtml, 'Báo cáo Món thực xuất cuối ngày (Kết ca)') !== false, "Reconciliation title not found");
+assert(strpos($adminReconcileHtml, 'Xuất Excel (Bảng kẻ)') !== false, "Bordered Excel export button missing on reconcile view");
+assert(strpos($adminReconcileHtml, 'print-bill-report') !== false, "Pure-text bill print section missing on reconcile view");
+assert(strpos($adminReconcileHtml, 'Bếp ra / HĐ thu') === false, "Deprecated column must be removed");
+assert(strpos($adminReconcileHtml, 'Bán ra trong Kho') === false, "Deprecated column must be removed");
+echo "  [PASS] pages/admin.php overview sections & shift reconciliation rendered cleanly\n";
 
 echo "\n>>> TẤT CẢ CÁC TRANG RENDER HOÀN HẢO! <<<\n";

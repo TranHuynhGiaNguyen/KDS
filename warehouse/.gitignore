@@ -1,0 +1,7 @@
+# Local database overrides
+config.local.php
+
+# Uploaded temporary spreadsheets
+uploads/*.xlsx
+uploads/*.xls
+uploads/*.csv

@@ -164,6 +164,9 @@ if ($blockers !== [] && !$isPaid) {
       <div class="bill-summary-box" id="bill-summary">
         <?= renderBillSummary($bill) ?>
       </div>
+      <p class="muted no-print" style="font-size: 12px; margin-top: 8px;">
+        Thuế GTGT (VAT) áp dụng theo quy định Việt Nam (0%, 5%, 8%, 10% · mặc định dịch vụ ăn uống 8% đến 31/12/2026, 10% từ 01/01/2027).
+      </p>
     </section>
 
     <?php if ($isPaid): ?>

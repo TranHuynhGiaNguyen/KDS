@@ -1,0 +1,51 @@
+.import-export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.import-export-card {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: var(--transition);
+}
+
+.import-export-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--brand-orange);
+  background: #fffaf5;
+}
+
+.import-export-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--brand-orange-light);
+  color: var(--brand-orange);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.import-export-icon.export {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.import-export-card .title {
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 3px;
+}
+
+.import-export-card .description {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
