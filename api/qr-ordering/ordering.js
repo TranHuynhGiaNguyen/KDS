@@ -9,23 +9,23 @@
   const dialog = document.querySelector('#dish-dialog');
 
   const money = value =>
-    new Intl.NumberFormat('vi-VN').format(Number(value)) + 'đ';
+    new Intl.NumberFormat('vi-VN').format(Number(value)) + '\u0111';
 
   const labels = {
-    submitted: 'Đã gửi',
-    pending: 'Chờ chế biến',
-    preparing: 'Đang chế biến',
-    ready: 'Chờ phục vụ',
-    served: 'Đã phục vụ',
-    cancelled: 'Đã hủy'
+    submitted: '\u0110\xe3 g\u1eedi',
+    pending: '\u0110ang ch\u1ebf bi\u1ebfn',
+    preparing: '\u0110ang ch\u1ebf bi\u1ebfn',
+    ready: 'Ho\u00e0n th\u00e0nh',
+    served: 'Ho\u00e0n th\u00e0nh',
+    cancelled: '\u0110\xe3 h\u1ee7y'
   };
 
   const categories = {
-    all: 'Tất cả',
-    side: 'Món khai vị',
-    main: 'Món chính',
-    drink: 'Đồ uống',
-    dessert: 'Tráng miệng'
+    all: 'T\u1ea5t c\u1ea3',
+    side: 'M\xf3n khai v\u1ecb',
+    main: 'M\xf3n ch\xednh',
+    drink: '\u0110\u1ed3 u\u1ed1ng',
+    dessert: 'Tr\xe1ng mi\u1ec7ng'
   };
 
   let state = null;
@@ -39,14 +39,6 @@
   let tableFilter = '';
 
   const pendingKey = 'qo_pending_' + boot.ctx;
-  const noteKey = 'qo_note_' + boot.ctx;
-
-  let draftNote = '';
-
-  try {
-    draftNote = sessionStorage.getItem(noteKey) || '';
-  } catch {}
-
   function el(tag, text = '', cls = '') {
     const element = document.createElement(tag);
     element.textContent = text;
@@ -88,7 +80,7 @@
   }
 
   function photo(dish, cls = 'food-photo') {
-    const box = el('div', '🍽', cls);
+    const box = el('div', '\u25c7', cls);
     const src = dish?.image_url;
 
     if (!src || typeof src !== 'string') {
@@ -105,7 +97,7 @@
       const image = document.createElement('img');
 
       image.src = value.href;
-      image.alt = dish.name || dish.item_name || 'Món ăn';
+      image.alt = dish.name || dish.item_name || 'M\xf3n \u0103n';
       image.loading = 'lazy';
       image.referrerPolicy = 'no-referrer';
       image.onerror = () => image.remove();
@@ -151,13 +143,13 @@
       result = await response.json();
     } catch {
       throw new Error(
-        'Không đọc được phản hồi máy chủ. Kiểm tra PHP/MySQL.'
+        'Kh\xf4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c ph\u1ea3n h\u1ed3i m\xe1y ch\u1ee7. Ki\u1ec3m tra PHP/MySQL.'
       );
     }
 
     if (!response.ok || !result.success) {
       const error = new Error(
-        result.message || 'Không xử lý được yêu cầu.'
+        result.message || 'Kh\xf4ng x\u1eed l\xfd \u0111\u01b0\u1ee3c y\xeau c\u1ea7u.'
       );
 
       error.status = response.status;
@@ -185,6 +177,7 @@
 
     bar.href = url('cart');
     bar.hidden = boot.view !== 'menu' || !count;
+    content.classList.toggle('has-cart', !bar.hidden);
 
     document.querySelector('#floating-count').textContent = count;
 
@@ -206,9 +199,9 @@
     const fee = Math.round(total * 0.05);
 
     const rows = [
-      ['Tạm tính', total],
-      ['Phí phục vụ (5%)', fee],
-      ['Tổng cộng', total + fee]
+      ['T\u1ea1m t\xednh', total],
+      ['Ph\xed ph\u1ee5c v\u1ee5 (5%)', fee],
+      ['T\u1ed5ng c\u1ed9ng', total + fee]
     ];
 
     rows.forEach(([name, value]) => {
@@ -225,19 +218,22 @@
     return box;
   }
 
-  function renderMenu() {
+  function renderMenu(resetScroll = false) {
+    const scrollTop = resetScroll
+      ? 0
+      : content.querySelector('.food-grid')?.scrollTop || 0;
     content.replaceChildren();
 
     const searchBox = el('label', '', 'search-box');
     const input = document.createElement('input');
 
     input.type = 'search';
-    input.placeholder = 'Tìm món ăn…';
-    input.setAttribute('aria-label', 'Tìm món ăn');
+    input.placeholder = 'T\xecm m\xf3n \u0103n\u2026';
+    input.setAttribute('aria-label', 'T\xecm m\xf3n \u0103n');
     input.value = search;
 
     searchBox.append(
-      el('span', '⌕'),
+      el('span', '\u2315'),
       input
     );
 
@@ -250,7 +246,7 @@
           name,
           () => {
             category = key;
-            renderMenu();
+            renderMenu(true);
           },
           'category' + (key === category ? ' active' : '')
         )
@@ -261,7 +257,7 @@
     const grid = el('div', '', 'food-grid');
 
     section.append(
-      el('h2', 'Món nổi bật'),
+      el('h2', 'M\xf3n n\u1ed5i b\u1eadt'),
       grid
     );
 
@@ -280,7 +276,7 @@
 
       if (!list.length) {
         grid.append(
-          el('p', 'Chưa có món phù hợp.', 'empty')
+          el('p', 'Ch\u01b0a c\xf3 m\xf3n ph\xf9 h\u1ee3p.', 'empty')
         );
       }
 
@@ -295,7 +291,7 @@
 
         open.setAttribute(
           'aria-label',
-          'Xem chi tiết ' + dish.name
+          'Xem chi ti\u1ebft ' + dish.name
         );
 
         open.append(
@@ -303,29 +299,12 @@
           el('h3', dish.name)
         );
 
-        const footer = el('div', '', 'food-footer');
-
-        const add = button(
-          dish.is_available ? '+' : 'Hết món',
-          () => openDish(dish),
-          'add-food'
-        );
-
-        add.disabled =
-          !dish.is_available ||
-          state.context.session_status !== 'open';
-
-        add.setAttribute(
-          'aria-label',
-          'Chọn ' + dish.name
-        );
-
-        footer.append(
-          el('strong', money(dish.price)),
-          add
-        );
-
-        card.append(open, footer);
+        const price = el('strong', money(dish.price), 'food-price');
+        open.append(price);
+        if (!dish.is_available) {
+          open.append(el('small', 'H\u1ebft m\u00f3n', 'muted'));
+        }
+        card.append(open);
         grid.append(card);
       });
     }
@@ -336,7 +315,7 @@
     });
 
     layout.append(aside, section);
-    // Banner chào mừng dưới ô tìm kiếm.
+    // Banner ch\xe0o m\u1eebng d\u01b0\u1edbi \xf4 t\xecm ki\u1ebfm.
 const banner = el('section', '', 'qr-banner');
 
 const bannerDish = state.menu.find(
@@ -347,7 +326,7 @@ const bannerText = el('div', '', 'qr-banner-text');
 
 bannerText.append(
   el('h2', 'Welcome!'),
-  el('p', 'Chúc bạn ngon miệng cùng SmartDine')
+  el('p', 'Ch\xfac b\u1ea1n ngon mi\u1ec7ng c\xf9ng SmartDine')
 );
 
 banner.append(
@@ -355,10 +334,11 @@ banner.append(
   bannerText
 );
 
-// Thứ tự: tìm kiếm → banner → danh mục và menu.
+// Th\u1ee9 t\u1ef1: t\xecm ki\u1ebfm \u2192 banner \u2192 danh m\u1ee5c v\xe0 menu.
 content.append(searchBox, banner, layout);
 
     renderCards();
+    grid.scrollTop = scrollTop;
   }
 
   function renderCart() {
@@ -369,7 +349,7 @@ content.append(searchBox, banner, layout);
 
     if (!cart.items.length) {
       list.append(
-        el('p', 'Giỏ hàng đang trống.', 'empty')
+        el('p', 'Gi\u1ecf h\xe0ng \u0111ang tr\u1ed1ng.', 'empty')
       );
     }
 
@@ -396,16 +376,10 @@ content.append(searchBox, banner, layout);
         );
       }
 
-      if (item.note) {
-        info.append(
-          el('small', item.note, 'muted')
-        );
-      }
-
       const controls = el('div', '', 'qty');
 
       const minus = button(
-        '−',
+        '\u2212',
         () => change(
           item.qty === 1 ? 'remove' : 'quantity',
           {
@@ -427,12 +401,12 @@ content.append(searchBox, banner, layout);
 
       minus.setAttribute(
         'aria-label',
-        'Giảm ' + item.name
+        'Gi\u1ea3m ' + item.name
       );
 
       plus.setAttribute(
         'aria-label',
-        'Tăng ' + item.name
+        'T\u0103ng ' + item.name
       );
 
       minus.disabled =
@@ -458,28 +432,19 @@ content.append(searchBox, banner, layout);
       list.append(row);
     });
 
-    const label = el(
-      'label',
-      'Ghi chú cho nhà hàng',
-      'field'
-    );
-
-    const note = document.createElement('textarea');
-
-    note.id = 'cart-order-note';
-    note.maxLength = 1000;
-    note.placeholder = 'Ví dụ: Không cay, ít đường…';
-    note.value = draftNote;
-
-    note.addEventListener('input', () => {
-      draftNote = note.value;
-
-      try {
-        sessionStorage.setItem(noteKey, draftNote);
-      } catch {}
-    });
-
-    label.append(note);
+    const notedItems = cart.items.filter(item => item.note);
+    const notes = el('section', '', 'cart-dish-notes');
+    if (notedItems.length) {
+      notes.append(el('h3', 'Ghi ch\xfa t\u1eebng m\xf3n'));
+      notedItems.forEach(item => {
+        const row = el('div', '', 'cart-dish-note');
+        row.append(
+          el('strong', item.name + ' \xd7 ' + item.qty),
+          el('p', item.note)
+        );
+        notes.append(row);
+      });
+    }
 
     let pending = false;
 
@@ -488,7 +453,7 @@ content.append(searchBox, banner, layout);
     } catch {}
 
     const submit = button(
-      pending ? 'Xác minh lần gửi trước' : 'Xác nhận đơn',
+      pending ? 'X\xe1c minh l\u1ea7n g\u1eedi tr\u01b0\u1edbc' : 'X\xe1c nh\u1eadn \u0111\u01a1n',
       sendOrder,
       'primary wide'
     );
@@ -503,8 +468,7 @@ content.append(searchBox, banner, layout);
 
     content.append(
       list,
-      label,
-      summary(cart.subtotal),
+      ...(notedItems.length ? [notes] : []),
       submit
     );
   }
@@ -534,7 +498,7 @@ content.append(searchBox, banner, layout);
 
     document.querySelector('#dish-description').textContent =
       dish.description ||
-      'Nhà hàng đang cập nhật mô tả món ăn.';
+      'Nh\xe0 h\xe0ng \u0111ang c\u1eadp nh\u1eadt m\xf4 t\u1ea3 m\xf3n \u0103n.';
 
     document.querySelector('#dish-price').textContent =
       money(dish.price);
@@ -548,7 +512,7 @@ content.append(searchBox, banner, layout);
     const toppings = document.querySelector('#dish-toppings');
 
     toppings.replaceChildren(
-      el('legend', 'Topping thêm')
+      el('legend', 'Topping th\xeam')
     );
 
     const list = availableToppings(dish);
@@ -601,9 +565,9 @@ content.append(searchBox, banner, layout);
       state.context.session_status !== 'open';
 
     add.textContent = selected.is_available
-      ? 'Thêm vào giỏ · ' +
+      ? 'Th\xeam v\xe0o gi\u1ecf \xb7 ' +
         money((selected.price + extra) * quantity)
-      : 'Món tạm hết';
+      : 'M\xf3n t\u1ea1m h\u1ebft';
   }
 
   async function change(action, payload = {}) {
@@ -650,7 +614,7 @@ content.append(searchBox, banner, layout);
 
       if (!pending) {
         if (!state.cart.items.length) {
-          throw new Error('Giỏ hàng đang trống.');
+          throw new Error('Gi\u1ecf h\xe0ng \u0111ang tr\u1ed1ng.');
         }
 
         const bytes = crypto.getRandomValues(
@@ -664,7 +628,7 @@ content.append(searchBox, banner, layout);
           ).join(''),
 
           revision: state.cart.revision,
-          order_note: draftNote.trim()
+          order_note: ''
         };
 
         sessionStorage.setItem(
@@ -676,9 +640,9 @@ content.append(searchBox, banner, layout);
       await api('submit', pending);
 
       sessionStorage.removeItem(pendingKey);
-      sessionStorage.removeItem(noteKey);
 
-      location.href = url('tracking');
+
+      location.href = url('details');
 
     } catch (error) {
       if ([400, 409, 413, 415, 422].includes(error.status)) {
@@ -691,7 +655,7 @@ content.append(searchBox, banner, layout);
         error.message +
         (
           !error.status || error.status >= 500
-            ? ' Nhấn xác minh lần gửi trước nếu bị mất phản hồi.'
+            ? ' Nh\u1ea5n x\xe1c minh l\u1ea7n g\u1eedi tr\u01b0\u1edbc n\u1ebfu b\u1ecb m\u1ea5t ph\u1ea3n h\u1ed3i.'
             : ''
         ),
         true
@@ -719,7 +683,7 @@ content.append(searchBox, banner, layout);
       el('h3', item.item_name),
       el(
         'small',
-        item.quantity + ' × ' + money(item.unit_price)
+        item.quantity + ' \xd7 ' + money(item.unit_price)
       )
     );
 
@@ -759,12 +723,12 @@ content.append(searchBox, banner, layout);
     const line = el('div', '', 'table-title');
 
     line.append(
-      el('h1', 'Bàn ' + state.context.table_code),
+      el('h1', 'B\xe0n ' + state.context.table_code),
       el(
         'span',
         state.context.session_status === 'open'
-          ? 'Đang phục vụ'
-          : 'Đã kết thúc',
+          ? '\u0110ang ph\u1ee5c v\u1ee5'
+          : '\u0110\xe3 k\u1ebft th\xfac',
         'muted'
       )
     );
@@ -773,8 +737,8 @@ content.append(searchBox, banner, layout);
       line,
       el(
         'small',
-        'Thời gian vào: ' +
-          (state.context.opened_at || '—'),
+        'Th\u1eddi gian v\xe0o: ' +
+          (state.context.opened_at || '\u2014'),
         'muted'
       )
     );
@@ -783,7 +747,7 @@ content.append(searchBox, banner, layout);
 
     tabs.append(
       button(
-        'Đơn hàng hiện tại',
+        '\u0110\u01a1n h\xe0ng hi\u1ec7n t\u1ea1i',
         () => {
           history = false;
           renderDetails();
@@ -792,7 +756,7 @@ content.append(searchBox, banner, layout);
       ),
 
       button(
-        'Lịch sử gọi món',
+        'L\u1ecbch s\u1eed g\u1ecdi m\xf3n',
         () => {
           history = true;
           renderDetails();
@@ -803,57 +767,29 @@ content.append(searchBox, banner, layout);
 
     const list = el('section', '', 'order-list');
 
-    if (!orders.length) {
-      list.append(
-        el('p', 'Bạn chưa gửi đơn hàng.', 'empty')
+    const display = history ? orders : [...orders].reverse();
+    let visibleItems = 0;
+    display.forEach(order => {
+      const items = history ? order.items : order.items.filter(
+        item => order.session_status === 'open' && item.kitchen_linked && item.status !== 'cancelled'
       );
+      if (!items.length) return;
+      visibleItems += items.length;
+      if (history) {
+        list.append(el('h2', order.order_code + ' \xb7 ' + order.created_at, 'history-heading'));
+      }
+      items.forEach(item => list.append(orderItem(item)));
+    });
+    if (!visibleItems) {
+      list.append(el('p', history ? 'Ch\u01b0a c\xf3 l\u1ecbch s\u1eed g\u1ecdi m\xf3n.' : 'Hi\u1ec7n kh\xf4ng c\xf3 m\xf3n ch\u01b0a thanh to\xe1n.', 'empty'));
     }
 
-    const display = history
-      ? orders
-      : [...orders].reverse();
+    const actions = el('div', '', 'order-actions');
+    if (state.context.session_status === 'open') {
+      actions.append(link('G\u1ecdi th\xeam m\xf3n', 'menu', 'primary wide'));
+    }
 
-    display.forEach(order => {
-      if (history) {
-        list.append(
-          el(
-            'h2',
-            order.order_code + ' · ' + order.created_at,
-            'history-heading'
-          )
-        );
-      }
-
-      if (order.order_note) {
-        list.append(
-          el('p', order.order_note, 'order-note')
-        );
-      }
-
-      order.items.forEach(item => {
-        list.append(orderItem(item));
-      });
-    });
-
-    const total = orders.reduce(
-      (sum, order) => sum + Number(order.subtotal),
-      0
-    );
-
-    const actions = el('div', '', 'two-actions');
-
-    actions.append(
-      link('Gọi thêm món', 'menu', 'secondary'),
-      button('Thanh toán', payment, 'primary')
-    );
-
-    content.append(
-      head,
-      tabs,
-      list,
-      summary(total),
-      actions
-    );
+    content.append(head, tabs, list, actions);
   }
 
   function renderTracking() {
@@ -861,7 +797,7 @@ content.append(searchBox, banner, layout);
 
     if (!orders.length) {
       content.append(
-        el('p', 'Bạn chưa gửi đơn hàng.', 'empty')
+        el('p', 'B\u1ea1n ch\u01b0a g\u1eedi \u0111\u01a1n h\xe0ng.', 'empty')
       );
     }
 
@@ -878,10 +814,10 @@ content.append(searchBox, banner, layout);
 
       if (order.status !== 'cancelled') {
         [
-          'Đã gửi',
-          'Đang chế biến',
-          'Đang phục vụ',
-          'Hoàn thành'
+          '\u0110\xe3 g\u1eedi',
+          '\u0110ang ch\u1ebf bi\u1ebfn',
+          '\u0110ang ph\u1ee5c v\u1ee5',
+          'Ho\xe0n th\xe0nh'
         ].forEach((name, index) => {
           const step = el(
             'li',
@@ -900,17 +836,17 @@ content.append(searchBox, banner, layout);
       const info = el('div', '', 'tracking-info');
 
       info.append(
-        el('strong', 'Mã đơn: ' + order.order_code),
+        el('strong', 'M\xe3 \u0111\u01a1n: ' + order.order_code),
         el(
           'small',
-          'Thời gian: ' + order.created_at,
+          'Th\u1eddi gian: ' + order.created_at,
           'muted'
         )
       );
 
       if (order.status === 'cancelled') {
         info.append(
-          el('small', 'Đơn đã hủy', 'status cancelled')
+          el('small', '\u0110\u01a1n \u0111\xe3 h\u1ee7y', 'status cancelled')
         );
       }
 
@@ -930,7 +866,7 @@ content.append(searchBox, banner, layout);
 
     content.append(
       link(
-        'Xem chi tiết đơn hàng',
+        'Xem chi ti\u1ebft \u0111\u01a1n h\xe0ng',
         'details',
         'secondary wide'
       )
@@ -942,21 +878,21 @@ content.append(searchBox, banner, layout);
 
     if (['admin', 'kitchen'].includes(boot.role)) {
       if (item.status === 'pending') {
-        result.push(['preparing', 'Bắt đầu chế biến']);
+        result.push(['preparing', 'B\u1eaft \u0111\u1ea7u ch\u1ebf bi\u1ebfn']);
       }
 
       if (item.status === 'preparing') {
-        result.push(['ready', 'Báo món đã xong']);
+        result.push(['ready', 'B\xe1o m\xf3n \u0111\xe3 xong']);
       }
     }
 
     if (['admin', 'staff'].includes(boot.role)) {
       if (item.status === 'ready') {
-        result.push(['served', 'Đã phục vụ']);
+        result.push(['served', '\u0110\xe3 ph\u1ee5c v\u1ee5']);
       }
 
       if (item.status === 'pending') {
-        result.push(['cancelled', 'Hủy món']);
+        result.push(['cancelled', 'H\u1ee7y m\xf3n']);
       }
     }
 
@@ -968,7 +904,7 @@ content.append(searchBox, banner, layout);
 
     if (
       next === 'cancelled' &&
-      !confirm('Hủy món chưa chế biến này?')
+      !confirm('H\u1ee7y m\xf3n ch\u01b0a ch\u1ebf bi\u1ebfn n\xe0y?')
     ) {
       return;
     }
@@ -995,13 +931,13 @@ content.append(searchBox, banner, layout);
 
   function renderOperations() {
     content.replaceChildren(
-      el('h1', 'Đơn gọi món QR')
+      el('h1', '\u0110\u01a1n g\u1ecdi m\xf3n QR')
     );
 
     const tools = el('div', '', 'operations-tools');
     const select = document.createElement('select');
 
-    const all = el('option', 'Tất cả bàn');
+    const all = el('option', 'T\u1ea5t c\u1ea3 b\xe0n');
     all.value = '';
 
     select.append(all);
@@ -1025,7 +961,7 @@ content.append(searchBox, banner, layout);
     tools.append(select);
 
     if (['admin', 'staff'].includes(boot.role)) {
-      const qr = el('a', 'QR theo bàn', 'secondary');
+      const qr = el('a', 'QR theo b\xe0n', 'secondary');
 
       qr.href = 'qr-codes.php';
       tools.append(qr);
@@ -1040,10 +976,10 @@ content.append(searchBox, banner, layout);
       const card = el('section', '', 'tracking-info');
 
       card.append(
-        el('h2', 'Bàn ' + order.table_code),
+        el('h2', 'B\xe0n ' + order.table_code),
         el(
           'small',
-          order.order_code + ' · ' + order.created_at,
+          order.order_code + ' \xb7 ' + order.created_at,
           'muted'
         )
       );
@@ -1085,7 +1021,7 @@ content.append(searchBox, banner, layout);
 
   function payment() {
     notify(
-      'Vui lòng liên hệ nhân viên phục vụ để thanh toán hóa đơn của bàn.'
+      'Vui l\xf2ng li\xean h\u1ec7 nh\xe2n vi\xean ph\u1ee5c v\u1ee5 \u0111\u1ec3 thanh to\xe1n h\xf3a \u0111\u01a1n c\u1ee7a b\xe0n.'
     );
   }
 
@@ -1097,7 +1033,7 @@ content.append(searchBox, banner, layout);
       content.replaceChildren(
         el(
           'p',
-          'Chưa đọc được dữ liệu. Vui lòng tải lại trang.',
+          'Ch\u01b0a \u0111\u1ecdc \u0111\u01b0\u1ee3c d\u1eef li\u1ec7u. Vui l\xf2ng t\u1ea3i l\u1ea1i trang.',
           'empty'
         )
       );
@@ -1109,7 +1045,7 @@ content.append(searchBox, banner, layout);
       renderDetails();
 
     } else if (boot.view === 'tracking') {
-      renderTracking();
+      renderDetails();
 
     } else {
       renderMenu();
@@ -1212,7 +1148,7 @@ content.append(searchBox, banner, layout);
     ?.addEventListener('click', () => {
       if (
         state?.cart.items.length &&
-        confirm('Xóa toàn bộ món trong giỏ?')
+        confirm('X\xf3a to\xe0n b\u1ed9 m\xf3n trong gi\u1ecf?')
       ) {
         void change('clear');
       }
@@ -1222,5 +1158,5 @@ content.append(searchBox, banner, layout);
 
   setInterval(() => {
     void refresh();
-  }, 4000);
+  }, 2000);
 })();

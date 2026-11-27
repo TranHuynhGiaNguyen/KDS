@@ -18,11 +18,23 @@ try {
     <p>Theo dõi tình trạng bàn theo thời gian thực và quản lý điều phối khách hàng</p>
   </div>
   <div class="header-action-group">
+    <button type="button" class="btn btn-outline" data-open-assign-table="">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+      <span>Gán bàn</span>
+    </button>
+    <button type="button" class="btn btn-outline" data-open-transfer-table="">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+      <span>Chuyển bàn</span>
+    </button>
+    <button type="button" class="btn btn-outline" data-open-merge-table="">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg>
+      <span>Gộp bàn</span>
+    </button>
     <a class="btn btn-outline" href="index.php?page=kitchen">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M14 13.8V4a2 2 0 1 1 4 0v9.8"></path><path d="M3 14h18a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4v-1a2 2 0 0 1 2-2z"></path></svg>
       <span>Màn hình bếp</span>
     </a>
-    <button class="btn btn-primary-tool" data-toast="Đã đồng bộ lại sơ đồ bàn">
+    <button class="btn btn-primary-tool" onclick="location.reload()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
       <span>Làm mới</span>
     </button>
@@ -113,7 +125,7 @@ try {
             <b class="table-name">Bàn <?=$t['code']?></b>
             <span class="table-guest-pill">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-              <?=$t['occupied_items']?> món
+              <?= $t['guest_count'] > 0 ? ((int)$t['guest_count'] . ' khách · ') : '' ?><?=$t['occupied_items']?> món
             </span>
           </div>
           <div class="table-tile-bottom">
@@ -285,3 +297,6 @@ document.addEventListener('DOMContentLoaded', function() {
   if (statusSelect) statusSelect.addEventListener('change', filterBothViews);
 });
 </script>
+
+<?php include __DIR__ . '/../includes/table-modals.php'; ?>
+<script defer src="<?= assetUrl('assets/js/table-live.js') ?>"></script>

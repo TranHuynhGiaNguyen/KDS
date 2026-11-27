@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/backend.php';
 
 header('Cache-Control: no-store');
+header('Content-Type: text/html; charset=UTF-8');
 header('Referrer-Policy: same-origin');
 
 $_SESSION['qo_csrf'] =
@@ -119,7 +120,7 @@ $back = 'ordering.php?view=menu&ctx=' . rawurlencode($ctx);
         ) ?>
     </title>
 
-    <link rel="stylesheet" href="ordering.css?v=5">
+    <link rel="stylesheet" href="ordering.css?v=<?= hash_file('sha256', __DIR__ . '/ordering.css') ?>">
 
     <script id="qo-boot" type="application/json"><?=
         json_encode(
@@ -132,10 +133,10 @@ $back = 'ordering.php?view=menu&ctx=' . rawurlencode($ctx);
         )
     ?></script>
 
-    <script defer src="ordering.js?v=2"></script>
+
 </head>
 
-<body class="<?= $view === 'operations' ? 'operations' : '' ?>">
+<body class="<?= $view === 'operations' ? 'operations' : 'view-' . qoEscape($view) ?>">
 <div class="app-shell">
 
     <header class="app-header">
@@ -228,20 +229,14 @@ $back = 'ordering.php?view=menu&ctx=' . rawurlencode($ctx);
                 Menu
             </a>
 
-            <a data-view="menu" data-add-more>
-                <span>♧</span>
-                Gọi thêm
-            </a>
+
 
             <a data-view="details">
                 <span>▤</span>
                 Đơn hàng
             </a>
 
-            <button type="button" data-payment>
-                <span>▣</span>
-                Thanh toán
-            </button>
+
         </nav>
 
     <?php endif; ?>
@@ -311,5 +306,15 @@ $back = 'ordering.php?view=menu&ctx=' . rawurlencode($ctx);
     </form>
 </dialog>
 
+<?php if (is_readable(__DIR__ . '/ordering.js')): ?>
+<script>
+<?php readfile(__DIR__ . '/ordering.js'); ?>
+</script>
+<?php else: ?>
+<script>
+document.querySelector('#content').textContent = 'Thiếu file ordering.js. Hãy chép file này vào cùng thư mục với ordering.php.';
+document.querySelector('#content').setAttribute('aria-busy', 'false');
+</script>
+<?php endif; ?>
 </body>
 </html>
