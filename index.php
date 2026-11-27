@@ -145,8 +145,16 @@ if ($page === 'booking-history') {
 }
 
 if ($page === 'qr-order') {
+    $qrParam    = trim((string) ($_GET['qr'] ?? ''));
     $tableParam = trim((string) ($_GET['table'] ?? ''));
-    $targetUrl = 'qr-order.php' . ($tableParam !== '' ? ('?table=' . urlencode($tableParam)) : '');
+    $qs = [];
+    if ($qrParam !== '') {
+        $qs['qr'] = $qrParam;
+    }
+    if ($tableParam !== '') {
+        $qs['table'] = $tableParam;
+    }
+    $targetUrl = 'qr-order.php' . ($qs !== [] ? ('?' . http_build_query($qs)) : '');
     header('Location: ' . $targetUrl);
     exit;
 }
@@ -346,6 +354,15 @@ if ($pageFile !== '' && !is_file($pageFile)) {
 
     <?php endif; ?>
 
+    <?php if ($page === 'tables'): ?>
+
+        <script
+            defer
+            src="<?= htmlspecialchars(assetUrl('assets/js/vendor/qrcode.js'), ENT_QUOTES, 'UTF-8') ?>"
+        ></script>
+
+    <?php endif; ?>
+
     <!-- THANH TOÁN -->
     <?php if ($page === 'payment'): ?>
 
@@ -426,7 +443,12 @@ if ($pageFile !== '' && !is_file($pageFile)) {
 
         <script
             defer
-            src="<?= htmlspecialchars(assetUrl('assets/js/order-items.js'), ENT_QUOTES, 'UTF-8') ?>"
+            src="<?= htmlspecialchars(assetUrl('assets/js/vendor/qrcode.js'), ENT_QUOTES, 'UTF-8') ?>"
+        ></script>
+
+        <script
+            defer
+            src="<?= htmlspecialchars(assetUrl(currentRole() === 'staff' ? 'assets/js/order-items.js' : 'assets/js/order-items-classic.js'), ENT_QUOTES, 'UTF-8') ?>"
         ></script>
 
     <?php endif; ?>

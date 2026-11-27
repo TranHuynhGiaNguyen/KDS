@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/orders.php';
+require_once __DIR__ . '/qr-tables.php';
 
 /**
  * Lấy trạng thái bàn có khách từ các đơn hàng đang mở trong MySQL
@@ -421,10 +422,13 @@ function createDiningTable(array $data): array {
             ':sort_order' => $sortOrder,
         ]);
 
+        $newId = (int) $pdo->lastInsertId();
+        syncTableQrCodeRecord($pdo, '', $code, $status);
+
         return [
             'success' => true,
             'message' => 'Thêm bàn "' . htmlspecialchars($code) . '" thành công!',
-            'id'      => (int) $pdo->lastInsertId()
+            'id'      => $newId
         ];
     } catch (PDOException $e) {
         error_log('createDiningTable error: ' . $e->getMessage());
@@ -496,6 +500,8 @@ function updateDiningTable(int $id, array $data): array {
             ':sort_order' => $sortOrder,
             ':id'         => $id,
         ]);
+
+        syncTableQrCodeRecord($pdo, (string) ($table['code'] ?? ''), $code, $status);
 
         return ['success' => true, 'message' => 'Cập nhật bàn "' . htmlspecialchars($code) . '" thành công!'];
     } catch (PDOException $e) {
@@ -609,6 +615,12 @@ function deleteDiningTable(int $id): array {
     try {
         $stmt = $pdo->prepare("DELETE FROM `dining_tables` WHERE `id` = :id");
         $stmt->execute([':id' => $id]);
+        try {
+            $pdo->prepare("DELETE FROM `qr_table_codes` WHERE `table_code` = :code")
+                ->execute([':code' => $table['code']]);
+        } catch (PDOException $qrEx) {
+            // Bỏ qua nếu bảng QR chưa khởi tạo
+        }
         return ['success' => true, 'message' => 'Đã xóa bàn "' . htmlspecialchars($table['code']) . '" thành công!'];
     } catch (PDOException $e) {
         error_log('deleteDiningTable error: ' . $e->getMessage());
@@ -635,6 +647,8 @@ function updateDiningTableStatus(int $id, string $status): array {
     try {
         $stmt = $pdo->prepare("UPDATE `dining_tables` SET `status` = :status WHERE `id` = :id");
         $stmt->execute([':status' => $status, ':id' => $id]);
+
+        syncTableQrCodeRecord($pdo, (string) $table['code'], (string) $table['code'], $status);
 
         $statusLabels = [
             'active'      => 'Đang sẵn sàng phục vụ',

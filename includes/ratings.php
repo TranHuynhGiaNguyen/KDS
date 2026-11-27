@@ -121,8 +121,18 @@ function appBaseUrl(): string
         return rtrim($configured, '/');
     }
 
-    $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host    = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $forwardedProto = strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $cfVisitor      = (string) ($_SERVER['HTTP_CF_VISITOR'] ?? '');
+    $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || (($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || ($forwardedProto === 'https')
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on')
+        || (strpos($cfVisitor, '"https"') !== false);
+    $scheme  = $isHttps ? 'https' : 'http';
+    $host    = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost'))[0]);
+    if (!preg_match('/^[a-zA-Z0-9.\-:\[\]]+$/', $host)) {
+        $host = 'localhost';
+    }
     $root    = str_replace('\\', '/', (string) realpath(__DIR__ . '/..'));
     $docRoot = rtrim(str_replace('\\', '/', (string) ($_SERVER['DOCUMENT_ROOT'] ?? '')), '/');
     $path    = ($docRoot !== '' && stripos($root, $docRoot) === 0)

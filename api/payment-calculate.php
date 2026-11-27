@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/bill-summary.php';
 require_once __DIR__ . '/../includes/checkout.php';
 require_once __DIR__ . '/../includes/vietqr.php';
 require_once __DIR__ . '/../includes/vouchers.php';
+require_once __DIR__ . '/../includes/payment-gateway.php';
 
 if (!isLoggedIn() || !canRoleAccessPage(currentRole(), 'payment')) {
     respondJson(403, ['error' => 'Bạn không có quyền truy cập chức năng thanh toán.']);
@@ -53,9 +54,15 @@ try {
     respondJson(422, ['error' => $e->getMessage()]);
 }
 
+if ($orderId !== null && $bill['total'] > 0) {
+    upsertPaymentIntent($pdo, (int) $orderId, $tableCode, (int) $bill['total'], $discount);
+}
+
 respondJson(200, [
-    'summary'   => renderBillSummary($bill),
-    'total'     => formatMoney($bill['total']),
-    'total_raw' => $bill['total'],
-    'qr_payload' => buildInvoiceQrPayload($orderId, $tableCode, $bill['total']),
+    'summary'          => renderBillSummary($bill),
+    'total'            => formatMoney($bill['total']),
+    'total_raw'        => $bill['total'],
+    'order_id'         => (int) ($orderId ?? 0),
+    'transfer_content' => $orderId !== null ? formatTransferContent((int) $orderId, $tableCode) : '—',
+    'qr_payload'       => buildInvoiceQrPayload($orderId, $tableCode, $bill['total']),
 ]);

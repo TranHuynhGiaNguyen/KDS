@@ -12,6 +12,7 @@
   function updateTable(node, table) {
     if (table.status === 'maintenance') return;
     const occupied = !!table.is_occupied;
+    const hasCall = !!table.pending_call;
     const visual = node.classList.contains('visual-table-node');
     node.dataset.status = occupied ? 'occupied' : 'empty';
     const prefix = visual ? 'status-' : 'table-';
@@ -22,17 +23,27 @@
     const guests = Number(table.guest_count) > 0 ? Number(table.guest_count) + ' kh\u00e1ch \xb7 ' : '';
     if (visual) {
       node.replaceChildren(el('span', 'visual-table-code', table.code));
+      if (hasCall) {
+        node.append(el('span', 'visual-table-call-badge', '\ud83d\udd14 G\u1ecdi NV'));
+      }
       node.append(el('span', occupied ? 'visual-table-items' : 'visual-table-seats', occupied ? count : table.capacity + ' ch\u1ed7'));
       if (occupied) node.append(el('span', 'visual-table-bill', amount));
     } else if (occupied) {
       const top = el('div', 'table-tile-top', '');
       top.append(el('b', 'table-name', 'B\u00e0n ' + table.code), el('span', 'table-guest-pill', guests + count));
       const bottom = el('div', 'table-tile-bottom', '');
-      bottom.append(el('span', 'table-amount-label', 'S\u1ed1 ti\u1ec1n'), el('b', 'table-amount-value', amount));
+      if (hasCall) {
+        bottom.append(el('span', 'table-call-pill', '\ud83d\udd14 G\u1ecdi NV'));
+      } else {
+        bottom.append(el('span', 'table-amount-label', 'S\u1ed1 ti\u1ec1n'), el('b', 'table-amount-value', amount));
+      }
       node.replaceChildren(top, bottom);
     } else {
       const body = el('div', 'table-empty-body', '');
       body.append(el('span', 'table-number-only', 'B\u00e0n ' + table.code));
+      if (hasCall) {
+        body.append(el('span', 'table-call-pill', '\ud83d\udd14 G\u1ecdi NV'));
+      }
       node.replaceChildren(body);
     }
   }

@@ -1,0 +1,13 @@
+<?php
+/**
+ * Mẫu cấu hình DB cho module Kho (copy thành warehouse/config.local.php).
+ * Nên trỏ cùng database với config/database.local.php.
+ */
+
+return [
+    'host'      => '127.0.0.1',
+    'user'      => 'db_user_hosting',
+    'pass'      => 'mat_khau_db_manh',
+    'name'      => 'ten_database_hosting',
+    'auth_name' => 'ten_database_hosting',
+];

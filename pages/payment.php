@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/receipt.php';
 require_once __DIR__ . '/../includes/vietqr.php';
 require_once __DIR__ . '/../includes/vouchers.php';
 require_once __DIR__ . '/../includes/ratings.php';
+require_once __DIR__ . '/../includes/payment-gateway.php';
 
 $tableCode  = normalizeTableCode($_GET['table'] ?? null);
 $paymentUrl = 'index.php?page=payment&table=' . $tableCode;
@@ -12,9 +13,10 @@ $invoiceId  = (int) ($_GET['invoice'] ?? 0);
 
 $isPost        = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 $action        = $isPost ? ($_POST['action'] ?? '') : '';
-$discountType  = $isPost ? ($_POST['discount_type'] ?? DISCOUNT_NONE) : DISCOUNT_NONE;
-$discountValue = $isPost ? (int) ($_POST['discount_value'] ?? 0) : 0;
-$voucherCode   = $isPost ? strtoupper(trim($_POST['voucher_code'] ?? '')) : '';
+$rawDiscountType = $isPost ? ($_POST['discount_type'] ?? DISCOUNT_NONE) : ($_GET['discount_type'] ?? DISCOUNT_NONE);
+$discountType  = in_array($rawDiscountType, [DISCOUNT_NONE, DISCOUNT_PERCENT, DISCOUNT_AMOUNT], true) ? $rawDiscountType : DISCOUNT_NONE;
+$discountValue = $isPost ? (int) ($_POST['discount_value'] ?? 0) : max(0, (int) ($_GET['discount_value'] ?? 0));
+$voucherCode   = $isPost ? strtoupper(trim((string) ($_POST['voucher_code'] ?? ''))) : strtoupper(trim((string) ($_GET['voucher'] ?? '')));
 $method        = $isPost && isset(PAYMENT_METHODS[$_POST['pay'] ?? '']) ? $_POST['pay'] : 'cash';
 $cashReceived  = $isPost ? (int) ($_POST['cash_received'] ?? 0) : 0;
 $waiterId      = $isPost ? (int) ($_POST['waiter_id'] ?? 0) : 0;
@@ -35,6 +37,9 @@ try {
 
   if ($action === 'pay') {
     try {
+      if ($method === 'qr') {
+        throw new CheckoutException('Chuyển khoản QR chỉ tự động hoàn tất và đóng bàn khi Webhook xác nhận tiền đã về tài khoản. Nếu khách trả tiền mặt, vui lòng chọn Tiền mặt.');
+      }
       $newInvoiceId = checkoutTable(
         $pdo,
         $tableCode,
@@ -91,8 +96,26 @@ if ($isPaid) {
   $cashReceived = $invoice['cash_received'];
   $change       = $invoice['change'];
 } else {
+  $initialDiscount = ['type' => $discountType, 'value' => $discountValue, 'voucher_code' => $voucherCode];
+  if ($voucherCode !== '' && !$isPost) {
+    $preLines = buildBillLines($items, getBillingConfig()['excluded_statuses']);
+    $preSub   = array_sum(array_column($preLines, 'amount'));
+    $vCheck   = validateVoucher($voucherCode, $preSub);
+    if (!empty($vCheck['valid'])) {
+      $initialDiscount = [
+        'type'         => $vCheck['discount_type'],
+        'value'        => $vCheck['discount_value'],
+        'voucher_code' => $vCheck['code'],
+      ];
+      $discountType  = $vCheck['discount_type'];
+      $discountValue = (int) $vCheck['discount_value'];
+    } else {
+      $error       = $vCheck['message'] ?? 'Mã voucher không hợp lệ.';
+      $voucherCode = '';
+    }
+  }
   try {
-    $bill = calculateBill($items, ['type' => $discountType, 'value' => $discountValue, 'voucher_code' => $voucherCode]);
+    $bill = calculateBill($items, $initialDiscount);
   } catch (InvalidArgumentException $e) {
     $error         = $e->getMessage();
     $discountType  = DISCOUNT_NONE;
@@ -103,6 +126,11 @@ if ($isPaid) {
 }
 
 $qrPayload = $isPaid ? '' : buildInvoiceQrPayload($orderId, $tableCode, $bill['total']);
+$gatewayCfg = getPaymentGatewayConfig();
+$autoConfirmConfigured = ($gatewayCfg['webhook_secret'] ?? '') !== '';
+if (!$isPaid && $orderId !== null && (int) $bill['total'] > 0) {
+  upsertPaymentIntent($pdo, $orderId, $tableCode, (int) $bill['total'], $initialDiscount);
+}
 
 if ($blockers !== [] && !$isPaid) {
   $warning = checkoutBlockersMessage($blockers);
@@ -206,6 +234,8 @@ if ($blockers !== [] && !$isPaid) {
       <?php $availableVouchers = getAllVouchers('', 'active'); ?>
       <form class="panel payment-methods-panel" method="post" action="<?= escapeHtml($paymentUrl) ?>"
         data-payment-form data-total="<?= (int) $bill['total'] ?>" data-table="<?= escapeHtml($tableCode) ?>" data-calculate-url="api/payment-calculate.php"
+        data-order-id="<?= (int) ($orderId ?? 0) ?>" data-status-url="api/payment-status.php"
+        data-auto-confirm="<?= $autoConfirmConfigured ? '1' : '0' ?>"
         data-qr-payload="<?= escapeHtml($qrPayload) ?>">
         <h2>Khuyến mãi & Giảm giá</h2>
 
@@ -242,11 +272,14 @@ if ($blockers !== [] && !$isPaid) {
           <input type="radio" name="pay" value="qr" <?= $method === 'qr' ? 'checked' : '' ?>>
           <div class="pay-content">
             <div class="pay-title-row"><b>Chuyển khoản QR</b></div>
-            <small class="muted">Khách quét mã bằng app ngân hàng, số tiền và nội dung được điền sẵn. Khi kiểm tra tiền đã vào tài khoản, nhân viên bấm Xác nhận thanh toán.</small>
+            <small class="muted">Khách quét mã bằng app ngân hàng đúng số tiền và nội dung. Hệ thống chỉ tự động đóng bàn khi Webhook báo tiền đã về tài khoản (không tự đóng bằng nút).</small>
             <div class="pay-detail qr-detail">
-              <?php if ($qrPayload !== ''): ?>
-                <div class="qr-image" data-qr-box></div>
-              <?php endif; ?>
+              <div class="qr-image" data-qr-box<?= $qrPayload === '' ? ' hidden' : '' ?>></div>
+              <p class="qr-status<?= $autoConfirmConfigured ? '' : ' is-error' ?>" data-qr-status<?= $qrPayload === '' ? ' hidden' : '' ?>>
+                <?= $autoConfirmConfigured
+                  ? '🔄 Đang chờ tiền về tài khoản — hệ thống sẽ tự động đóng bàn ngay khi nhận đủ chuyển khoản.'
+                  : '⚠️ Chưa cấu hình Webhook (config/payment.local.php). Thanh toán QR đang khóa đóng bàn bằng tay; vui lòng dùng Tiền mặt hoặc gắn Webhook SePay/Casso.' ?>
+              </p>
               <dl class="qr-info">
                 <div>
                   <dt>Ngân hàng</dt>
@@ -266,7 +299,7 @@ if ($blockers !== [] && !$isPaid) {
                 </div>
                 <div>
                   <dt>Nội dung</dt>
-                  <dd><?= $orderId !== null ? escapeHtml(formatTransferContent($orderId, $tableCode)) : '—' ?></dd>
+                  <dd data-qr-content><?= $orderId !== null ? escapeHtml(formatTransferContent($orderId, $tableCode)) : '—' ?></dd>
                 </div>
               </dl>
             </div>
@@ -321,8 +354,9 @@ if ($blockers !== [] && !$isPaid) {
           </div>
         </div>
 
-        <button class="btn btn-block btn-pay-now" type="submit" name="action" value="pay" data-pay-button>
-          <span>Xác nhận thanh toán <b data-bill-total><?= formatMoney($bill['total']) ?></b></span>
+        <button class="btn btn-block btn-pay-now" type="submit" name="action" value="pay" data-pay-button <?= $method === 'qr' ? 'disabled' : '' ?>>
+          <span data-pay-btn-cash <?= $method === 'qr' ? 'hidden' : '' ?>>Xác nhận thanh toán tiền mặt <b data-bill-total><?= formatMoney($bill['total']) ?></b></span>
+          <span data-pay-btn-qr <?= $method === 'qr' ? '' : 'hidden' ?>>⏳ Chờ Webhook xác nhận tiền về (<b data-bill-total><?= formatMoney($bill['total']) ?></b>)</span>
         </button>
       </form>
     <?php endif; ?>

@@ -1,0 +1,6 @@
+<?php
+/**
+ * Mẫu cấu hình Google Gemini API key (copy thành config/ai.local.php).
+ */
+
+return 'PASTE_YOUR_GEMINI_API_KEY_HERE';

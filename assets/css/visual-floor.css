@@ -331,3 +331,16 @@
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22) !important;
   transform: translate(-50%, -50%) scale(1.08) !important;
 }
+
+.table-call-pill,
+.visual-table-call-badge {
+  display: inline-block;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-top: 3px;
+  animation: pulse 1.6s infinite;
+}

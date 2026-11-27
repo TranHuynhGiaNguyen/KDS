@@ -654,12 +654,26 @@ function initAiSmartOrdering() {
     // Thêm món vào giỏ hàng ngay từ thẻ món trong chat
     const chatAdd = e.target.closest('[data-chat-add]');
     if (chatAdd) {
+      const dishId = Number(chatAdd.dataset.chatId || 0);
       const name = chatAdd.dataset.chatAdd;
       const price = Number(chatAdd.dataset.chatPrice);
-      const found = cart.find(x => x.name === name);
-      if (found) found.qty++;
-      else cart.push({ name, price, qty: 1 });
-      saveCart();
+
+      let handledExternally = false;
+      if (typeof window.onAiChatbotAddDish === 'function') {
+        handledExternally = Boolean(window.onAiChatbotAddDish({ id: dishId, name, price }));
+      }
+
+      if (!handledExternally) {
+        const found = cart.find(x => x.name === name);
+        if (found) found.qty++;
+        else cart.push({ name, price, qty: 1 });
+        saveCart();
+
+        notify(`Đã thêm "${name}" vào giỏ hàng`);
+        if (typeof triggerAiUpsell === 'function') {
+          triggerAiUpsell(name);
+        }
+      }
 
       chatAdd.textContent = '✓ Đã thêm';
       chatAdd.style.background = '#10b981';
@@ -667,11 +681,6 @@ function initAiSmartOrdering() {
         chatAdd.textContent = '+ Thêm vào giỏ';
         chatAdd.style.background = '';
       }, 1500);
-
-      notify(`Đã thêm "${name}" vào giỏ hàng`);
-      if (typeof triggerAiUpsell === 'function') {
-        triggerAiUpsell(name);
-      }
     }
   });
 
@@ -801,10 +810,13 @@ async function sendAiChatMessage(text) {
   chatBody.scrollTop = chatBody.scrollHeight;
 
   try {
+    const activeCart = typeof window.getAiCartSummary === 'function'
+      ? window.getAiCartSummary()
+      : cart;
     const res = await fetch('api/ai-chat.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, cart: cart })
+      body: JSON.stringify({ message: text, cart: activeCart })
     });
 
     const data = await res.json().catch(() => null);
@@ -828,7 +840,7 @@ async function sendAiChatMessage(text) {
                     <span class="ai-chat-dish-price">${money(dish.price)}</span>
                   </div>
                 </div>
-                <button type="button" class="btn-chat-add-dish" data-chat-add="${escapeHtml(dish.name)}" data-chat-price="${dish.price}">
+                <button type="button" class="btn-chat-add-dish" data-chat-id="${Number(dish.id || 0)}" data-chat-add="${escapeHtml(dish.name)}" data-chat-price="${dish.price}">
                   + Thêm vào giỏ
                 </button>
               </div>

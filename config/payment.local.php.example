@@ -1,0 +1,10 @@
+<?php
+/**
+ * Mẫu cấu hình Webhook xác nhận chuyển khoản Techcombank tự động
+ * (copy thành config/payment.local.php trên server).
+ */
+
+return [
+    'provider'       => 'sepay', // 'sepay' | 'casso' | 'payos'
+    'webhook_secret' => 'THAY_BANG_CHUOI_SECRET_DAI_NGAT_NGAU_NHIEN',
+];

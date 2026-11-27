@@ -36,20 +36,23 @@ function buildVietQrPayload(string $bankBin, string $accountNo, int $amount, str
         . emvField('02', 'QRIBFTTA');
 
     $payload = emvField('00', '01')
-        . emvField('01', '12')
+        . emvField('01', $amount > 0 ? '12' : '11')
         . emvField('38', $merchant)
-        . emvField('53', '704')
-        . emvField('54', (string) $amount)
-        . emvField('58', 'VN')
-        . emvField('62', emvField('08', $content));
+        . emvField('53', '704');
 
-    $payload .= '6304';
+    if ($amount > 0) {
+        $payload .= emvField('54', (string) $amount);
+    }
+
+    $payload .= emvField('58', 'VN')
+        . emvField('62', emvField('08', $content))
+        . '6304';
 
     return $payload . crc16Ccitt($payload);
 }
 
 function buildInvoiceQrPayload(?int $orderId, string $tableCode, int $amount): string {
-    if ($orderId === null || $amount <= 0) {
+    if ($orderId === null || $amount < 0) {
         return '';
     }
 

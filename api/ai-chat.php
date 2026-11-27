@@ -147,16 +147,36 @@ $promptPayload = [
 
 $url = "{$geminiEndpoint}/{$geminiModel}:generateContent?key=" . urlencode($geminiKey);
 
+// Bật kiểm tra SSL chuẩn khi server có CA bundle; chỉ fallback khi dev local thiếu chứng chỉ CA
+$caCandidates = array_filter([
+    (string) ini_get('curl.cainfo'),
+    (string) ini_get('openssl.cafile'),
+    '/etc/ssl/certs/ca-certificates.crt',
+    '/etc/pki/tls/certs/ca-bundle.crt',
+]);
+$caFile = '';
+foreach ($caCandidates as $candidate) {
+    if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+        $caFile = $candidate;
+        break;
+    }
+}
+$verifySsl = ($caFile !== '');
+
 $ch = curl_init($url);
-curl_setopt_array($ch, [
+$curlOpts = [
     CURLOPT_POST           => true,
     CURLOPT_POSTFIELDS     => json_encode($promptPayload, JSON_UNESCAPED_UNICODE),
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT        => 15,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_SSL_VERIFYPEER => $verifySsl,
+    CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
     CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-]);
+];
+if ($caFile !== '') {
+    $curlOpts[CURLOPT_CAINFO] = $caFile;
+}
+curl_setopt_array($ch, $curlOpts);
 
 $response = curl_exec($ch);
 $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

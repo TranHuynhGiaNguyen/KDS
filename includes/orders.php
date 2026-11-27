@@ -82,7 +82,8 @@ function migrateLegacyItemStatuses(PDO $pdo): void
 
 function normalizeTableCode(?string $tableCode): string
 {
-    return preg_match('/^[A-Z]\d{2}$/', (string) $tableCode) ? $tableCode : 'B05';
+    $clean = strtoupper(trim((string) $tableCode));
+    return preg_match('/^[A-Z0-9_-]{1,20}$/', $clean) ? $clean : 'B05';
 }
 
 function currentTimeForDb(): string
@@ -150,9 +151,9 @@ function lockedItemActions(array $item, ?string $role): array
 function fetchOrderableDishes(PDO $pdo): array
 {
     return $pdo->query("
-        SELECT d.`id`, d.`name`, d.`price`, d.`status`, d.`menu_type` AS `dish_menu_type`,
+        SELECT d.`id`, d.`name`, d.`price`, d.`status`, d.`station`, d.`menu_type` AS `dish_menu_type`,
                d.`buffet_package_id`, c.`id` AS `category_id`, c.`name` AS `category`,
-               c.`menu_type` AS `category_menu_type`
+               c.`slug` AS `category_slug`, c.`menu_type` AS `category_menu_type`
         FROM `dishes` d
         JOIN `categories` c ON c.`id` = d.`category_id`
         WHERE d.`status` IN ('active', 'out_of_stock')
@@ -244,9 +245,10 @@ function cancelOrderItem(PDO $pdo, int $itemId, ?int $cancelQty = null): bool
  *
  * @throws OrderException khi dữ liệu không hợp lệ hoặc món không còn phục vụ
  */
-function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string $note, int $userId): int
+function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string $note, ?int $userId): int
 {
-    if (!preg_match('/^[A-Z]\d{2}$/', $tableCode)) {
+    $tableCode = strtoupper(trim($tableCode));
+    if (!preg_match('/^[A-Z0-9_-]{1,20}$/', $tableCode)) {
         throw new OrderException('Mã bàn không hợp lệ.');
     }
 
@@ -272,10 +274,14 @@ function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string
         throw new OrderException('Món "' . $dish['name'] . '" hiện tạm hết hoặc đã ngừng phục vụ.');
     }
 
-    $note = mb_substr(trim($note), 0, 255);
+    $note    = mb_substr(trim($note), 0, 255);
     $noteVal = $note === '' ? null : $note;
+    $sentBy  = ($userId !== null && $userId > 0) ? $userId : null;
+    $ownTx   = !$pdo->inTransaction();
 
-    $pdo->beginTransaction();
+    if ($ownTx) {
+        $pdo->beginTransaction();
+    }
 
     try {
         $orderId = findOrCreateOpenOrderId($pdo, $tableCode);
@@ -300,21 +306,23 @@ function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string
             $itemId = (int) $existingPending['id'];
             $newQty = (int) $existingPending['qty'] + $qty;
             $pdo->prepare("UPDATE `order_items` SET `qty` = ?, `sent_by` = ?, `sent_at` = ? WHERE `id` = ?")
-                ->execute([$newQty, $userId, currentTimeForDb(), $itemId]);
+                ->execute([$newQty, $sentBy, currentTimeForDb(), $itemId]);
         } else {
             $insert = $pdo->prepare("
                 INSERT INTO `order_items` (`order_id`, `item_name`, `unit_price`, `qty`, `note`, `status`, `sent_by`, `sent_at`)
                 VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
             ");
-            $insert->execute([$orderId, $dish['name'], (int) $dish['price'], $qty, $noteVal, $userId, currentTimeForDb()]);
+            $insert->execute([$orderId, $dish['name'], (int) $dish['price'], $qty, $noteVal, $sentBy, currentTimeForDb()]);
             $itemId = (int) $pdo->lastInsertId();
         }
 
-        $pdo->commit();
+        if ($ownTx) {
+            $pdo->commit();
+        }
 
         return $itemId;
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
+        if ($ownTx && $pdo->inTransaction()) {
             $pdo->rollBack();
         }
         throw $e;

@@ -1,0 +1,10 @@
+<?php
+/**
+ * Mẫu cấu hình kết nối MySQL cho môi trường domain thật (copy thành database.local.php).
+ */
+
+define('DB_HOST', '127.0.0.1');
+define('DB_PORT', '3306');
+define('DB_USER', 'db_user_hosting');
+define('DB_PASS', 'mat_khau_db_manh');
+define('DB_NAME', 'ten_database_hosting');

@@ -69,7 +69,13 @@ try {
         respondJson($result['success'] ? 200 : 409, $result);
     }
 
-    respondJson(400, ['success' => false, 'message' => 'Thao tác không hợp lệ (chỉ hỗ trợ assign, transfer, merge, release).']);
+    if ($action === 'resolve_call') {
+        $code = strtoupper(trim((string) ($payload['table_code'] ?? '')));
+        resolvePendingStaffCalls($pdo, $code);
+        respondJson(200, ['success' => true, 'table_code' => $code]);
+    }
+
+    respondJson(400, ['success' => false, 'message' => 'Thao tác không hợp lệ (chỉ hỗ trợ assign, transfer, merge, release, resolve_call).']);
 } catch (RuntimeException | PDOException $e) {
     error_log('api/table-action error: ' . $e->getMessage());
     respondJson(500, ['success' => false, 'message' => 'Lỗi hệ thống, vui lòng thử lại.']);

@@ -66,6 +66,20 @@ if (!function_exists('e')) {
     }
 }
 
+if (!function_exists('warehouse_is_https_request')) {
+    /** Kiểm tra HTTPS trực tiếp hoặc qua reverse proxy (Cloudflare/Nginx). */
+    function warehouse_is_https_request(): bool
+    {
+        $forwardedProto = strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $cfVisitor      = (string) ($_SERVER['HTTP_CF_VISITOR'] ?? '');
+        return (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+            || (($_SERVER['SERVER_PORT'] ?? '') === '443')
+            || ($forwardedProto === 'https')
+            || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on')
+            || (strpos($cfVisitor, '"https"') !== false);
+    }
+}
+
 if (!function_exists('warehouse_session_start')) {
     function warehouse_session_start(): void
     {
@@ -73,8 +87,7 @@ if (!function_exists('warehouse_session_start')) {
             return;
         }
 
-        $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
-            || (($_SERVER['SERVER_PORT'] ?? '') === '443');
+        $isHttps = warehouse_is_https_request();
 
         $cookiePath = warehouse_base_url();
         $cookiePath = ($cookiePath === '' ? '/' : rtrim($cookiePath, '/') . '/');
@@ -124,8 +137,7 @@ if (!function_exists('warehouse_try_kds_sso')) {
         $_SESSION = [];
 
         // Khôi phục lại phiên riêng của Warehouse
-        $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
-            || (($_SERVER['SERVER_PORT'] ?? '') === '443');
+        $isHttps = warehouse_is_https_request();
         $cookiePath = warehouse_base_url();
         $cookiePath = ($cookiePath === '' ? '/' : rtrim($cookiePath, '/') . '/');
 

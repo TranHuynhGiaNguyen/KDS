@@ -51,10 +51,14 @@ function fetchOpenOrderId(PDO $pdo, string $tableCode): ?int
     return $orderId === false ? null : (int) $orderId;
 }
 
-function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $method, int $cashReceived, int $cashierId, ?int $waiterId = null, ?int $rating = null, string $ratingComment = ''): int
+function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $method, int $cashReceived, ?int $cashierId, ?int $waiterId = null, ?int $rating = null, string $ratingComment = '', array $gatewayMeta = []): int
 {
     if (!isset(PAYMENT_METHODS[$method])) {
         throw new CheckoutException('Phương thức thanh toán không hợp lệ.');
+    }
+
+    if ($method === 'qr' && empty($gatewayMeta['webhook_verified'])) {
+        throw new CheckoutException('Thanh toán Chuyển khoản QR chỉ được đóng bàn tự động khi Webhook xác nhận tiền đã về tài khoản.');
     }
 
     $orderId = fetchOpenOrderId($pdo, $tableCode);
@@ -62,7 +66,9 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
         throw new CheckoutException('Bàn ' . $tableCode . ' không có đơn đang mở, có thể đã được thanh toán.');
     }
 
+    require_once __DIR__ . '/payment-gateway.php';
     ensureTableAssignmentsSchema($pdo);
+    ensurePaymentIntentsSchema($pdo);
     $pdo->beginTransaction();
 
     try {
@@ -90,6 +96,7 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
 
         $invoiceId = insertInvoice($pdo, $orderId, $tableCode, $bill);
         insertPayment($pdo, $invoiceId, $bill['total'], $method, $cashReceived, $cashierId);
+        syncPaymentIntentPaidInTx($pdo, $orderId, $tableCode, $bill['total'], $invoiceId, $gatewayMeta);
 
         try {
             createRatingLink($pdo, $invoiceId, $waiterId, $rating, $ratingComment);
@@ -168,16 +175,17 @@ function insertInvoice(PDO $pdo, int $orderId, string $tableCode, array $bill): 
     return $invoiceId;
 }
 
-function insertPayment(PDO $pdo, int $invoiceId, int $total, string $method, int $cashReceived, int $cashierId): void
+function insertPayment(PDO $pdo, int $invoiceId, int $total, string $method, int $cashReceived, ?int $cashierId): void
 {
-    $isCash   = $method === 'cash';
-    $received = $isCash ? $cashReceived : 0;
+    $isCash     = $method === 'cash';
+    $received   = $isCash ? $cashReceived : 0;
+    $cashierVal = ($cashierId !== null && $cashierId > 0) ? $cashierId : null;
 
     $stmt = $pdo->prepare("
         INSERT INTO `payments` (`invoice_id`, `method`, `amount`, `cash_received`, `change_amount`, `cashier_id`, `paid_at`)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$invoiceId, $method, $total, $received, $isCash ? $received - $total : 0, $cashierId, currentTimeForDb()]);
+    $stmt->execute([$invoiceId, $method, $total, $received, $isCash ? $received - $total : 0, $cashierVal, currentTimeForDb()]);
 }
 
 function fetchInvoice(PDO $pdo, int $invoiceId): ?array

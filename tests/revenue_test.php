@@ -50,7 +50,7 @@ try {
     $itemSql->execute([$testOrderId, 'Trà đào cam sả', 35000, 2]); // 70.000đ
     // Tạm tính: 220.000đ, Phí phục vụ 5%: 11.000đ, VAT 8%: 18.480đ, Tổng: 249.480đ
 
-    $invId = checkoutTable($pdo, 'B03', ['type' => 'none', 'value' => 0], 'qr', 0, 1);
+    $invId = checkoutTable($pdo, 'B03', ['type' => 'none', 'value' => 0], 'qr', 0, 1, null, null, '', ['webhook_verified' => true, 'provider' => 'test_webhook']);
     assertTest($invId > 0, "Tạo hóa đơn thực tế thành công cho bàn B03 (Invoice ID: $invId)");
 
     $dayAfter = getRevenueByDate($pdo, date('Y-m-d'));
@@ -63,6 +63,8 @@ try {
 
     // Dọn dẹp sau khi kiểm thử để giữ CSDL hoàn toàn sạch
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+    $pdo->exec('TRUNCATE TABLE `service_ratings`');
+    $pdo->exec('TRUNCATE TABLE `payment_intents`');
     $pdo->exec('TRUNCATE TABLE `payments`');
     $pdo->exec('TRUNCATE TABLE `invoice_items`');
     $pdo->exec('TRUNCATE TABLE `invoices`');

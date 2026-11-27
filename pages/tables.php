@@ -11,6 +11,7 @@ if (!canRoleAccessPage(currentRole(), 'tables')) {
 }
 
 require_once __DIR__ . '/../includes/tables.php';
+require_once __DIR__ . '/../includes/qr-tables.php';
 
 // ==========================================================
 // XỬ LÝ CÁC HÀNH ĐỘNG POST (CRUD)
@@ -183,6 +184,21 @@ $search       = trim($_GET['search'] ?? '');
 $allAreas   = getAllAreas();
 $allTables  = getAllDiningTables($filterArea, $filterStatus, $search);
 $tableStats = getTableStats();
+
+$tableQrMap = [];
+$dbConn = getDbConnection();
+if ($dbConn instanceof PDO) {
+    foreach (getAllTableQrCodes($dbConn) as $qrRow) {
+        $qCode = strtoupper(trim((string) ($qrRow['table_code'] ?? '')));
+        $qTok  = (string) ($qrRow['qr_token'] ?? '');
+        if ($qCode !== '' && $qTok !== '') {
+            $tableQrMap[$qCode] = [
+                'token' => $qTok,
+                'url'   => buildTableQrOrderUrl($qTok),
+            ];
+        }
+    }
+}
 ?>
 
 <!-- TIÊU ĐỀ TRANG VÀ NÚT TÁC VỤ NHANH -->
@@ -193,6 +209,10 @@ $tableStats = getTableStats();
     <p>Tổ chức không gian nhà hàng, quản lý danh sách bàn ăn, sức chứa và phân bổ khu vực phục vụ.</p>
   </div>
   <div class="filter-row">
+    <a class="btn btn-outline" href="api/qr-ordering/qr-codes.php" target="_blank" title="Xem & in tất cả mã QR cố định theo bàn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 20h2"></path></svg>
+      <span>In mã QR các bàn</span>
+    </a>
     <a class="btn btn-outline" href="index.php?page=staff" title="Xem sơ đồ bàn thực tế">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
       <span>Xem sơ đồ bàn phục vụ</span>
@@ -437,8 +457,18 @@ $tableStats = getTableStats();
                 <!-- Cột: Thao tác -->
                 <td style="padding: 12px 14px; text-align: right;">
                   <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+                    <?php
+                      $tCodeUpper = strtoupper(trim((string) $t['code']));
+                      $tQrInfo    = $tableQrMap[$tCodeUpper] ?? null;
+                      $tQrHref    = $tQrInfo ? $tQrInfo['url'] : ('qr-order.php?table=' . urlencode($t['code']));
+                    ?>
                     <?php if ($t['status'] === 'active'): ?>
-                      <a href="qr-order.php?table=<?= urlencode($t['code']) ?>" target="_blank" class="btn btn-small btn-outline" title="Xem giao diện QR Order bàn <?= htmlspecialchars($t['code']) ?>">QR</a>
+                      <button type="button"
+                              class="btn btn-small btn-outline btn-open-table-qr"
+                              data-qr-table="<?= htmlspecialchars($t['code']) ?>"
+                              data-qr-url="<?= htmlspecialchars($tQrHref) ?>"
+                              title="Xem & in mã QR cố định bàn <?= htmlspecialchars($t['code']) ?>">Mã QR</button>
+                      <a href="<?= htmlspecialchars($tQrHref) ?>" target="_blank" class="btn btn-small btn-outline" title="Mở giao diện QR Order bàn <?= htmlspecialchars($t['code']) ?>">QR</a>
                     <?php endif; ?>
                     <!-- Đổi nhanh trạng thái -->
                     <form method="POST" action="index.php?page=tables" style="display: inline;">
@@ -1715,6 +1745,58 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
   }
+
+  // Modal hiển thị & in mã QR cố định từng bàn
+  const qrModal = document.getElementById('modal-table-fixed-qr');
+  const qrTitle = document.getElementById('table-fixed-qr-title');
+  const qrBox   = document.getElementById('table-fixed-qr-box');
+  const qrUrlEl = document.getElementById('table-fixed-qr-url');
+  const qrOpen  = document.getElementById('table-fixed-qr-open');
+
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-open-table-qr');
+    if (btn && qrModal) {
+      const code = btn.dataset.qrTable || '';
+      const url  = btn.dataset.qrUrl || '';
+      if (qrTitle) qrTitle.textContent = 'QR cố định — Bàn ' + code;
+      if (qrUrlEl) qrUrlEl.textContent = url;
+      if (qrOpen) qrOpen.href = url;
+      if (qrBox && typeof qrcode === 'function') {
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        qrBox.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+      }
+      qrModal.style.display = 'flex';
+      return;
+    }
+    if (e.target.closest('[data-close-fixed-qr]') || (qrModal && e.target === qrModal)) {
+      qrModal.style.display = 'none';
+    }
+  });
 });
 </script>
+
+<!-- MODAL MÃ QR CỐ ĐỊNH BÀN -->
+<div class="custom-modal-backdrop" id="modal-table-fixed-qr" style="display: none;">
+  <div class="custom-modal-dialog custom-modal-sm" style="max-width: 400px;">
+    <div class="custom-modal-header">
+      <div class="modal-title-wrap">
+        <div>
+          <h3 id="table-fixed-qr-title">Mã QR cố định</h3>
+          <p>Quét bằng điện thoại để gọi món tại bàn (qr-order.php)</p>
+        </div>
+      </div>
+      <button type="button" class="btn-close-modal" data-close-fixed-qr aria-label="Đóng">✕</button>
+    </div>
+    <div style="padding: 20px; text-align: center;">
+      <div id="table-fixed-qr-box" style="width: 210px; height: 210px; margin: 0 auto; padding: 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;"></div>
+      <div id="table-fixed-qr-url" style="margin-top: 10px; font-family: monospace; font-size: 11px; color: #64748b; word-break: break-all;"></div>
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+        <a id="table-fixed-qr-open" href="#" target="_blank" class="btn btn-outline">Mở qr-order.php</a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">In QR Code</button>
+      </div>
+    </div>
+  </div>
+</div>
 

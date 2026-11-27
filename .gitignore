@@ -1,4 +1,4 @@
-﻿# OS files
+# OS files
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -16,5 +16,8 @@ tmp/
 # Word reports
 *.docx
 
-# Local AI credentials
+# Local credentials & deploy overrides
 config/ai.local.php
+config/payment.local.php
+config/database.local.php
+warehouse/config.local.php

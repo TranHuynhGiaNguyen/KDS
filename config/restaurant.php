@@ -17,11 +17,12 @@ return [
     'name'       => 'SMARTDINE RESTAURANT',
     'address'    => '123 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh',
     'phone'      => '0900 000 000',
+    'public_url' => getenv('APP_PUBLIC_URL') ?: '',
     'payment_qr' => 'assets/images/payment-qr.svg',
     'bank'       => [
-        'bin'          => '970422',
-        'name'         => 'MB Bank',
-        'account_no'   => '0000000000',
-        'account_name' => 'NGUYEN VAN A',
+        'bin'          => '970407',
+        'name'         => 'Techcombank',
+        'account_no'   => '1506200511',
+        'account_name' => 'TRAN HUYNH GIA NGUYEN',
     ],
 ];

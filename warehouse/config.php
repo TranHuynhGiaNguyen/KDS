@@ -3,6 +3,10 @@ require_once __DIR__ . '/includes/helpers.php';
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+if (function_exists('date_default_timezone_set') && date_default_timezone_get() !== 'Asia/Ho_Chi_Minh') {
+    date_default_timezone_set('Asia/Ho_Chi_Minh');
+}
 
 $dbConfig = [
     'host'      => getenv('WAREHOUSE_DB_HOST') ?: 'localhost',
@@ -25,12 +29,14 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 try {
     $conn = new mysqli($dbConfig['host'], $dbConfig['user'], $dbConfig['pass'], $dbConfig['name']);
     $conn->set_charset('utf8mb4');
+    $conn->query("SET time_zone = '+07:00'");
 
     if ($dbConfig['auth_name'] === $dbConfig['name']) {
         $authConn = $conn;
     } else {
         $authConn = new mysqli($dbConfig['host'], $dbConfig['user'], $dbConfig['pass'], $dbConfig['auth_name']);
         $authConn->set_charset('utf8mb4');
+        $authConn->query("SET time_zone = '+07:00'");
     }
 } catch (mysqli_sql_exception $e) {
     error_log('Warehouse DB connection failed: ' . $e->getMessage());

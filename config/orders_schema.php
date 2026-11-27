@@ -114,9 +114,7 @@ function initOrderTables(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 
-    if ((int) $pdo->query('SELECT COUNT(*) FROM `orders`')->fetchColumn() === 0) {
-        seedDemoOrders($pdo);
-    }
+    // Không tự động seed đơn hàng demo khi bảng orders trống (tránh phát sinh bàn giả trên môi trường thật)
 }
 
 function seedDemoOrders(PDO $pdo): void

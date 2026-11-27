@@ -1,11 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/tables.php';
+require_once __DIR__ . '/../includes/qr-tables.php';
 
 $occupiedTables = [];
+$pendingCalls   = [];
 $dbError        = '';
 
 try {
-    $occupiedTables = fetchOccupiedTables(getOrdersDb());
+    $pdo            = getOrdersDb();
+    $occupiedTables = fetchOccupiedTables($pdo);
+    $pendingCalls   = fetchPendingStaffCalls($pdo);
 } catch (RuntimeException | PDOException $e) {
     error_log('staff page: ' . $e->getMessage());
     $dbError = 'Không tải được trạng thái bàn, vui lòng thử lại.';
@@ -105,6 +109,7 @@ try {
     foreach ($tables as $t):
       $isMaintenance = ($t['status'] === 'maintenance');
       $hasGuests     = $t['is_occupied'] && !$isMaintenance;
+      $hasCall       = isset($pendingCalls[strtoupper(trim((string) $t['code']))]) && !$isMaintenance;
     ?>
       <?php if ($isMaintenance): ?>
         <!-- Bàn đang tạm bảo trì -->
@@ -122,6 +127,9 @@ try {
         <a href="index.php?page=table-order&table=<?=$t['code']?>" class="table-tile table-empty" data-table="<?=$t['code']?>" data-status="empty" data-zone="<?=$t['area_code']?>" title="Bàn <?=$t['code']?>: Chưa có khách (Bấm để mở bàn)">
           <div class="table-empty-body">
             <span class="table-number-only">Bàn <?=$t['code']?></span>
+            <?php if ($hasCall): ?>
+              <span class="table-call-pill">🔔 Gọi NV</span>
+            <?php endif; ?>
           </div>
         </a>
       <?php else: ?>
@@ -135,8 +143,12 @@ try {
             </span>
           </div>
           <div class="table-tile-bottom">
-            <span class="table-amount-label">Số tiền</span>
-            <b class="table-amount-value"><?=number_format($t['occupied_total'], 0, ',', '.')?>đ</b>
+            <?php if ($hasCall): ?>
+              <span class="table-call-pill">🔔 Gọi NV</span>
+            <?php else: ?>
+              <span class="table-amount-label">Số tiền</span>
+              <b class="table-amount-value"><?=number_format($t['occupied_total'], 0, ',', '.')?>đ</b>
+            <?php endif; ?>
           </div>
         </a>
       <?php endif; ?>

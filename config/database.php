@@ -3,11 +3,25 @@
  * SmartDine - Cấu hình kết nối Cơ sở dữ liệu MySQL PDO
  */
 
-define('DB_HOST', '127.0.0.1');
-define('DB_PORT', '3306');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'smartdine_kds');
+if (function_exists('date_default_timezone_set') && date_default_timezone_get() !== 'Asia/Ho_Chi_Minh') {
+    date_default_timezone_set('Asia/Ho_Chi_Minh');
+}
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+}
+
+$_dbLocalFile = __DIR__ . '/database.local.php';
+if (is_file($_dbLocalFile)) {
+    require_once $_dbLocalFile;
+}
+unset($_dbLocalFile);
+
+if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
+if (!defined('DB_PORT')) define('DB_PORT', getenv('DB_PORT') ?: '3306');
+if (!defined('DB_USER')) define('DB_USER', getenv('DB_USER') ?: 'root');
+if (!defined('DB_PASS')) define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
+if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'smartdine_kds');
 
 if (!function_exists('assetUrl')) {
     function assetUrl(string $path): string {
@@ -18,7 +32,7 @@ if (!function_exists('assetUrl')) {
 
 /**
  * Lấy đối tượng kết nối PDO
- * Tự động tạo Database và Bảng nếu chưa tồn tại
+ * Hỗ trợ hosting (kết nối thẳng DB có sẵn) và localhost (tự tạo DB nếu chưa có)
  */
 function getDbConnection() {
     static $pdo = null;
@@ -28,25 +42,37 @@ function getDbConnection() {
     }
 
     try {
-        // 1. Kết nối ban đầu đến MySQL server để đảm bảo Database tồn tại
-        $dsnWithoutDb = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";charset=utf8mb4";
-        $initPdo = new PDO($dsnWithoutDb, DB_USER, DB_PASS, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-
-        $initPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-        $initPdo = null;
-
-        // 2. Kết nối trực tiếp vào Database của hệ thống
         $dsnWithDb = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
-        $pdo = new PDO($dsnWithDb, DB_USER, DB_PASS, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        try {
+            $pdo = new PDO($dsnWithDb, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+        } catch (PDOException $connectErr) {
+            // Chỉ tự tạo database khi gặp lỗi Unknown database (1049) trên môi trường dev/localhost
+            if (strpos($connectErr->getMessage(), '1049') === false) {
+                throw $connectErr;
+            }
+            $dsnWithoutDb = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";charset=utf8mb4";
+            $initPdo = new PDO($dsnWithoutDb, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            $initPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $initPdo = null;
 
-        // 3. Khởi tạo cấu trúc bảng users nếu chưa có
+            $pdo = new PDO($dsnWithDb, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+        }
+
+        // Đồng bộ múi giờ MySQL theo Việt Nam (+07:00)
+        $pdo->exec("SET time_zone = '+07:00'");
+
+        // Khởi tạo cấu trúc bảng nếu chưa có
         initDatabaseTables($pdo);
 
         return $pdo;
@@ -55,6 +81,14 @@ function getDbConnection() {
         error_log("Database connection error: " . $e->getMessage());
         return null;
     }
+}
+
+function smartdineAllowDemoMenuSeed(?bool $set = null): bool {
+    static $allow = false;
+    if ($set !== null) {
+        $allow = $set;
+    }
+    return $allow;
 }
 
 /**
@@ -83,9 +117,10 @@ function initDatabaseTables(PDO $pdo) {
 
     ensureUsersRoleSchema($pdo);
 
-    // Kiểm tra xem đã có tài khoản nào chưa
+    // Kiểm tra xem đã có tài khoản nào chưa (chỉ auto-seed thực đơn mẫu khi cài DB mới hoàn toàn)
     $checkStmt = $pdo->query("SELECT COUNT(*) as total FROM `users`");
     $count = (int) $checkStmt->fetchColumn();
+    smartdineAllowDemoMenuSeed($count === 0);
 
     if ($count === 0) {
         // Nạp các tài khoản khởi tạo mẫu theo từng vai trò
@@ -176,7 +211,7 @@ function initDatabaseTables(PDO $pdo) {
     $checkCatStmt = $pdo->query("SELECT COUNT(*) as total FROM `categories`");
     $catCount = (int) $checkCatStmt->fetchColumn();
 
-    if ($catCount === 0) {
+    if ($catCount === 0 && smartdineAllowDemoMenuSeed()) {
         $defaultCategories = [
             [
                 'name'        => 'Món chính',
@@ -250,7 +285,7 @@ function initDatabaseTables(PDO $pdo) {
     $checkDishStmt = $pdo->query("SELECT COUNT(*) as total FROM `dishes`");
     $dishCount = (int) $checkDishStmt->fetchColumn();
 
-    if ($dishCount === 0) {
+    if ($dishCount === 0 && smartdineAllowDemoMenuSeed()) {
         // Lấy ID của các danh mục theo slug
         $catMap = [];
         $catRows = $pdo->query("SELECT id, slug FROM `categories`")->fetchAll();
@@ -673,7 +708,7 @@ function ensureMenuConfigSchema(PDO $pdo): void {
     }
 
     $pkgCount = (int) $pdo->query("SELECT COUNT(*) FROM `buffet_packages`")->fetchColumn();
-    if ($pkgCount === 0) {
+    if ($pkgCount === 0 && smartdineAllowDemoMenuSeed()) {
         $stmtPkg = $pdo->prepare("
             INSERT INTO `buffet_packages` (`name`, `price_per_person`, `image`, `description`, `sort_order`, `status`)
             VALUES (:name, :price_per_person, :image, :description, :sort_order, :status)

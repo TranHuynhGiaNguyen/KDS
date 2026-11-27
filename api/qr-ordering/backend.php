@@ -19,6 +19,19 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+if (!function_exists('array_is_list')) {
+    function array_is_list(array $array): bool
+    {
+        $i = 0;
+        foreach ($array as $k => $_) {
+            if ($k !== $i++) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
 /* =========================================================
  * PHẢN HỒI VÀ KIỂM TRA DỮ LIỆU
  * ========================================================= */
