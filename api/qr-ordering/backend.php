@@ -51,6 +51,43 @@ function qoDb(): PDO
         qoFail(503, 'Không kết nối được MySQL.');
     }
 
+    static $linked = false;
+    if (!$linked) {
+        $hasQrItems = $pdo->query("SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = DATABASE() AND table_name = 'qr_order_items'")->fetchColumn();
+        if ($hasQrItems) {
+            $exists = $pdo->query("SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_name = 'qr_kitchen_links'")->fetchColumn();
+            $pdo->exec("CREATE TABLE IF NOT EXISTS qr_kitchen_links (
+                qr_item_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+                kitchen_item_id INT NOT NULL UNIQUE,
+                CONSTRAINT fk_qr_kitchen_item FOREIGN KEY (qr_item_id)
+                    REFERENCES qr_order_items(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            if (!$exists) {
+                // Chỉ ghép đơn cũ khi cả hai phía có đúng một kết quả khớp.
+                $hasKitchen = $pdo->query("SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = DATABASE() AND table_name = 'order_items'")->fetchColumn();
+                if ($hasKitchen) {
+                    $pdo->exec("INSERT IGNORE INTO qr_kitchen_links (qr_item_id, kitchen_item_id)
+                        SELECT qr_id, kitchen_id FROM (
+                            SELECT qi.id AS qr_id, ki.id AS kitchen_id,
+                                COUNT(*) OVER (PARTITION BY qi.id) AS qr_matches,
+                                COUNT(*) OVER (PARTITION BY ki.id) AS kitchen_matches
+                            FROM qr_order_items qi
+                            JOIN qr_orders qo ON qo.id = qi.order_id
+                            JOIN qr_table_sessions qs ON qs.id = qo.session_id
+                            JOIN orders ko ON ko.table_code COLLATE utf8mb4_unicode_ci = qs.table_code COLLATE utf8mb4_unicode_ci
+                            JOIN order_items ki ON ki.order_id = ko.id
+                                AND ki.item_name COLLATE utf8mb4_unicode_ci = qi.item_name COLLATE utf8mb4_unicode_ci
+                                AND ki.qty = qi.quantity AND ki.unit_price = qi.unit_price
+                                AND ABS(TIMESTAMPDIFF(SECOND, ki.sent_at, qi.created_at)) <= 5
+                        ) matches WHERE qr_matches = 1 AND kitchen_matches = 1");
+                }
+            }
+        }
+        $linked = true;
+    }
     return $pdo;
 }
 
@@ -471,10 +508,20 @@ function qoOrders(
     $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $itemQuery = $pdo->prepare(
-        'SELECT *
-         FROM qr_order_items
-         WHERE order_id = ?
-         ORDER BY id'
+        "SELECT qi.*, ki.id IS NOT NULL AS kitchen_linked,
+            CASE ki.status
+                WHEN 'unsent' THEN 'pending'
+                WHEN 'pending' THEN 'pending'
+                WHEN 'cooking' THEN 'preparing'
+                WHEN 'done' THEN 'served'
+                WHEN 'served' THEN 'served'
+                WHEN 'cancelled' THEN 'cancelled'
+                ELSE qi.status END AS status
+         FROM qr_order_items qi
+         LEFT JOIN qr_kitchen_links kl ON kl.qr_item_id = qi.id
+         LEFT JOIN order_items ki ON ki.id = kl.kitchen_item_id
+         WHERE qi.order_id = ?
+         ORDER BY qi.id"
     );
 
     $toppingQuery = $pdo->prepare(
@@ -498,6 +545,7 @@ function qoOrders(
 
         foreach ($order['items'] as &$item) {
             $item['id'] = (int) $item['id'];
+            $item['kitchen_linked'] = (bool) $item['kitchen_linked'];
             $item['quantity'] = (int) $item['quantity'];
             $item['unit_price'] = (float) $item['unit_price'];
             $item['line_total'] = (float) $item['line_total'];
@@ -510,6 +558,19 @@ function qoOrders(
         }
 
         unset($item);
+        $statuses = array_column($order['items'], 'status');
+        $active = array_values(array_diff($statuses, ['cancelled']));
+        if (!$active) {
+            $order['status'] = 'cancelled';
+        } elseif (count(array_unique($active)) === 1 && $active[0] === 'pending') {
+            $order['status'] = 'submitted';
+        } elseif (in_array('pending', $active, true) || in_array('preparing', $active, true)) {
+            $order['status'] = 'preparing';
+        } elseif (in_array('ready', $active, true)) {
+            $order['status'] = 'ready';
+        } else {
+            $order['status'] = 'served';
+        }
     }
 
     unset($order);
@@ -784,10 +845,11 @@ function qoSubmit(
         if ($item['toppings'] !== []) {
             $noteParts[] = 'Topping: ' . implode(', ', array_column($item['toppings'], 'name'));
         }
-        if ($noteParts === [] && $note !== '') {
+        if ($note !== '') {
             $noteParts[] = $note;
         }
-        $mainNote = mb_substr(implode(' · ', $noteParts), 0, 255);
+        preg_match('/^.{0,255}/us', implode(' · ', $noteParts), $noteMatch);
+        $mainNote = $noteMatch[0];
 
         $insertMainItem->execute([
             $mainOrderId,
@@ -797,6 +859,9 @@ function qoSubmit(
             $mainNote === '' ? null : $mainNote,
             $now,
         ]);
+        $kitchenItemId = (int) $pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO qr_kitchen_links (qr_item_id, kitchen_item_id) VALUES (?, ?)')
+            ->execute([$orderItemId, $kitchenItemId]);
     }
 
     $stmt = $pdo->prepare(
@@ -940,6 +1005,12 @@ function qoChangeStatus(
     );
 
     $stmt->execute([$next, $itemId]);
+    $nativeStatus = [
+        'pending' => 'pending', 'preparing' => 'cooking',
+        'ready' => 'done', 'served' => 'served', 'cancelled' => 'cancelled',
+    ][$next];
+    $pdo->prepare('UPDATE order_items ki JOIN qr_kitchen_links kl ON kl.kitchen_item_id = ki.id
+        SET ki.status = ? WHERE kl.qr_item_id = ?')->execute([$nativeStatus, $itemId]);
 
     $stmt = $pdo->prepare(
         'SELECT status, line_total

@@ -8,7 +8,7 @@
 
     const pollUrl = grid.dataset.pollUrl;
     const actionUrl = grid.dataset.actionUrl;
-    const POLL_INTERVAL_MS = 5000;
+    const POLL_INTERVAL_MS = 2000;
     const stationSelect = document.querySelector('#kds-station-select');
     const sidebarCounter = document.querySelector('.kitchen-counter');
 

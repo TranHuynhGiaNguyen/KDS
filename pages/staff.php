@@ -305,3 +305,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php include __DIR__ . '/../includes/table-modals.php'; ?>
+<script defer src="<?= assetUrl('assets/js/table-live.js') ?>"></script>
