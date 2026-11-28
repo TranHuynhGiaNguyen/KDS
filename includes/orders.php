@@ -262,7 +262,7 @@ function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string
         throw new OrderException('Bàn ' . $tableCode . ' không tồn tại hoặc đang không hoạt động.');
     }
 
-    $dishStmt = $pdo->prepare('SELECT `name`, `price`, `status` FROM `dishes` WHERE `id` = ?');
+    $dishStmt = $pdo->prepare('SELECT `name`, `price`, `status`, `menu_type`, `buffet_package_id` FROM `dishes` WHERE `id` = ?');
     $dishStmt->execute([$dishId]);
     $dish = $dishStmt->fetch();
 
@@ -272,6 +272,13 @@ function addOrderItem(PDO $pdo, string $tableCode, int $dishId, int $qty, string
 
     if ($dish['status'] !== 'active') {
         throw new OrderException('Món "' . $dish['name'] . '" hiện tạm hết hoặc đã ngừng phục vụ.');
+    }
+
+    require_once __DIR__ . '/table-menu.php';
+    $menuLock = getActiveTableMenuLock($pdo, $tableCode);
+    $lockErr  = validateDishAgainstTableMenuLock($menuLock, $dish);
+    if ($lockErr !== null) {
+        throw new OrderException($lockErr);
     }
 
     $note    = mb_substr(trim($note), 0, 255);

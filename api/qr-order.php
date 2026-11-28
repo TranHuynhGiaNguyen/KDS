@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/qr-tables.php';
 require_once __DIR__ . '/../includes/checkout.php';
 require_once __DIR__ . '/../includes/vietqr.php';
 require_once __DIR__ . '/../includes/payment-gateway.php';
+require_once __DIR__ . '/../includes/table-menu.php';
 
 header('Cache-Control: no-store');
 
@@ -134,6 +135,7 @@ function buildQrOrderStatePayload(PDO $pdo, array $tableCtx): array
     $assignment = getActiveTableAssignment($tableCode, $pdo);
     $gatewayCfg = getPaymentGatewayConfig();
     $bank       = getRestaurantInfo()['bank'];
+    $menuLock   = getActiveTableMenuLock($pdo, $tableCode);
 
     return [
         'success'                 => true,
@@ -141,6 +143,7 @@ function buildQrOrderStatePayload(PDO $pdo, array $tableCtx): array
         'qr_token'                => (string) ($tableCtx['qr_token'] ?? ''),
         'guests'                  => (int) ($assignment['guest_count'] ?? 0),
         'order_id'                => (int) ($openOrderId ?? 0),
+        'menu_lock'               => serializeTableMenuLock($menuLock),
         'ordered_items'           => $orderedItems,
         'dish_statuses'           => $dishStatuses,
         'transfer_content'        => $openOrderId !== null ? formatTransferContent($openOrderId, $tableCode) : '',
@@ -194,6 +197,23 @@ try {
         respondJson($res['success'] ? 200 : 422, $res);
     }
 
+    if ($action === 'select_menu') {
+        $menuType  = trim((string) ($payload['menu_type'] ?? ''));
+        $packageId = (int) ($payload['buffet_package_id'] ?? $payload['package_id'] ?? 0);
+        $rawQty    = (int) ($payload['ticket_qty'] ?? 0);
+        if ($rawQty <= 0) {
+            $assign = getActiveTableAssignment($tableCode, $pdo);
+            $rawQty = max(1, (int) ($assign['guest_count'] ?? 1));
+        }
+
+        $lockRes = lockTableMenuByCustomer($pdo, $tableCode, $menuType, $packageId, $rawQty);
+        $state   = buildQrOrderStatePayload($pdo, $tableCtx);
+        $state['success'] = !empty($lockRes['success']);
+        $state['locked']  = !empty($lockRes['locked']) || !empty($lockRes['success']);
+        $state['message'] = (string) ($lockRes['message'] ?? '');
+        respondJson((int) ($lockRes['code'] ?? 200), $state);
+    }
+
     if ($action === 'submit') {
         $items = $payload['items'] ?? [];
         if (!is_array($items) || $items === []) {
@@ -204,6 +224,7 @@ try {
         }
 
         $orderNote = mb_substr(trim((string) ($payload['order_note'] ?? '')), 0, 120, 'UTF-8');
+        ensureTableMenuLocksSchema($pdo);
 
         $pdo->beginTransaction();
         try {
@@ -257,7 +278,7 @@ try {
         respondJson(200, $state);
     }
 
-    respondJson(400, ['success' => false, 'message' => 'Thao tác không hợp lệ (chỉ hỗ trợ submit, call_staff).']);
+    respondJson(400, ['success' => false, 'message' => 'Thao tác không hợp lệ (chỉ hỗ trợ select_menu, submit, call_staff).']);
 } catch (OrderException $e) {
     respondJson(422, ['success' => false, 'message' => $e->getMessage()]);
 } catch (Throwable $e) {

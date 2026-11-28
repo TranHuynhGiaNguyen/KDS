@@ -7,10 +7,12 @@
  */
 
 require_once __DIR__ . '/../includes/orders.php';
+require_once __DIR__ . '/../includes/checkout.php';
 require_once __DIR__ . '/../includes/tables.php';
 require_once __DIR__ . '/../includes/billing.php';
 require_once __DIR__ . '/../includes/qr-tables.php';
 require_once __DIR__ . '/../includes/vouchers.php';
+require_once __DIR__ . '/../includes/table-menu.php';
 
 $rawTable     = strtoupper(trim((string) ($_GET['table'] ?? '')));
 $currentTable = $rawTable !== '' ? preg_replace('/[^A-Z0-9_-]/', '', $rawTable) : 'B03';
@@ -24,15 +26,24 @@ $tableRow       = null;
 $assignment     = null;
 $tableQrUrl     = '';
 $tableQrToken   = '';
-$pendingCall    = null;
-$activeVouchers = [];
+$pendingCall          = null;
+$activeVouchers       = [];
+$activeBuffetPackages = [];
+$tableMenuLock        = null;
+$activeBuffetTicketQty = 0;
 
 try {
   $pdo            = getOrdersDb();
+  ensureMenuConfigSchema($pdo);
+  ensureTableMenuLocksSchema($pdo);
   $tableRow       = getDiningTableByCode($currentTable);
   $assignment     = getActiveTableAssignment($currentTable, $pdo);
   $orderItems     = fetchTableItems($pdo, $currentTable);
   $activeVouchers = getAllVouchers('', 'active');
+  $activeBuffetPackages = getAllBuffetPackages(true);
+  $tableMenuLock  = getActiveTableMenuLock($pdo, $currentTable);
+  $openOrderForLock = fetchOpenOrderId($pdo, $currentTable);
+  $activeBuffetTicketQty = $openOrderForLock !== null ? countActiveBuffetTicketQty($pdo, $openOrderForLock) : 0;
 
   $qrRecord = getOrCreateTableQrCode($pdo, $currentTable);
   if ($qrRecord && !empty($qrRecord['qr_token'])) {
@@ -68,9 +79,10 @@ $cur = [
   'note'           => (string) ($assignment['note'] ?? ''),
 ];
 
-$role      = currentRole();
-$canAdd    = canRoleDoOrderAction($role, 'add') && !$isMaintenance;
-$canCancel = canRoleDoOrderAction($role, 'cancel');
+$role             = currentRole();
+$isManagerOrAdmin = isManagerOrAdmin();
+$canAdd           = canRoleDoOrderAction($role, 'add') && !$isMaintenance;
+$canCancel        = canRoleDoOrderAction($role, 'cancel');
 
 $visibleItems = array_values(array_filter(
   $orderItems,
@@ -153,7 +165,9 @@ try {
 }
 
 $initialTab = 'buffet';
-if ($primaryMenu['buffet'] === []) {
+if ($tableMenuLock && ($tableMenuLock['menu_type'] ?? '') === 'alacarte') {
+  $initialTab = ($primaryMenu['alacarte'] !== []) ? 'alacarte' : 'drink';
+} elseif ($primaryMenu['buffet'] === [] && $activeBuffetPackages === []) {
   $initialTab = ($primaryMenu['alacarte'] !== []) ? 'alacarte' : 'drink';
 }
 

@@ -67,8 +67,10 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
     }
 
     require_once __DIR__ . '/payment-gateway.php';
+    require_once __DIR__ . '/table-menu.php';
     ensureTableAssignmentsSchema($pdo);
     ensurePaymentIntentsSchema($pdo);
+    ensureTableMenuLocksSchema($pdo);
     $pdo->beginTransaction();
 
     try {
@@ -110,6 +112,7 @@ function checkoutTable(PDO $pdo, string $tableCode, array $discount, string $met
         }
 
         closeTableAssignmentInTx($pdo, $tableCode);
+        closeTableMenuLockInTx($pdo, $tableCode);
 
         $pdo->commit();
 

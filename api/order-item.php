@@ -17,10 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respondJson(405, ['error' => 'Phương thức không hợp lệ.']);
 }
 
-const ORDER_API_ACTIONS = ['add', 'cancel'];
+const ORDER_API_ACTIONS = ['add', 'add_buffet_ticket', 'cancel'];
 const ORDER_API_DENIED_MESSAGES = [
-    'add'    => 'Bạn không có quyền thêm món vào bàn.',
-    'cancel' => 'Chỉ Quản trị viên mới được hủy món.',
+    'add'               => 'Bạn không có quyền thêm món vào bàn.',
+    'add_buffet_ticket' => 'Bạn không có quyền thêm vé buffet vào bàn.',
+    'cancel'            => 'Chỉ Quản trị viên mới được hủy món.',
 ];
 
 $action = $_POST['action'] ?? '';
@@ -29,7 +30,8 @@ if (!in_array($action, ORDER_API_ACTIONS, true)) {
     respondJson(400, ['error' => 'Thao tác không hợp lệ.']);
 }
 
-if (!canRoleDoOrderAction(currentRole(), $action)) {
+$permAction = $action === 'add_buffet_ticket' ? 'add' : $action;
+if (!canRoleDoOrderAction(currentRole(), $permAction)) {
     respondJson(403, ['error' => ORDER_API_DENIED_MESSAGES[$action]]);
 }
 
@@ -47,6 +49,19 @@ try {
         );
 
         respondJson(200, ['ok' => true, 'item_id' => $itemId]);
+    }
+
+    if ($action === 'add_buffet_ticket') {
+        require_once __DIR__ . '/../includes/table-menu.php';
+        $res = addBuffetTicketToTable(
+            $pdo,
+            strtoupper(trim((string) ($_POST['table'] ?? ''))),
+            (int) ($_POST['package_id'] ?? 0),
+            (int) ($_POST['qty'] ?? 1),
+            (string) ($_POST['note'] ?? ''),
+            (int) $_SESSION['user_id']
+        );
+        respondJson(200, $res);
     }
 
     $itemId    = (int) ($_POST['item_id'] ?? 0);

@@ -73,6 +73,21 @@
                 if (rightInfo && freshRightInfo && freshRightInfo.innerHTML !== rightInfo.innerHTML) {
                     rightInfo.innerHTML = freshRightInfo.innerHTML;
                 }
+                const freshShell = doc.querySelector('[data-pos-shell]');
+                if (freshShell) {
+                    currentPosShell.dataset.lockedMenuType = freshShell.dataset.lockedMenuType || '';
+                    currentPosShell.dataset.lockedPackageId = freshShell.dataset.lockedPackageId || '0';
+                    currentPosShell.querySelectorAll('[data-pos-ticket-tile]').forEach((curTile) => {
+                        const pkgId = curTile.dataset.packageId;
+                        const freshTile = freshShell.querySelector(`[data-pos-ticket-tile][data-package-id="${pkgId}"]`);
+                        if (!freshTile) return;
+                        curTile.className = freshTile.className;
+                        curTile.disabled = freshTile.disabled;
+                        if (curTile.innerHTML !== freshTile.innerHTML) {
+                            curTile.innerHTML = freshTile.innerHTML;
+                        }
+                    });
+                }
                 currentPosShell.dispatchEvent(new CustomEvent('pos:bill-refreshed'));
                 return true;
             }
@@ -590,6 +605,121 @@
                     if (result) {
                         await refreshList();
                         showMessage(`Đã thêm ${dishLabel} (×${qty})`);
+                    }
+                });
+            });
+        });
+
+        // Quản lý đổi vé / chọn menu & thêm vé Buffet trực tiếp trên POS 3 cột
+        const changeTicketDialog = document.querySelector('[data-change-ticket-dialog]');
+        const changeTicketForm = document.querySelector('[data-change-ticket-form]');
+        const changeTicketQtyInput = document.querySelector('[data-change-ticket-qty]');
+        const changeTicketQtyWrap = document.querySelector('[data-change-ticket-qty-wrap]');
+        const changeTicketSubmitBtn = document.querySelector('[data-change-ticket-submit]');
+
+        const syncChangeTicketQtyVisibility = () => {
+            if (!changeTicketForm || !changeTicketQtyWrap) return;
+            const selected = changeTicketForm.querySelector('input[name="ticket_choice"]:checked')?.value || '';
+            changeTicketQtyWrap.hidden = !selected.startsWith('buffet:');
+        };
+
+        const openChangeTicketDialog = (presetValue) => {
+            if (!changeTicketDialog || !changeTicketForm) return;
+            if (presetValue) {
+                const targetRadio = changeTicketForm.querySelector(`input[name="ticket_choice"][value="${presetValue}"]`);
+                if (targetRadio) targetRadio.checked = true;
+            }
+            syncChangeTicketQtyVisibility();
+            changeTicketDialog.showModal();
+        };
+
+        document.querySelectorAll('[data-open-change-ticket]').forEach((btn) => {
+            btn.addEventListener('click', () => openChangeTicketDialog(null));
+        });
+
+        changeTicketForm?.addEventListener('change', syncChangeTicketQtyVisibility);
+
+        changeTicketDialog?.addEventListener('click', (event) => {
+            if (event.target === changeTicketDialog || event.target.closest('[data-change-ticket-close]')) {
+                changeTicketDialog.close();
+                return;
+            }
+            const stepBtn = event.target.closest('[data-ticket-qty-step]');
+            if (stepBtn && changeTicketQtyInput) {
+                const cur = parseInt(changeTicketQtyInput.value || '1', 10) || 1;
+                changeTicketQtyInput.value = String(Math.min(100, Math.max(1, cur + Number(stepBtn.dataset.ticketQtyStep))));
+            }
+        });
+
+        changeTicketForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const choice = changeTicketForm.querySelector('input[name="ticket_choice"]:checked')?.value || '';
+            if (!choice) return;
+            const [menuType, pkgIdRaw] = choice.split(':');
+            const packageId = parseInt(pkgIdRaw || '0', 10) || 0;
+            const ticketQty = Math.min(100, Math.max(1, parseInt(changeTicketQtyInput?.value || '1', 10) || 1));
+
+            if (changeTicketSubmitBtn) changeTicketSubmitBtn.disabled = true;
+            busy = true;
+            try {
+                const response = await fetch('api/table-menu.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: menuType === 'unlock' ? 'unlock' : 'change_ticket',
+                        table_code: tableCode,
+                        menu_type: menuType,
+                        buffet_package_id: packageId,
+                        ticket_qty: ticketQty,
+                    }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    showMessage(result.message || 'Không đổi được vé.');
+                    return;
+                }
+                changeTicketDialog.close();
+                await refreshList();
+                showMessage(result.message || 'Đã cập nhật vé bàn.');
+            } catch (err) {
+                showMessage('Không kết nối được máy chủ.');
+            } finally {
+                busy = false;
+                if (changeTicketSubmitBtn) changeTicketSubmitBtn.disabled = false;
+            }
+        });
+
+        // Chạm ô Vé Buffet ở màn hình chính -> thêm vé (hoặc mở Đổi vé nếu đang khóa gói khác)
+        posShell.querySelectorAll('[data-pos-ticket-tile]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) return;
+                const packageId = Number(btn.dataset.packageId || 0);
+                const ticketLabel = btn.dataset.ticketLabel || 'Vé Buffet';
+                const lockedType = posShell.dataset.lockedMenuType || '';
+                const lockedPkgId = Number(posShell.dataset.lockedPackageId || 0);
+
+                if (lockedType !== '' && (lockedType !== 'buffet' || lockedPkgId !== packageId)) {
+                    openChangeTicketDialog(`buffet:${packageId}`);
+                    return;
+                }
+
+                const qty = getCurrentQty();
+                const note = noteInput ? noteInput.value.trim() : '';
+                qtyDigits = '';
+                renderQty();
+
+                tapChain = tapChain.then(async () => {
+                    busy = true;
+                    const result = await callApi('add_buffet_ticket', {
+                        table: tableCode,
+                        package_id: packageId,
+                        qty,
+                        note,
+                    });
+                    busy = false;
+                    if (result) {
+                        await refreshList();
+                        showMessage(`Đã thêm ${ticketLabel} (×${qty})`);
                     }
                 });
             });

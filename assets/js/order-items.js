@@ -128,6 +128,7 @@
                 '[data-pos-committed-banner]',
                 '[data-pos-guest-pill]',
                 '[data-pos-more-menu]',
+                '[data-pos-menu-lock-bar]',
             ];
 
             selectorsToSync.forEach((sel) => {
@@ -141,10 +142,32 @@
                         else curEl.removeAttribute('hidden');
                     }
                 }
+                if (sel === '[data-pos-menu-lock-bar]') {
+                    curEl.className = freshEl.className;
+                }
                 if (curEl.innerHTML !== freshEl.innerHTML) {
                     curEl.innerHTML = freshEl.innerHTML;
                 }
             });
+
+            const freshShell = doc.querySelector('[data-pos-shell]');
+            if (freshShell) {
+                posShell.dataset.lockedMenuType = freshShell.dataset.lockedMenuType || '';
+                posShell.dataset.lockedPackageId = freshShell.dataset.lockedPackageId || '0';
+                const curBuffetCards = posShell.querySelectorAll('[data-pos-tab-panel="buffet"] [data-pos-menu-dish]');
+                curBuffetCards.forEach((curBtn) => {
+                    const id = curBtn.dataset.dishId;
+                    const freshBtn = freshShell.querySelector(`[data-pos-tab-panel="buffet"] [data-pos-menu-dish][data-dish-id="${id}"]`);
+                    if (!freshBtn) return;
+                    curBtn.disabled = freshBtn.disabled;
+                    curBtn.classList.toggle('is-disabled', freshBtn.classList.contains('is-disabled'));
+                    const curMeta = curBtn.querySelector('.pos-dish-card-meta');
+                    const freshMeta = freshBtn.querySelector('.pos-dish-card-meta');
+                    if (curMeta && freshMeta && curMeta.textContent !== freshMeta.textContent) {
+                        curMeta.textContent = freshMeta.textContent;
+                    }
+                });
+            }
 
             const curRamon = document.querySelector('[data-pos-ramon-body]');
             const freshRamon = doc.querySelector('[data-pos-ramon-body]');
@@ -380,16 +403,19 @@
             return;
         }
 
-        // 7. Chạm vào ô món ở Cột Phải -> Thêm vào giỏ nháp cột Trái
+        // 7. Chạm vào ô món (hoặc Vé Buffet) ở Cột Phải -> Thêm vào giỏ nháp cột Trái
         const dishCard = event.target.closest('[data-pos-menu-dish]');
         if (dishCard) {
             if (dishCard.disabled) return;
-            const dishId = Number(dishCard.dataset.dishId);
+            const rawDishId = String(dishCard.dataset.dishId || '');
+            const packageId = Number(dishCard.dataset.packageId || 0);
+            const isTicket = dishCard.dataset.isTicket === '1' && packageId > 0;
+            const dishId = isTicket ? rawDishId : Number(rawDishId);
             const dishName = dishCard.dataset.dishName || 'Món';
             const dishPrice = Number(dishCard.dataset.dishPrice || 0);
             const menuType = dishCard.dataset.dishMenuType || 'alacarte';
 
-            const existing = draftItems.find((it) => it.id === dishId && (it.note || '') === '');
+            const existing = draftItems.find((it) => String(it.id) === String(dishId) && (it.note || '') === '');
             if (existing) {
                 if (existing.qty >= maxQty) {
                     showMessage(`Mỗi dòng tối đa ${maxQty} phần.`);
@@ -399,6 +425,7 @@
             } else {
                 draftItems.push({
                     id: dishId,
+                    packageId,
                     name: dishName,
                     price: dishPrice,
                     menuType,
@@ -483,12 +510,20 @@
             const remaining = [];
 
             for (const item of draftItems) {
-                const res = await callApi('add', {
-                    table: tableCode,
-                    dish_id: item.id,
-                    qty: item.qty,
-                    note: item.note || '',
-                });
+                const isTicket = Number(item.packageId || 0) > 0 && item.menuType === 'ticket';
+                const res = isTicket
+                    ? await callApi('add_buffet_ticket', {
+                        table: tableCode,
+                        package_id: item.packageId,
+                        qty: item.qty,
+                        note: item.note || '',
+                    })
+                    : await callApi('add', {
+                        table: tableCode,
+                        dish_id: item.id,
+                        qty: item.qty,
+                        note: item.note || '',
+                    });
                 if (res && res.ok) {
                     sentCount += item.qty;
                 } else {

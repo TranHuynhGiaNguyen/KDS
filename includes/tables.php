@@ -981,6 +981,8 @@ function releaseEmptyTableAssignment(PDO $pdo, string $tableCode): array {
     }
 
     closeTableAssignmentInTx($pdo, $code);
+    require_once __DIR__ . '/table-menu.php';
+    closeTableMenuLockInTx($pdo, $code);
     return [
         'success'    => true,
         'message'    => 'Đã trả bàn ' . $code . ' về trạng thái trống!',
@@ -993,6 +995,8 @@ function releaseEmptyTableAssignment(PDO $pdo, string $tableCode): array {
  */
 function transferTable(PDO $pdo, string $fromCode, string $toCode, string $note = ''): array {
     ensureTableAssignmentsSchema($pdo);
+    require_once __DIR__ . '/table-menu.php';
+    ensureTableMenuLocksSchema($pdo);
 
     $fromCode = strtoupper(trim($fromCode));
     $toCode   = strtoupper(trim($toCode));
@@ -1111,6 +1115,9 @@ function transferTable(PDO $pdo, string $fromCode, string $toCode, string $note 
             error_log('transferTable qr_sessions sync: ' . $qrEx->getMessage());
         }
 
+        require_once __DIR__ . '/table-menu.php';
+        transferTableMenuLockInTx($pdo, $fromCode, $toCode);
+
         if ($ownTx) {
             $pdo->commit();
         }
@@ -1136,6 +1143,8 @@ function transferTable(PDO $pdo, string $fromCode, string $toCode, string $note 
  */
 function mergeTables(PDO $pdo, string $fromCode, string $toCode, string $note = ''): array {
     ensureTableAssignmentsSchema($pdo);
+    require_once __DIR__ . '/table-menu.php';
+    ensureTableMenuLocksSchema($pdo);
 
     $fromCode = strtoupper(trim($fromCode));
     $toCode   = strtoupper(trim($toCode));
@@ -1290,6 +1299,14 @@ function mergeTables(PDO $pdo, string $fromCode, string $toCode, string $note = 
             }
         } catch (Throwable $qrEx) {
             error_log('mergeTables qr_sessions sync: ' . $qrEx->getMessage());
+        }
+
+        require_once __DIR__ . '/table-menu.php';
+        $toHasLock = getActiveTableMenuLock($pdo, $toCode) !== null;
+        if ($toHasLock) {
+            closeTableMenuLockInTx($pdo, $fromCode);
+        } else {
+            transferTableMenuLockInTx($pdo, $fromCode, $toCode);
         }
 
         if ($ownTx) {

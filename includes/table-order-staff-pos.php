@@ -7,7 +7,10 @@
      data-table="<?= htmlspecialchars($currentTable) ?>"
      data-max-qty="<?= ORDER_ADD_MAX_QTY ?>"
      data-can-cancel="<?= $canCancel ? '1' : '0' ?>"
-     data-can-add="<?= $canAdd ? '1' : '0' ?>">
+     data-can-add="<?= $canAdd ? '1' : '0' ?>"
+     data-is-manager="<?= $isManagerOrAdmin ? '1' : '0' ?>"
+     data-locked-menu-type="<?= htmlspecialchars((string) ($tableMenuLock['menu_type'] ?? '')) ?>"
+     data-locked-package-id="<?= (int) ($tableMenuLock['buffet_package_id'] ?? 0) ?>">
 
   <!-- ======================================================================
        MÀN HÌNH 1: GIAO DIỆN CHỌN MÓN & GỬI ORDER (THEO ẢNH MẪU BÀN XXX)
@@ -67,6 +70,19 @@
           <button type="button" data-dismiss-call="<?= htmlspecialchars($currentTable) ?>">Đã tiếp nhận</button>
         </div>
       <?php endif; ?>
+
+      <div class="pos-menu-lock-bar<?= $tableMenuLock ? ' is-locked' : '' ?>" data-pos-menu-lock-bar>
+        <div>
+          <?php if ($tableMenuLock): ?>
+            <b>🔒 Đã khóa: <?= escapeHtml(formatTableMenuLockLabel($tableMenuLock)) ?></b>
+            <small>Chỉ Quản lý ca / Admin được quyền đổi vé</small>
+          <?php else: ?>
+            <b>🔓 Bàn chưa khóa menu</b>
+            <small>Thêm Vé Buffet bên phải hoặc khách quét QR để khóa</small>
+          <?php endif; ?>
+        </div>
+        <span class="pos-lock-role-tag" title="Chỉ Quản lý ca hoặc Admin mới có quyền đổi vé">Khóa vé</span>
+      </div>
 
       <!-- THANH HÀNH ĐỘNG: KIỂM ĐỒ | RA MÓN | IN QRCODE | GỬI ORDER -->
       <div class="pos-action-strip">
@@ -156,7 +172,44 @@
         <?php foreach (['buffet', 'alacarte', 'drink'] as $tabKey): ?>
           <?php $catGroups = array_values($primaryMenu[$tabKey]); ?>
           <div class="pos-tab-panel" data-pos-tab-panel="<?= $tabKey ?>" <?= $tabKey === $initialTab ? '' : 'hidden' ?>>
-            <?php if ($catGroups === []): ?>
+            <?php if ($tabKey === 'buffet' && $activeBuffetPackages !== []): ?>
+              <div class="pos-dish-section" data-pos-section-key="buffet-tickets" data-pos-section-name="VÉ BUFFET">
+                <h3 class="pos-dish-section-title">🎫 VÉ BUFFET (THEO NGƯỜI)</h3>
+                <div class="pos-dish-card-grid">
+                  <?php foreach ($activeBuffetPackages as $pkg): ?>
+                    <?php
+                      $pkgId         = (int) $pkg['id'];
+                      $pkgPrice      = (int) round((float) ($pkg['price_per_person'] ?? 0));
+                      $ticketLabel   = formatBuffetTicketName((string) $pkg['name']);
+                      $lockedByOther = $tableMenuLock !== null
+                          && (($tableMenuLock['menu_type'] ?? '') !== 'buffet'
+                              || (int) ($tableMenuLock['buffet_package_id'] ?? 0) !== $pkgId);
+                      $ticketDisabled = !$canAdd || $lockedByOther;
+                    ?>
+                    <button type="button"
+                            class="pos-dish-card pos-ticket-card<?= $ticketDisabled ? ' is-disabled' : '' ?>"
+                            data-pos-menu-dish
+                            data-is-ticket="1"
+                            data-package-id="<?= $pkgId ?>"
+                            data-dish-id="ticket-<?= $pkgId ?>"
+                            data-dish-name="<?= escapeHtml($ticketLabel) ?>"
+                            data-dish-price="<?= $pkgPrice ?>"
+                            data-dish-menu-type="ticket"
+                            data-cat-key="buffet-tickets"
+                            data-search-text="<?= escapeHtml(mb_strtolower($ticketLabel . ' vé buffet', 'UTF-8')) ?>"
+                            <?= $ticketDisabled ? 'disabled title="Bàn đang khóa menu khác — Chỉ Quản lý ca / Admin được đổi vé"' : '' ?>>
+                      <span class="pos-dish-card-name">🎫 <?= escapeHtml($ticketLabel) ?></span>
+                      <span class="pos-dish-card-meta">
+                        <?= $lockedByOther ? 'Đã khóa gói khác' : ($pkgPrice > 0 ? (formatMoney($pkgPrice) . ' / vé') : 'Miễn phí vé') ?>
+                      </span>
+                      <span class="pos-dish-card-badge" data-dish-badge-id="ticket-<?= $pkgId ?>" hidden>0</span>
+                    </button>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($catGroups === [] && ($tabKey !== 'buffet' || $activeBuffetPackages === [])): ?>
               <div class="pos-menu-empty-note">
                 Chưa có món ăn nào trong mục <b><?= $tabKey === 'buffet' ? 'Buffet' : ($tabKey === 'drink' ? 'Đồ uống' : 'Alacarte') ?></b>.
                 Admin có thể thêm món trong mục Quản lý thực đơn.
@@ -167,20 +220,36 @@
                   <h3 class="pos-dish-section-title"><?= escapeHtml($cat['name']) ?></h3>
                   <div class="pos-dish-card-grid">
                     <?php foreach ($cat['dishes'] as $dish): ?>
-                      <?php $isOut = ($dish['status'] ?? '') !== 'active'; ?>
+                      <?php
+                        $isOut = ($dish['status'] ?? '') !== 'active';
+                        $dishPkgId = !empty($dish['buffet_package_id']) ? (int) $dish['buffet_package_id'] : 0;
+                        $dishBlockedByLock = false;
+                        if ($tabKey === 'buffet' && $tableMenuLock !== null) {
+                          if (($tableMenuLock['menu_type'] ?? '') === 'alacarte') {
+                            $dishBlockedByLock = true;
+                          } elseif (($tableMenuLock['menu_type'] ?? '') === 'buffet'
+                              && $dishPkgId > 0
+                              && (int) ($tableMenuLock['buffet_package_id'] ?? 0) > 0
+                              && $dishPkgId !== (int) $tableMenuLock['buffet_package_id']) {
+                            $dishBlockedByLock = true;
+                          }
+                        }
+                        $cardDisabled = !$canAdd || $isOut || $dishBlockedByLock;
+                      ?>
                       <button type="button"
-                              class="pos-dish-card<?= (!$canAdd || $isOut) ? ' is-disabled' : '' ?>"
+                              class="pos-dish-card<?= $cardDisabled ? ' is-disabled' : '' ?>"
                               data-pos-menu-dish
                               data-dish-id="<?= (int) $dish['id'] ?>"
                               data-dish-name="<?= escapeHtml($dish['name']) ?>"
                               data-dish-price="<?= (int) $dish['price'] ?>"
                               data-dish-menu-type="<?= htmlspecialchars((string) ($dish['dish_menu_type'] ?? 'alacarte')) ?>"
+                              data-dish-package-id="<?= $dishPkgId ?>"
                               data-cat-key="<?= htmlspecialchars($cat['key']) ?>"
                               data-search-text="<?= escapeHtml(mb_strtolower($dish['name'] . ' ' . $cat['name'], 'UTF-8')) ?>"
-                              <?= (!$canAdd || $isOut) ? 'disabled' : '' ?>>
+                              <?= $cardDisabled ? 'disabled' : '' ?>>
                         <span class="pos-dish-card-name"><?= escapeHtml($dish['name']) ?></span>
                         <span class="pos-dish-card-meta">
-                          <?= $isOut ? 'Tạm hết' : ((int) $dish['price'] > 0 ? formatMoney((int) $dish['price']) : 'Buffet') ?>
+                          <?= $isOut ? 'Tạm hết' : ($dishBlockedByLock ? 'Khác gói đang khóa' : ((int) $dish['price'] > 0 ? formatMoney((int) $dish['price']) : 'Buffet')) ?>
                         </span>
                         <span class="pos-dish-card-badge" data-dish-badge-id="<?= (int) $dish['id'] ?>" hidden>0</span>
                       </button>

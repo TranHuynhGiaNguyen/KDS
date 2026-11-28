@@ -6,7 +6,10 @@
      data-pos-shell
      data-table="<?= htmlspecialchars($currentTable) ?>"
      data-max-qty="<?= ORDER_ADD_MAX_QTY ?>"
-     data-can-cancel="<?= $canCancel ? '1' : '0' ?>">
+     data-can-cancel="<?= $canCancel ? '1' : '0' ?>"
+     data-is-manager="<?= $isManagerOrAdmin ? '1' : '0' ?>"
+     data-locked-menu-type="<?= htmlspecialchars((string) ($tableMenuLock['menu_type'] ?? '')) ?>"
+     data-locked-package-id="<?= (int) ($tableMenuLock['buffet_package_id'] ?? 0) ?>">
   <div class="pos-grid-3">
 
     <!-- ==========================================================
@@ -145,9 +148,38 @@
       <div class="pos-tile-stage">
         <!-- CẤP 1: Ô DANH MỤC (GIỐNG ẢNH 3) -->
         <div data-pos-screen="categories">
-          <?php if (empty($categoriesMeta)): ?>
+          <?php if ($activeBuffetPackages !== []): ?>
+            <div class="pos-menu-section-tag">🎫 VÉ BUFFET (THÊM VÉ VÀO MÀN HÌNH)</div>
+            <div class="pos-tile-grid" style="margin-bottom: 12px;">
+              <?php foreach ($activeBuffetPackages as $pkg): ?>
+                <?php
+                  $pkgId       = (int) $pkg['id'];
+                  $pkgPrice    = (int) round((float) ($pkg['price_per_person'] ?? 0));
+                  $ticketLabel = formatBuffetTicketName((string) $pkg['name']);
+                  $isCurrentPkg = $tableMenuLock !== null
+                      && ($tableMenuLock['menu_type'] ?? '') === 'buffet'
+                      && (int) ($tableMenuLock['buffet_package_id'] ?? 0) === $pkgId;
+                  $isDifferentLock = $tableMenuLock !== null && !$isCurrentPkg;
+                ?>
+                <button type="button"
+                        class="pos-tile pos-ticket-tile<?= $isCurrentPkg ? ' is-current-ticket' : '' ?><?= (!$canAdd) ? ' is-disabled' : '' ?>"
+                        data-pos-ticket-tile
+                        data-package-id="<?= $pkgId ?>"
+                        data-ticket-label="<?= escapeHtml($ticketLabel) ?>"
+                        data-ticket-price="<?= $pkgPrice ?>"
+                        <?= !$canAdd ? 'disabled' : '' ?>>
+                  <span>🎫 <?= escapeHtml($ticketLabel) ?></span>
+                  <span class="pos-tile-sub">
+                    <?= $isDifferentLock ? 'Đổi sang vé này' : ($pkgPrice > 0 ? (formatMoney($pkgPrice) . '/vé') : 'Miễn phí vé') ?>
+                  </span>
+                </button>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+
+          <?php if (empty($categoriesMeta) && $activeBuffetPackages === []): ?>
             <p style="text-align:center;color:#475569;padding:30px;">Chưa có món ăn khả dụng trong thực đơn.</p>
-          <?php else: ?>
+          <?php elseif (!empty($categoriesMeta)): ?>
             <?php
               $alacarteCats = array_filter($categoriesMeta, static fn(array $c): bool => ($c['menu_type'] ?? 'alacarte') !== 'buffet');
               $buffetCats   = array_filter($categoriesMeta, static fn(array $c): bool => ($c['menu_type'] ?? 'alacarte') === 'buffet');
@@ -222,6 +254,7 @@
     <aside class="pos-right-panel">
       <div class="pos-info-dark">
         <div class="pos-info-dark-row"><span>Bàn:</span><b><?= htmlspecialchars($currentTable) ?> · <?= htmlspecialchars($cur['zone']) ?></b></div>
+        <div class="pos-info-dark-row"><span>Menu / Vé:</span><b data-pos-classic-lock-label><?= $tableMenuLock ? ('🔒 ' . escapeHtml(formatTableMenuLockLabel($tableMenuLock))) : '🔓 Chưa khóa' ?></b></div>
         <div class="pos-info-dark-row"><span>Mở bàn:</span><b><?= htmlspecialchars($cur['time']) ?></b></div>
         <div class="pos-info-dark-row"><span>Đăng nhập:</span><b><?= htmlspecialchars($operatorName) ?></b></div>
         <div class="pos-info-dark-row"><span>Phụ trách:</span><b><?= htmlspecialchars($cur['staff']) ?></b></div>
@@ -259,6 +292,12 @@
       <?php endif; ?>
 
       <div class="pos-fn-grid">
+        <?php if ($isManagerOrAdmin && !$isMaintenance): ?>
+          <button type="button" class="pos-fn-btn is-accent" data-open-change-ticket>
+            <span>🎫 Đổi vé / Menu</span>
+          </button>
+        <?php endif; ?>
+
         <?php if ($canAdd && $dishesByCategory !== []): ?>
           <button type="button" class="pos-fn-btn" data-open-add-item>
             <span>+ Tìm &amp; Thêm món</span>
@@ -432,5 +471,72 @@
     </div>
   </form>
 </dialog>
+
+<?php if ($isManagerOrAdmin): ?>
+  <!-- HỘP THOẠI ĐỔI VÉ BUFFET / ĐỔI LOẠI MENU BÀN (CHỈ ADMIN / QUẢN LÝ CA) -->
+  <dialog class="add-item-dialog" data-change-ticket-dialog>
+    <form class="add-item-form" data-change-ticket-form data-table="<?= htmlspecialchars($currentTable) ?>" novalidate>
+      <div class="add-item-head">
+        <div>
+          <h3 style="margin:0;">Đổi vé / Thay đổi Menu — Bàn <?= htmlspecialchars($currentTable) ?></h3>
+          <small style="color:#64748b;">Chỉ Quản lý ca hoặc Quản trị viên mới có quyền đổi vé đã khóa</small>
+        </div>
+        <button class="add-item-close" type="button" data-change-ticket-close aria-label="Đóng">✕</button>
+      </div>
+
+      <div class="add-item-body">
+        <div class="pos-change-ticket-list">
+          <?php foreach ($activeBuffetPackages as $pkg): ?>
+            <?php
+              $pkgId    = (int) $pkg['id'];
+              $pkgPrice = (int) round((float) ($pkg['price_per_person'] ?? 0));
+              $checked  = $tableMenuLock !== null && ($tableMenuLock['menu_type'] ?? '') === 'buffet' && (int) ($tableMenuLock['buffet_package_id'] ?? 0) === $pkgId;
+            ?>
+            <label class="pos-change-ticket-option">
+              <input type="radio" name="ticket_choice" value="buffet:<?= $pkgId ?>" <?= $checked ? 'checked' : '' ?>>
+              <div>
+                <b>🎫 <?= escapeHtml(formatBuffetTicketName((string) $pkg['name'])) ?></b>
+                <small><?= $pkgPrice > 0 ? (formatMoney($pkgPrice) . ' / người') : 'Buffet' ?> · Tự thay vé mới trên hóa đơn</small>
+              </div>
+            </label>
+          <?php endforeach; ?>
+
+          <label class="pos-change-ticket-option">
+            <input type="radio" name="ticket_choice" value="alacarte:0" <?= ($tableMenuLock !== null && ($tableMenuLock['menu_type'] ?? '') === 'alacarte') ? 'checked' : '' ?>>
+            <div>
+              <b>📋 MENU GỌI MÓN (Alacarte)</b>
+              <small>Hủy vé buffet cũ, chỉ tính tiền theo món lẻ</small>
+            </div>
+          </label>
+
+          <label class="pos-change-ticket-option">
+            <input type="radio" name="ticket_choice" value="unlock:0" <?= $tableMenuLock === null ? 'checked' : '' ?>>
+            <div>
+              <b>🔓 Mở khóa menu bàn</b>
+              <small>Hủy vé buffet cũ và cho phép khách quét QR chọn lại menu</small>
+            </div>
+          </label>
+        </div>
+
+        <div data-change-ticket-qty-wrap>
+          <span class="add-item-label">Số lượng vé Buffet mới</span>
+          <div class="qty-stepper" style="margin-top:8px;">
+            <button type="button" data-ticket-qty-step="-1" aria-label="Giảm">−</button>
+            <input type="number" name="ticket_qty" min="1" max="100" value="<?= max(1, $activeBuffetTicketQty ?: ($cur['guests'] ?: 1)) ?>" data-change-ticket-qty aria-label="Số lượng vé">
+            <button type="button" data-ticket-qty-step="1" aria-label="Tăng">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="add-item-foot">
+        <span class="add-item-summary" style="color:#b45309;font-size:12px;">Vé buffet cũ (nếu có) sẽ tự động hủy</span>
+        <div class="add-item-actions">
+          <button class="btn btn-outline" type="button" data-change-ticket-close>Hủy</button>
+          <button class="btn btn-primary" type="submit" data-change-ticket-submit>Xác nhận đổi vé</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+<?php endif; ?>
 
 <?php include __DIR__ . '/table-modals.php'; ?>

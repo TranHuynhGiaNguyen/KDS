@@ -9,11 +9,13 @@
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/tables.php';
 require_once __DIR__ . '/includes/qr-tables.php';
+require_once __DIR__ . '/includes/table-menu.php';
 
 $pdo = getDbConnection();
 if ($pdo instanceof PDO) {
     ensureMenuConfigSchema($pdo);
     ensureQrTableCodesSchema($pdo);
+    ensureTableMenuLocksSchema($pdo);
 }
 
 $requestedQrToken   = trim((string) ($_GET['qr'] ?? ''));
@@ -140,6 +142,11 @@ foreach ($buffetPackages as $pkg) {
 $alacarteGroups  = groupDishesByCategory($alacarteDishes);
 $buffetGroupsAll = groupDishesByCategory($buffetDishes);
 $alacarteCover   = 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80';
+$initialMenuLock = ($qrError === '' && $pdo instanceof PDO)
+    ? serializeTableMenuLock(getActiveTableMenuLock($pdo, $tableCode))
+    : null;
+$initialAssign   = ($qrError === '' && $pdo instanceof PDO) ? getActiveTableAssignment($tableCode, $pdo) : null;
+$initialGuests   = (int) ($initialAssign['guest_count'] ?? 0);
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -243,6 +250,8 @@ $alacarteCover   = 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?au
 
   <!-- MÀN HÌNH 2: THỰC ĐƠN GỌI MÓN (Món buffet | Món tính tiền) -->
   <section id="screen-menu-order" style="display: none;">
+    <div class="qr-lock-banner" id="qr-lock-banner" style="display:none;"></div>
+
     <div class="qr-primary-tabs">
       <button type="button" class="qr-tab-btn active" data-menu-tab="buffet">Món buffet</button>
       <button type="button" class="qr-tab-btn" data-menu-tab="alacarte">Món tính tiền</button>
@@ -351,6 +360,42 @@ $alacarteCover   = 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?au
   </div>
 </div>
 
+<!-- MODAL XÁC NHẬN CHỌN & KHÓA MENU BÀN -->
+<div class="qr-modal-overlay" id="qr-lock-confirm-modal">
+  <div class="qr-modal-sheet" style="height:auto;max-height:85vh;">
+    <div class="qr-modal-head">
+      <button type="button" class="qr-modal-close" id="btn-close-lock-confirm">&times;</button>
+      <h3 class="qr-modal-title">Xác nhận chọn Menu Bàn <?= htmlspecialchars($tableCode) ?></h3>
+    </div>
+    <div class="qr-modal-body" style="padding:16px;">
+      <div style="margin-bottom:12px;">
+        <div id="qr-lock-confirm-name" style="font-size:17px;font-weight:800;color:#111827;"></div>
+        <div id="qr-lock-confirm-price" style="font-size:14px;font-weight:700;color:#d92d20;margin-top:4px;"></div>
+      </div>
+
+      <div class="qr-lock-ticket-row" id="qr-lock-ticket-row">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#111827;">Số lượng vé Buffet (người)</div>
+          <small style="font-size:12px;color:#6b7280;" id="qr-lock-ticket-subtotal"></small>
+        </div>
+        <div class="qr-qty-control">
+          <button type="button" id="qr-lock-qty-dec">-</button>
+          <b id="qr-lock-qty-val" style="min-width:26px;text-align:center;font-size:15px;">1</b>
+          <button type="button" id="qr-lock-qty-inc">+</button>
+        </div>
+      </div>
+
+      <div class="qr-lock-warn-note">
+        🔒 <b>Lưu ý:</b> Sau khi bấm xác nhận, menu bàn <b><?= htmlspecialchars($tableCode) ?></b> sẽ được <b>khóa cố định cho đến khi thanh toán xong</b>. Nếu cần đổi vé/đổi gói khác, vui lòng liên hệ Quản lý ca hoặc Quản trị viên.
+      </div>
+
+      <button type="button" class="qr-btn-solid" id="btn-confirm-lock-menu" style="width:100%;background:#d92d20;">
+        Xác nhận &amp; Khóa menu
+      </button>
+    </div>
+  </div>
+</div>
+
 <?php if ($qrError === '') include __DIR__ . '/includes/customer-ai-widget.php'; ?>
 
 <div class="qr-toast" id="qr-toast"></div>
@@ -363,6 +408,8 @@ const QR_DATA = {
   tableCode: <?= json_encode($tableCode, JSON_UNESCAPED_UNICODE) ?>,
   qrToken: <?= json_encode($qrToken, JSON_UNESCAPED_UNICODE) ?>,
   maxQty: <?= defined('ORDER_ADD_MAX_QTY') ? (int) ORDER_ADD_MAX_QTY : 20 ?>,
+  initialGuests: <?= (int) $initialGuests ?>,
+  initialMenuLock: <?= json_encode($initialMenuLock, JSON_UNESCAPED_UNICODE) ?>,
   packages: <?= json_encode(array_values($packagesPayload), JSON_UNESCAPED_UNICODE) ?>,
   buffetAllGroups: <?= json_encode($buffetGroupsAll, JSON_UNESCAPED_UNICODE) ?>,
   alacarteGroups: <?= json_encode($alacarteGroups, JSON_UNESCAPED_UNICODE) ?>
@@ -397,6 +444,14 @@ const QR_DATA = {
   const menuSectionsEl = document.getElementById('qr-menu-sections');
   const searchDrawer = document.getElementById('qr-search-drawer');
   const searchInput = document.getElementById('qr-dish-search');
+  const lockBannerEl = document.getElementById('qr-lock-banner');
+  const lockConfirmModal = document.getElementById('qr-lock-confirm-modal');
+  const lockConfirmNameEl = document.getElementById('qr-lock-confirm-name');
+  const lockConfirmPriceEl = document.getElementById('qr-lock-confirm-price');
+  const lockTicketRowEl = document.getElementById('qr-lock-ticket-row');
+  const lockTicketSubtotalEl = document.getElementById('qr-lock-ticket-subtotal');
+  const lockQtyValEl = document.getElementById('qr-lock-qty-val');
+  const btnConfirmLockMenu = document.getElementById('btn-confirm-lock-menu');
   const cartContentEl = document.getElementById('qr-cart-content');
   const cartBadgeEl = document.getElementById('qr-cart-badge');
   const stickyCartBar = document.getElementById('qr-sticky-cartbar');
@@ -409,6 +464,10 @@ const QR_DATA = {
   let activeMenuTab = 'buffet';
   let activeCartTab = 'draft';
   let selectedPack = { type: 'buffet', id: QR_DATA.packages[0]?.id || 0 };
+  let menuLock = QR_DATA.initialMenuLock || null;
+  let pendingLockChoice = null;
+  let lockTicketQty = Math.max(1, Number(QR_DATA.initialGuests || 1));
+  let lockingMenu = false;
   let activeCatFilter = 'all';
   let searchQuery = '';
   let previewTarget = null;
@@ -589,6 +648,20 @@ const QR_DATA = {
       return;
     }
 
+    if (menuLock) {
+      const dishMenuType = (dish.menu_type === 'buffet') ? 'buffet' : 'alacarte';
+      if (menuLock.menu_type === 'alacarte' && dishMenuType === 'buffet') {
+        showToast('Bàn đang khóa Menu gọi món lẻ, không thể thêm món Buffet 0đ.');
+        return;
+      }
+      const dishPkgId = Number(dish.buffet_package_id || 0);
+      const lockedPkgId = Number(menuLock.buffet_package_id || 0);
+      if (menuLock.menu_type === 'buffet' && dishMenuType === 'buffet' && dishPkgId > 0 && lockedPkgId > 0 && dishPkgId !== lockedPkgId) {
+        showToast('Món "' + dish.name + '" không thuộc gói Buffet đang khóa cho bàn.');
+        return;
+      }
+    }
+
     const cleanNote = String(noteText || '').trim().slice(0, 200);
     const existing = draftCart.find(i => Number(i.id) === Number(dish.id) && (i.note || '') === cleanNote);
     if (existing) {
@@ -634,10 +707,69 @@ const QR_DATA = {
     }).join('') + '</div>';
   }
 
+  function renderLockBanner() {
+    if (!lockBannerEl) return;
+    if (!menuLock) {
+      lockBannerEl.style.display = 'none';
+      lockBannerEl.innerHTML = '';
+      return;
+    }
+    const label = menuLock.label || (menuLock.menu_type === 'alacarte' ? 'MENU GỌI MÓN' : (menuLock.package_name || 'Buffet'));
+    lockBannerEl.style.display = 'flex';
+    lockBannerEl.innerHTML = `
+      <div>
+        <span>🔒 Bàn ${escHtml(QR_DATA.tableCode)} đã khóa: ${escHtml(label)}</span>
+        <small>Không thể đổi menu tại bàn · Chỉ Quản lý ca hoặc Admin được quyền đổi vé.</small>
+      </div>
+    `;
+  }
+
+  function applyLockedMenuState(lock, enterMenuScreen) {
+    menuLock = lock || null;
+    if (!menuLock) {
+      renderLockBanner();
+      return;
+    }
+
+    selectedPack = {
+      type: menuLock.menu_type === 'alacarte' ? 'alacarte' : 'buffet',
+      id: Number(menuLock.buffet_package_id || 0)
+    };
+    if (menuLock.menu_type === 'alacarte') {
+      activeMenuTab = 'alacarte';
+      const beforeLen = draftCart.length;
+      draftCart = draftCart.filter(i => i.menu_type !== 'buffet');
+      if (draftCart.length !== beforeLen) {
+        persistCart();
+        updateCartBadge();
+      }
+    } else if (activeMenuTab !== 'alacarte') {
+      activeMenuTab = 'buffet';
+    }
+
+    screenMenu.dataset.entered = '1';
+    if (enterMenuScreen && activeScreen === 'pack') {
+      activeCatFilter = 'all';
+      switchMainScreen('menu');
+      renderMenuOrderScreen();
+    } else {
+      renderLockBanner();
+    }
+  }
+
   function renderMenuOrderScreen() {
+    const isLockedAlacarte = Boolean(menuLock && menuLock.menu_type === 'alacarte');
+    if (isLockedAlacarte) {
+      activeMenuTab = 'alacarte';
+    }
+
     document.querySelectorAll('#screen-menu-order .qr-tab-btn').forEach(btn => {
+      if (btn.dataset.menuTab === 'buffet') {
+        btn.style.display = isLockedAlacarte ? 'none' : '';
+      }
       btn.classList.toggle('active', btn.dataset.menuTab === activeMenuTab);
     });
+    renderLockBanner();
 
     const groups = getCurrentTabGroups();
     const pills = ['<button type="button" class="qr-cat-pill ' + (activeCatFilter === 'all' ? 'active' : '') + '" data-cat-id="all">TẤT CẢ</button>'];
@@ -713,6 +845,93 @@ const QR_DATA = {
     dishModal.classList.add('open');
   }
 
+  function updateLockConfirmPreview() {
+    if (!pendingLockChoice || !lockConfirmModal) return;
+    const isBuffet = pendingLockChoice.type === 'buffet';
+    const pkg = getPackObject(pendingLockChoice.type, pendingLockChoice.id);
+    if (lockConfirmNameEl) lockConfirmNameEl.textContent = pkg.name;
+    if (lockConfirmPriceEl) lockConfirmPriceEl.textContent = pkg.price_label;
+    if (lockTicketRowEl) lockTicketRowEl.style.display = isBuffet ? 'flex' : 'none';
+    if (lockQtyValEl) lockQtyValEl.textContent = String(lockTicketQty);
+    if (lockTicketSubtotalEl && isBuffet) {
+      const unitPrice = Number(pkg.price_per_person || 0);
+      lockTicketSubtotalEl.textContent = unitPrice > 0
+        ? `Tạm tính vé: ${formatMoney(unitPrice * lockTicketQty)}`
+        : 'Miễn phí vé';
+    }
+  }
+
+  function openLockConfirmModal(type, id) {
+    if (menuLock) {
+      applyLockedMenuState(menuLock, true);
+      showToast('Bàn đã khóa menu. Chỉ Quản lý ca hoặc Admin được quyền đổi vé.');
+      return;
+    }
+    pendingLockChoice = { type, id: Number(id || 0) };
+    const defaultGuests = Number(serverState.guests || QR_DATA.initialGuests || 1);
+    lockTicketQty = Math.min(QR_DATA.maxQty, Math.max(1, defaultGuests > 0 ? defaultGuests : 1));
+    previewModal.classList.remove('open');
+    updateLockConfirmPreview();
+    lockConfirmModal?.classList.add('open');
+  }
+
+  async function confirmAndLockMenu() {
+    if (!pendingLockChoice || lockingMenu) return;
+    lockingMenu = true;
+    if (btnConfirmLockMenu) {
+      btnConfirmLockMenu.disabled = true;
+      btnConfirmLockMenu.textContent = 'Đang khóa menu...';
+    }
+
+    try {
+      const res = await fetch(QR_DATA.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'select_menu',
+          qr: QR_DATA.qrToken,
+          table: QR_DATA.tableCode,
+          menu_type: pendingLockChoice.type,
+          buffet_package_id: pendingLockChoice.id,
+          ticket_qty: pendingLockChoice.type === 'buffet' ? lockTicketQty : 0
+        })
+      });
+      const data = await res.json();
+
+      if (data && data.menu_lock) {
+        lockConfirmModal?.classList.remove('open');
+        serverState = {
+          order_id: Number(data.order_id || 0),
+          qr_payload: data.qr_payload || '',
+          transfer_content: data.transfer_content || '',
+          bank: data.bank || null,
+          auto_confirm_configured: Boolean(data.auto_confirm_configured),
+          ordered_items: data.ordered_items || [],
+          dish_statuses: data.dish_statuses || {},
+          guests: Number(data.guests || 0),
+          bill: data.bill || { subtotal: 0, discount_amount: 0, service_fee: 0, vat: 0, total: 0 }
+        };
+        if (serverState.order_id > 0) {
+          lastKnownOrderId = serverState.order_id;
+          paidReceiptInfo = null;
+        }
+        applyLockedMenuState(data.menu_lock, true);
+        selectMenuPack(data.menu_lock.menu_type, data.menu_lock.buffet_package_id);
+        showToast(data.message || 'Đã khóa menu bàn ' + QR_DATA.tableCode);
+      } else {
+        showToast(data?.message || 'Không khóa được menu, vui lòng thử lại.');
+      }
+    } catch (e) {
+      showToast('Mất kết nối máy chủ, vui lòng thử lại.');
+    } finally {
+      lockingMenu = false;
+      if (btnConfirmLockMenu) {
+        btnConfirmLockMenu.disabled = false;
+        btnConfirmLockMenu.textContent = 'Xác nhận & Khóa menu';
+      }
+    }
+  }
+
   function selectMenuPack(type, id) {
     selectedPack = { type, id };
     activeMenuTab = (type === 'alacarte') ? 'alacarte' : 'buffet';
@@ -720,6 +939,7 @@ const QR_DATA = {
     searchQuery = '';
     searchInput.value = '';
     previewModal.classList.remove('open');
+    screenMenu.dataset.entered = '1';
     switchMainScreen('menu');
     renderMenuOrderScreen();
   }
@@ -905,6 +1125,10 @@ const QR_DATA = {
       if (!data || !data.success) return;
 
       const prevOrderId = lastKnownOrderId;
+      const prevLockKey = menuLock ? `${menuLock.menu_type}:${menuLock.buffet_package_id}` : '';
+      const nextLock = data.menu_lock || null;
+      const nextLockKey = nextLock ? `${nextLock.menu_type}:${nextLock.buffet_package_id}` : '';
+
       serverState = {
         order_id: Number(data.order_id || 0),
         qr_payload: data.qr_payload || '',
@@ -913,8 +1137,18 @@ const QR_DATA = {
         auto_confirm_configured: Boolean(data.auto_confirm_configured),
         ordered_items: data.ordered_items || [],
         dish_statuses: data.dish_statuses || {},
+        guests: Number(data.guests || 0),
         bill: data.bill || { subtotal: 0, discount_amount: 0, service_fee: 0, vat: 0, total: 0 }
       };
+
+      if (nextLockKey !== prevLockKey) {
+        applyLockedMenuState(nextLock, Boolean(nextLock));
+        if (nextLock && prevLockKey !== '' && nextLockKey !== prevLockKey) {
+          showToast('Quản lý vừa đổi vé/menu bàn sang ' + (nextLock.label || nextLock.package_name || 'mới'));
+        }
+      } else {
+        menuLock = nextLock;
+      }
 
       if (serverState.order_id > 0) {
         lastKnownOrderId = serverState.order_id;
@@ -999,6 +1233,10 @@ const QR_DATA = {
       updateCartBadge();
 
       const prevOrderId = lastKnownOrderId;
+      const prevLockKey = menuLock ? `${menuLock.menu_type}:${menuLock.buffet_package_id}` : '';
+      const nextLock = data.menu_lock || null;
+      const nextLockKey = nextLock ? `${nextLock.menu_type}:${nextLock.buffet_package_id}` : '';
+
       serverState = {
         order_id: Number(data.order_id || 0),
         qr_payload: data.qr_payload || '',
@@ -1007,8 +1245,18 @@ const QR_DATA = {
         auto_confirm_configured: Boolean(data.auto_confirm_configured),
         ordered_items: data.ordered_items || [],
         dish_statuses: data.dish_statuses || {},
+        guests: Number(data.guests || 0),
         bill: data.bill || { subtotal: 0, discount_amount: 0, service_fee: 0, vat: 0, total: 0 }
       };
+
+      if (nextLockKey !== prevLockKey) {
+        applyLockedMenuState(nextLock, Boolean(nextLock));
+        if (nextLock && prevLockKey !== '' && nextLockKey !== prevLockKey) {
+          showToast('Quản lý vừa đổi vé/menu bàn sang ' + (nextLock.label || nextLock.package_name || 'mới'));
+        }
+      } else {
+        menuLock = nextLock;
+      }
 
       if (serverState.order_id > 0) {
         lastKnownOrderId = serverState.order_id;
@@ -1072,6 +1320,10 @@ const QR_DATA = {
   });
 
   document.getElementById('btn-back-pack-select')?.addEventListener('click', () => {
+    if (menuLock) {
+      showToast('Bàn ' + QR_DATA.tableCode + ' đã khóa menu. Chỉ Quản lý ca hoặc Admin mới được quyền đổi vé.');
+      return;
+    }
     switchMainScreen('pack');
     updateCartBadge();
   });
@@ -1099,8 +1351,7 @@ const QR_DATA = {
 
   document.querySelectorAll('.btn-choose-pack').forEach(btn => {
     btn.addEventListener('click', () => {
-      screenMenu.dataset.entered = '1';
-      selectMenuPack(btn.dataset.packType, btn.dataset.packId);
+      openLockConfirmModal(btn.dataset.packType, btn.dataset.packId);
     });
   });
 
@@ -1114,10 +1365,25 @@ const QR_DATA = {
 
   btnModalChoose?.addEventListener('click', () => {
     if (previewTarget) {
-      screenMenu.dataset.entered = '1';
-      selectMenuPack(previewTarget.type, previewTarget.id);
+      openLockConfirmModal(previewTarget.type, previewTarget.id);
     }
   });
+
+  document.getElementById('btn-close-lock-confirm')?.addEventListener('click', () => {
+    lockConfirmModal?.classList.remove('open');
+  });
+  lockConfirmModal?.addEventListener('click', (e) => {
+    if (e.target === lockConfirmModal) lockConfirmModal.classList.remove('open');
+  });
+  document.getElementById('qr-lock-qty-dec')?.addEventListener('click', () => {
+    lockTicketQty = Math.max(1, lockTicketQty - 1);
+    updateLockConfirmPreview();
+  });
+  document.getElementById('qr-lock-qty-inc')?.addEventListener('click', () => {
+    lockTicketQty = Math.min(QR_DATA.maxQty, lockTicketQty + 1);
+    updateLockConfirmPreview();
+  });
+  btnConfirmLockMenu?.addEventListener('click', confirmAndLockMenu);
 
   document.getElementById('btn-close-dish-modal')?.addEventListener('click', () => {
     dishModal.classList.remove('open');
@@ -1200,13 +1466,21 @@ const QR_DATA = {
   cartContentEl?.addEventListener('click', (e) => {
     if (e.target.id === 'btn-dismiss-paid-banner') {
       paidReceiptInfo = null;
-      renderCartView();
+      menuLock = null;
+      screenMenu.dataset.entered = '';
+      switchMainScreen('pack');
+      renderLockBanner();
+      updateCartBadge();
       return;
     }
     if (e.target.id === 'btn-empty-add-more') {
-      screenMenu.dataset.entered = '1';
-      switchMainScreen('menu');
-      renderMenuOrderScreen();
+      if (menuLock || screenMenu.dataset.entered === '1') {
+        screenMenu.dataset.entered = '1';
+        switchMainScreen('menu');
+        renderMenuOrderScreen();
+      } else {
+        switchMainScreen('pack');
+      }
       return;
     }
     if (e.target.id === 'btn-submit-qr-order') {
@@ -1233,6 +1507,9 @@ const QR_DATA = {
     }
   });
 
+  if (menuLock) {
+    applyLockedMenuState(menuLock, true);
+  }
   updateCartBadge();
   refreshServerState();
   setInterval(() => {
