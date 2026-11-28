@@ -779,7 +779,7 @@ const QR_DATA = {
       }
 
       const bill = serverState.bill || { subtotal: 0, discount_amount: 0, service_fee: 0, vat: 0, total: 0 };
-      const bank = serverState.bank || { name: 'Techcombank', account_no: '1506200511', account_name: 'TRAN HUYNH GIA NGUYEN' };
+      const bank = serverState.bank || { name: 'VietinBank', account_no: '109881125028', account_name: 'TRAN HUYNH GIA NGUYEN' };
       const showPayQr = Number(bill.total || 0) > 0 && Boolean(serverState.qr_payload);
 
       cartContentEl.innerHTML = `
@@ -811,7 +811,7 @@ const QR_DATA = {
             <div class="qr-payment-card" id="qr-customer-payment-card">
               <div class="qr-payment-card-head">
                 <h3>Quét QR thanh toán tại bàn</h3>
-                <span class="qr-bank-badge">${escHtml(bank.name || 'Techcombank')}</span>
+                <span class="qr-bank-badge">${escHtml(bank.name || 'VietinBank')}</span>
               </div>
               <div class="qr-payment-qrbox" id="qr-customer-pay-svg"></div>
               <div class="qr-payment-status-pill ${serverState.auto_confirm_configured ? 'is-auto' : ''}">
@@ -820,8 +820,8 @@ const QR_DATA = {
                   : 'ℹ️ Quét mã đúng số tiền và nội dung bên dưới để hoàn tất thanh toán.'}
               </div>
               <dl class="qr-payment-dl">
-                <div><dt>Ngân hàng</dt><dd>${escHtml(bank.name || 'Techcombank')}</dd></div>
-                <div><dt>Số tài khoản</dt><dd>${escHtml(bank.account_no || '1506200511')}</dd></div>
+                <div><dt>Ngân hàng</dt><dd>${escHtml(bank.name || 'VietinBank')}</dd></div>
+                <div><dt>Số tài khoản</dt><dd>${escHtml(bank.account_no || '109881125028')}</dd></div>
                 <div><dt>Chủ tài khoản</dt><dd>${escHtml(bank.account_name || 'TRAN HUYNH GIA NGUYEN')}</dd></div>
                 <div><dt>Số tiền</dt><dd style="color:#d92d20;">${formatMoney(bill.total)}</dd></div>
                 <div><dt>Nội dung CK</dt><dd>${escHtml(serverState.transfer_content || '')}</dd></div>

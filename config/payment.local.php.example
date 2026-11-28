@@ -1,6 +1,6 @@
 <?php
 /**
- * Mẫu cấu hình Webhook xác nhận chuyển khoản Techcombank tự động
+ * Mẫu cấu hình Webhook xác nhận chuyển khoản VietinBank tự động
  * (copy thành config/payment.local.php trên server).
  */
 

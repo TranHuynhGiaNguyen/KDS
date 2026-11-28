@@ -20,9 +20,9 @@ return [
     'public_url' => getenv('APP_PUBLIC_URL') ?: '',
     'payment_qr' => 'assets/images/payment-qr.svg',
     'bank'       => [
-        'bin'          => '970407',
-        'name'         => 'Techcombank',
-        'account_no'   => '1506200511',
+        'bin'          => '970415',
+        'name'         => 'VietinBank',
+        'account_no'   => '109881125028',
         'account_name' => 'TRAN HUYNH GIA NGUYEN',
     ],
 ];

@@ -6,21 +6,21 @@ require_once __DIR__ . '/../includes/checkout.php';
 require_once __DIR__ . '/../includes/vietqr.php';
 require_once __DIR__ . '/../includes/payment-gateway.php';
 
-echo "=== KIỂM THỬ CỔNG THANH TOÁN TECHCOMBANK VIETQR, WEBHOOK & CHATBOT QR ===\n";
+echo "=== KIỂM THỬ CỔNG THANH TOÁN VIETINBANK VIETQR, WEBHOOK & CHATBOT QR ===\n";
 
-// 1. Kiểm tra thông tin Techcombank từ ảnh QR khách hàng cung cấp
+// 1. Kiểm tra thông tin VietinBank từ ảnh QR khách hàng cung cấp
 $restaurant = getRestaurantInfo();
 $bank = $restaurant['bank'] ?? [];
-assert(($bank['bin'] ?? '') === '970407', 'BIN Techcombank phải là 970407');
-assert(($bank['name'] ?? '') === 'Techcombank', 'Tên ngân hàng phải là Techcombank');
-assert(($bank['account_no'] ?? '') === '1506200511', 'Số tài khoản phải là 1506200511');
+assert(($bank['bin'] ?? '') === '970415', 'BIN VietinBank phải là 970415');
+assert(($bank['name'] ?? '') === 'VietinBank', 'Tên ngân hàng phải là VietinBank');
+assert(($bank['account_no'] ?? '') === '109881125028', 'Số tài khoản phải là 109881125028');
 assert(($bank['account_name'] ?? '') === 'TRAN HUYNH GIA NGUYEN', 'Chủ tài khoản phải là TRAN HUYNH GIA NGUYEN');
-echo "  [PASS] Cấu hình ngân hàng Techcombank khớp chính xác STK 1506200511 - TRAN HUYNH GIA NGUYEN\n";
+echo "  [PASS] Cấu hình ngân hàng VietinBank khớp chính xác STK 109881125028 - TRAN HUYNH GIA NGUYEN\n";
 
 // 2. Kiểm tra sinh VietQR EMVCo khớp số tiền + nội dung chuyển khoản + CRC16
 $qrPayload = buildInvoiceQrPayload(15, 'T01', 283500);
-assert(strpos($qrPayload, '970407') !== false, 'QR payload thiếu BIN Techcombank');
-assert(strpos($qrPayload, '1506200511') !== false, 'QR payload thiếu STK');
+assert(strpos($qrPayload, '970415') !== false, 'QR payload thiếu BIN VietinBank');
+assert(strpos($qrPayload, '109881125028') !== false, 'QR payload thiếu STK');
 assert(strpos($qrPayload, '5406283500') !== false, 'QR payload phải khóa đúng số tiền 283500');
 assert(strpos($qrPayload, 'HD000015 Ban T01') !== false, 'QR payload thiếu nội dung HD000015 Ban T01');
 assert(substr($qrPayload, -8, 4) === '6304' && strlen(substr($qrPayload, -4)) === 4, 'QR payload thiếu CRC16');
@@ -149,7 +149,7 @@ try {
     // Từ chối khi chuyển thiếu tiền
     $underEvents = normalizeWebhookTransactions([
         'id'             => $txId . '_UNDER',
-        'gateway'        => 'Techcombank',
+        'gateway'        => 'VietinBank',
         'transferType'   => 'in',
         'transferAmount' => max(1, $expectedTotal - 500),
         'content'        => 'Chuyen khoan ' . formatTransferContent($createdOrderId, $tableCode),
@@ -161,7 +161,7 @@ try {
     // Tự động hoàn tất khi nhận đúng số tiền và mã HDxxxxxx
     $validEvents = normalizeWebhookTransactions([
         'id'             => $txId,
-        'gateway'        => 'Techcombank',
+        'gateway'        => 'VietinBank',
         'transferType'   => 'in',
         'transferAmount' => $expectedTotal,
         'content'        => 'MBVCB.12345. ' . formatTransferContent($createdOrderId, $tableCode) . ' CT TU',
@@ -182,7 +182,7 @@ try {
     assert($stPaid['paid'] === true && (int) $stPaid['invoice_id'] === $createdInvoiceId && (int) $stPaid['total'] === $expectedTotal, 'getTablePaymentStatus phải trả về paid=true và đúng invoice_id');
     assert(!empty($stPaid['rating_url']), 'Phải tự sinh rating_url cho khách sau khi thanh toán webhook');
 
-    echo "  [PASS] Webhook Techcombank đối soát đúng số tiền ({$expectedTotal}đ), tự tạo hóa đơn #{$createdInvoiceId} & đồng bộ status\n";
+    echo "  [PASS] Webhook VietinBank đối soát đúng số tiền ({$expectedTotal}đ), tự tạo hóa đơn #{$createdInvoiceId} & đồng bộ status\n";
 } finally {
     if ($createdInvoiceId !== null && $createdInvoiceId > 0) {
         $pdo->prepare("DELETE FROM `service_ratings` WHERE `invoice_id` = ?")->execute([$createdInvoiceId]);
