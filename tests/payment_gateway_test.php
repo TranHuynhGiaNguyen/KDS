@@ -17,14 +17,14 @@ assert(($bank['account_no'] ?? '') === '109881125028', 'Số tài khoản phải
 assert(($bank['account_name'] ?? '') === 'TRAN HUYNH GIA NGUYEN', 'Chủ tài khoản phải là TRAN HUYNH GIA NGUYEN');
 echo "  [PASS] Cấu hình ngân hàng VietinBank khớp chính xác STK 109881125028 - TRAN HUYNH GIA NGUYEN\n";
 
-// 2. Kiểm tra sinh VietQR EMVCo khớp số tiền + nội dung chuyển khoản + CRC16
+// 2. Kiểm tra sinh VietQR EMVCo khớp số tiền + nội dung chuyển khoản (kèm tiền tố SEVQR cho VietinBank SePay) + CRC16
 $qrPayload = buildInvoiceQrPayload(15, 'T01', 283500);
 assert(strpos($qrPayload, '970415') !== false, 'QR payload thiếu BIN VietinBank');
 assert(strpos($qrPayload, '109881125028') !== false, 'QR payload thiếu STK');
 assert(strpos($qrPayload, '5406283500') !== false, 'QR payload phải khóa đúng số tiền 283500');
-assert(strpos($qrPayload, 'HD000015 Ban T01') !== false, 'QR payload thiếu nội dung HD000015 Ban T01');
+assert(strpos($qrPayload, 'SEVQR HD000015 Ban T01') !== false, 'QR payload thiếu tiền tố SEVQR + nội dung HD000015 Ban T01');
 assert(substr($qrPayload, -8, 4) === '6304' && strlen(substr($qrPayload, -4)) === 4, 'QR payload thiếu CRC16');
-echo "  [PASS] Chuỗi EMVCo VietQR khóa đúng số tiền và nội dung chuyển khoản\n";
+echo "  [PASS] Chuỗi EMVCo VietQR khóa đúng số tiền và nội dung SEVQR HD...\n";
 
 // 3. Kiểm tra xác thực header webhook (SePay Apikey, Bearer, X-Webhook-Secret, Secure-Token)
 $testCfg = ['webhook_secret' => 'test_secret_123456'];
@@ -158,13 +158,13 @@ try {
     $underRes = processPaymentWebhookEvent($pdo, $underEvents[0]);
     assert($underRes['ok'] === false && $underRes['status'] === 'insufficient_amount', 'Phải từ chối khi chuyển thiếu tiền');
 
-    // Tự động hoàn tất khi nhận đúng số tiền và mã HDxxxxxx
+    // Tự động hoàn tất khi nhận đúng số tiền và nội dung thực tế từ VietinBank SePay (kèm tiền tố SEVQR)
     $validEvents = normalizeWebhookTransactions([
         'id'             => $txId,
         'gateway'        => 'VietinBank',
         'transferType'   => 'in',
         'transferAmount' => $expectedTotal,
-        'content'        => 'MBVCB.12345. ' . formatTransferContent($createdOrderId, $tableCode) . ' CT TU',
+        'content'        => '159078870754-0777815075-' . formatTransferContent($createdOrderId, $tableCode),
     ]);
     assert(count($validEvents) === 1 && $validEvents[0]['order_id'] === $createdOrderId, 'Phải tách đúng order_id từ nội dung CK');
 

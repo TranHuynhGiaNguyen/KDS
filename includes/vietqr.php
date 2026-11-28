@@ -6,9 +6,19 @@
 
 require_once __DIR__ . '/orders.php';
 require_once __DIR__ . '/restaurant.php';
+require_once __DIR__ . '/../config/payment_gateway.php';
 
 function formatTransferContent(int $orderId, string $tableCode): string {
-    return formatInvoiceCode($orderId) . ' Ban ' . $tableCode;
+    $base    = formatInvoiceCode($orderId) . ' Ban ' . $tableCode;
+    $gateway = function_exists('getPaymentGatewayConfig') ? getPaymentGatewayConfig() : [];
+    $bank    = getRestaurantInfo()['bank'] ?? [];
+
+    // VietinBank + SePay API Banking bắt buộc nội dung chuyển khoản bắt đầu bằng SEVQR mới đẩy biến động số dư sang Webhook
+    if (($gateway['provider'] ?? 'sepay') === 'sepay' && ($bank['bin'] ?? '') === '970415') {
+        return 'SEVQR ' . $base;
+    }
+
+    return $base;
 }
 
 function emvField(string $id, string $value): string {
